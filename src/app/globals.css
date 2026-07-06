@@ -1,26 +1,257 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/* ── Design tokens ─────────────────────────────────────────────────────────── */
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+:root {
+  /* Surface */
+  --c-paper:        #F1EDE6;
+  --c-card:         #FFFFFF;
+  --c-surface-alt:  #FAF8F4;
+  /* Text */
+  --c-ink:          #1A1815;
+  --c-ink-body:     #55503F;
+  --c-muted:        #948B7C;
+  /* Lines */
+  --c-hairline:     #E4DED3;
+  /* Primary */
+  --c-vermilion:    #C4502E;
+  --c-vermilion-hv: #A83E20;
+  --c-vermilion-bg: #FCEEE9;
+  /* Elements */
+  --c-wood:         #4E8A52;
+  --c-wood-bg:      #E4EEE4;
+  --c-fire:         #C4502E;
+  --c-fire-bg:      #F7E4DC;
+  --c-earth:        #A8842C;
+  --c-earth-bg:     #F2EAD3;
+  --c-metal:        #6E7A80;
+  --c-metal-bg:     #E7EBEC;
+  --c-water:        #4A76AC;
+  --c-water-bg:     #E1EAF4;
+  /* Layout */
+  --tab-bar-height: 64px;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --c-paper:        #12100D;
+    --c-card:         #1E1C18;
+    --c-surface-alt:  #1A1815;
+    --c-ink:          #FAF8F4;
+    --c-ink-body:     #D4CFBF;
+    --c-muted:        #948B7C;
+    --c-hairline:     #2E2B24;
   }
 }
 
+/* ── Tailwind theme mapping ─────────────────────────────────────────────────── */
+
+@theme inline {
+  /* Map design tokens to Tailwind utilities */
+  --color-paper:        var(--c-paper);
+  --color-card:         var(--c-card);
+  --color-surface-alt:  var(--c-surface-alt);
+  --color-ink:          var(--c-ink);
+  --color-ink-body:     var(--c-ink-body);
+  --color-muted:        var(--c-muted);
+  --color-hairline:     var(--c-hairline);
+  --color-vermilion:    var(--c-vermilion);
+
+  --font-display: var(--font-fraunces), Georgia, serif;
+  --font-body:    var(--font-inter), system-ui, sans-serif;
+  --font-mono:    var(--font-space-mono), 'Courier New', monospace;
+}
+
+/* ── Base ───────────────────────────────────────────────────────────────────── */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--c-paper);
+  color: var(--c-ink);
+  font-family: var(--font-inter), system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── App shell ─────────────────────────────────────────────────────────────── */
+
+.app-frame {
+  max-width: 480px;
+  width: 100%;
+  margin: 0 auto;
+  min-height: 100%;
+  position: relative;
+  background: var(--c-paper);
+}
+
+/* ── Typography helpers ────────────────────────────────────────────────────── */
+
+.t-h1 {
+  font-family: var(--font-fraunces), Georgia, serif;
+  font-size: 34px;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--c-ink);
+}
+
+.t-h2 {
+  font-family: var(--font-fraunces), Georgia, serif;
+  font-size: 22px;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  color: var(--c-ink);
+}
+
+.t-body {
+  font-family: var(--font-inter), system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--c-ink-body);
+}
+
+.t-label {
+  font-family: var(--font-inter), system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 1.4;
+  letter-spacing: 0.01em;
+  font-weight: 500;
+  color: var(--c-ink);
+}
+
+.t-meta {
+  font-family: var(--font-space-mono), monospace;
+  font-size: 11px;
+  line-height: 1.4;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--c-muted);
+}
+
+/* ── Buttons ────────────────────────────────────────────────────────────────── */
+
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 48px;
+  padding: 0 28px;
+  border-radius: 24px;
+  background: var(--c-vermilion);
+  color: #FFFFFF;
+  font-family: var(--font-inter), system-ui, sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s;
+  text-decoration: none;
+}
+
+.btn-primary:hover {
+  background: var(--c-vermilion-hv);
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Form elements ──────────────────────────────────────────────────────────── */
+
+.field-input {
+  width: 100%;
+  height: 48px;
+  padding: 0 16px;
+  border-radius: 12px;
+  border: 1px solid var(--c-hairline);
+  background: var(--c-surface-alt);
+  color: var(--c-ink);
+  font-family: var(--font-inter), system-ui, sans-serif;
+  font-size: 16px;
+  outline: none;
+  transition: border-color 0.15s;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.field-input:focus {
+  border-color: var(--c-vermilion);
+}
+
+.field-textarea {
+  width: 100%;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--c-hairline);
+  background: var(--c-surface-alt);
+  color: var(--c-ink);
+  font-family: var(--font-inter), system-ui, sans-serif;
+  font-size: 16px;
+  outline: none;
+  resize: none;
+  transition: border-color 0.15s;
+}
+
+.field-textarea:focus {
+  border-color: var(--c-vermilion);
+}
+
+/* ── Chip ──────────────────────────────────────────────────────────────────── */
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 16px;
+  border: 1px solid var(--c-hairline);
+  background: transparent;
+  color: var(--c-ink-body);
+  font-family: var(--font-inter), system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+
+.chip:hover {
+  border-color: var(--c-vermilion);
+  color: var(--c-vermilion);
+}
+
+.chip.active {
+  background: var(--c-vermilion);
+  border-color: var(--c-vermilion);
+  color: #FFFFFF;
+}
+
+/* ── Card ──────────────────────────────────────────────────────────────────── */
+
+.card {
+  background: var(--c-card);
+  border-radius: 16px;
+  border: 1px solid var(--c-hairline);
+}
+
+/* ── Page padding ───────────────────────────────────────────────────────────── */
+
+.page-pad {
+  padding: 0 20px;
+}
+
+/* ── Safe area bottom ───────────────────────────────────────────────────────── */
+
+.pb-safe {
+  padding-bottom: calc(var(--tab-bar-height) + env(safe-area-inset-bottom, 0px));
 }
