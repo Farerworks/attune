@@ -4,8 +4,21 @@ import { buildBriefingPrompt, parseBriefing, containsBannedPhrases } from '@/lib
 import { createLlmProvider } from '@/lib/llm';
 import { checkRateLimit } from '@/lib/rateLimit';
 
-const RATE_LIMIT   = 10;
-const RATE_WINDOW  = 60 * 60 * 1000; // 1 hour in ms
+// Tell serverless runtimes to allow up to 60 s for this route
+export const maxDuration = 60;
+
+const RATE_LIMIT    = 10;
+const RATE_WINDOW   = 60 * 60 * 1000; // 1 hour in ms
+const LLM_TIMEOUT   = 55_000;          // 55 s — always responds before any proxy cuts us off
+
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms),
+    ),
+  ]);
+}
 
 const RequestSchema = z.object({
   me: z.object({
@@ -64,7 +77,7 @@ export async function POST(request: Request) {
   let briefing;
   try {
     const llm = createLlmProvider();
-    const raw = await llm.generateJson(prompt, 2048);
+    const raw = await withTimeout(llm.generateJson(prompt, 4096), LLM_TIMEOUT, 'LLM call');
 
     let candidate;
     try {
@@ -83,7 +96,7 @@ export async function POST(request: Request) {
         prompt +
         `\n\n⚠ PREVIOUS RESPONSE VIOLATION — The following banned phrases appeared in your last response: ${violations.map(v => `"${v}"`).join(', ')}. Regenerate the entire JSON without using these phrases. Violations will be rejected.`;
 
-      const retryRaw = await llm.generateJson(retryPrompt, 2048);
+      const retryRaw = await withTimeout(llm.generateJson(retryPrompt, 4096), LLM_TIMEOUT, 'LLM retry');
 
       let retryCandidate;
       try {

@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Allow cloudflare tunnels and other reverse-proxy origins in dev mode
+  allowedDevOrigins: ['*.trycloudflare.com'],
 };
 
 export default nextConfig;

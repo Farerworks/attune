@@ -57,10 +57,16 @@ export default function NewPage() {
         }),
       });
 
+      // Guard: non-JSON response means a proxy/timeout HTML page was received
+      const contentType = res.headers.get('content-type') ?? '';
+      if (!contentType.includes('application/json')) {
+        throw new Error('Something went wrong — try again in a moment');
+      }
+
       const data: ApiResponse = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.error ?? 'Something went wrong');
+        throw new Error(data.error ?? 'Something went wrong — try again in a moment');
       }
 
       const id = crypto.randomUUID();

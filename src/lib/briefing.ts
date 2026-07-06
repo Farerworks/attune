@@ -182,9 +182,14 @@ export function containsBannedPhrases(briefing: Briefing): string[] {
 }
 
 export function parseBriefing(raw: string): Briefing {
-  // Strip markdown code fences if present (Ollama sometimes wraps output)
+  // Strip markdown code fences if present (Ollama / Gemini sometimes wraps output)
   const fenceMatch = raw.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-  const jsonStr = fenceMatch ? fenceMatch[1] : raw.trim();
+  const candidate = fenceMatch ? fenceMatch[1].trim() : raw.trim();
+
+  // Extract outermost JSON object — strips trailing text after the closing brace
+  const start = candidate.indexOf('{');
+  const end   = candidate.lastIndexOf('}');
+  const jsonStr = start >= 0 && end > start ? candidate.slice(start, end + 1) : candidate;
 
   let parsed: unknown;
   try {
