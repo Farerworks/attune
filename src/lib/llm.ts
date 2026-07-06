@@ -1,7 +1,7 @@
 import 'server-only';
 
 // Update GEMINI_MODEL to the latest free-tier Flash model as needed.
-const GEMINI_MODEL = 'gemini-2.0-flash';
+const GEMINI_MODEL = 'gemini-2.5-flash';
 const OLLAMA_MODEL = 'gemma3';
 const OLLAMA_BASE_URL = 'http://localhost:11434';
 

@@ -131,6 +131,32 @@ CONTENT RULES (non-negotiable)
 9. Tone: emotionally intelligent, practical, no mystical framing.`;
 }
 
+const BANNED_PHRASES = ['weakness', 'exploit', 'leverage against', 'manipulate'] as const;
+
+export function containsBannedPhrases(briefing: Briefing): string[] {
+  const texts = [
+    briefing.headline,
+    briefing.theirProfile.personality.takeaway,
+    briefing.theirProfile.personality.detail,
+    briefing.theirProfile.communication.takeaway,
+    briefing.theirProfile.communication.detail,
+    briefing.theirProfile.decisions.takeaway,
+    briefing.theirProfile.decisions.detail,
+    briefing.theirProfile.stress.takeaway,
+    briefing.theirProfile.stress.detail,
+    briefing.dynamic.click.takeaway,
+    briefing.dynamic.click.detail,
+    briefing.dynamic.clash.takeaway,
+    briefing.dynamic.clash.detail,
+    briefing.dynamic.watch.takeaway,
+    briefing.dynamic.watch.detail,
+    ...briefing.playbook.flatMap(p => [p.tip, p.why]),
+  ];
+
+  const combined = texts.join(' ').toLowerCase();
+  return BANNED_PHRASES.filter(phrase => combined.includes(phrase));
+}
+
 export function parseBriefing(raw: string): Briefing {
   // Strip markdown code fences if present (Ollama sometimes wraps output)
   const fenceMatch = raw.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
