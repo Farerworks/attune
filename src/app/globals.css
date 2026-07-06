@@ -32,18 +32,6 @@
   --tab-bar-height: 64px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --c-paper:        #12100D;
-    --c-card:         #1E1C18;
-    --c-surface-alt:  #1A1815;
-    --c-ink:          #FAF8F4;
-    --c-ink-body:     #D4CFBF;
-    --c-muted:        #948B7C;
-    --c-hairline:     #2E2B24;
-  }
-}
-
 /* ── Tailwind theme mapping ─────────────────────────────────────────────────── */
 
 @theme inline {

@@ -41,7 +41,7 @@ export default function OnboardingPage() {
         ATTUNE
       </div>
 
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} noValidate>
         <h1
           style={{
             fontFamily: 'var(--font-fraunces)',

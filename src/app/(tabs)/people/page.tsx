@@ -2,11 +2,7 @@
 
 import Link from 'next/link';
 import { useReadings, ELEMENT_COLORS } from '@/lib/store';
-
-function formatDate(iso: string) {
-  const d = new Date(iso);
-  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-}
+import { formatDate } from '@/lib/format';
 
 function ElementAvatar({ name, element }: { name?: string; element?: string }) {
   const initial = name ? name.charAt(0).toUpperCase() : '?';
@@ -198,7 +194,7 @@ export default function PeoplePage() {
                         color: 'var(--c-muted)',
                       }}
                     >
-                      READ {formatDate(reading.createdAt)} · BORN {reading.date}
+                      READ {formatDate(reading.createdAt)} · BORN {formatDate(reading.date)}
                     </div>
                   </div>
 
