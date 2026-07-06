@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getProfile, ELEMENT_COLORS } from '@/lib/store';
+import { formatDate } from '@/lib/format';
 import { ElementChart } from '@/components/ElementChart';
 import { SpectrumBar } from '@/components/SpectrumBar';
 
@@ -138,8 +139,8 @@ export default function YouPage() {
             {/* ── Element chart ─────────────────────────────────────────────── */}
             <div className="card" style={{ padding: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
               <div style={{
-                fontFamily: "var(--font-inter,system-ui)", fontSize: 13,
-                fontWeight: 600, color: 'var(--c-ink)', marginBottom: 16, alignSelf: 'flex-start',
+                fontFamily: "var(--font-fraunces,Georgia,serif)", fontSize: 20,
+                color: 'var(--c-ink)', marginBottom: 16, alignSelf: 'flex-start',
               }}>
                 Element Distribution
               </div>
@@ -149,7 +150,7 @@ export default function YouPage() {
                   pillarsKnown: chart.pillarsKnown,
                   color: ELEMENT_COLORS[chart.element.toLowerCase()]?.fg ?? '#948B7C',
                 }]}
-                size={200}
+                size={280}
                 showGrid
               />
             </div>
@@ -157,8 +158,8 @@ export default function YouPage() {
             {/* ── Spectrum (placeholder — needs first reading) ──────────────── */}
             <div className="card" style={{ padding: '20px' }}>
               <div style={{
-                fontFamily: "var(--font-inter,system-ui)", fontSize: 13,
-                fontWeight: 600, color: 'var(--c-ink)', marginBottom: 14,
+                fontFamily: "var(--font-fraunces,Georgia,serif)", fontSize: 20,
+                color: 'var(--c-ink)', marginBottom: 14,
               }}>
                 Your spectrum
               </div>
@@ -189,7 +190,7 @@ export default function YouPage() {
             {/* Born meta */}
             {profile && (
               <p className="t-meta" style={{ padding: '0 4px' }}>
-                BORN {profile.date}{profile.time ? ` · ${profile.time}` : ''}
+                BORN {formatDate(profile.date)}{profile.time ? ` · ${profile.time}` : ''}
                 {profile.gender ? ` · ${profile.gender}` : ''}
               </p>
             )}
@@ -212,14 +213,14 @@ function ArchRow({ label, text }: { label: string; text: string }) {
     <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
       <span style={{
         fontFamily: "var(--font-space-mono,'Courier New')",
-        fontSize: 9, letterSpacing: '0.06em', textTransform: 'uppercase',
-        color: 'var(--c-muted)', paddingTop: 2, flexShrink: 0, width: 40,
+        fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase',
+        color: 'var(--c-muted)', paddingTop: 2, flexShrink: 0, width: 44,
       }}>
         {label}
       </span>
       <span style={{
         fontFamily: "var(--font-inter,system-ui)",
-        fontSize: 13, color: 'var(--c-ink-body)', lineHeight: 1.5,
+        fontSize: 15, color: 'var(--c-ink-body)', lineHeight: 1.5,
       }}>
         {text}
       </span>

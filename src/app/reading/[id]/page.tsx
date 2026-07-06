@@ -137,24 +137,31 @@ function PlaybookRow({ item, last }: { item: PlaybookItem; last: boolean }) {
 
 function SectionHeader({ num, title, watermark }: { num: string; title: string; watermark?: string }) {
   return (
-    <div style={{ position: 'relative', padding: '0 0 12px', marginBottom: 4, overflow: 'hidden' }}>
+    <div style={{ position: 'relative', padding: '0 0 12px', marginBottom: 4, overflow: 'visible' }}>
       {watermark && (
         <span aria-hidden style={{
-          position: 'absolute', right: 0, top: -8,
+          position: 'absolute', right: -4, top: -20,
           fontFamily: "var(--font-fraunces,Georgia,serif)",
-          fontSize: 80, lineHeight: 1,
+          fontSize: 160, lineHeight: 1,
           color: 'var(--c-ink)', opacity: 0.05,
           userSelect: 'none', pointerEvents: 'none',
         }}>
           {watermark}
         </span>
       )}
-      <div style={{ borderBottom: '1px solid var(--c-hairline)', paddingBottom: 10 }}>
+      <div style={{ borderBottom: '1px solid var(--c-hairline)', paddingBottom: 10, display: 'flex', alignItems: 'baseline', gap: 8 }}>
         <span style={{
           fontFamily: "var(--font-space-mono,'Courier New')",
-          fontSize: 10, letterSpacing: '0.1em', color: 'var(--c-muted)',
+          fontSize: 12, letterSpacing: '0.08em', color: 'var(--c-muted)',
+          flexShrink: 0,
         }}>
-          {num}&nbsp;&nbsp;{title.toUpperCase()}
+          {num}
+        </span>
+        <span style={{
+          fontFamily: "var(--font-fraunces,Georgia,serif)",
+          fontSize: 24, color: 'var(--c-ink)', lineHeight: 1.2,
+        }}>
+          {title}
         </span>
       </div>
     </div>
@@ -260,7 +267,7 @@ export default function ReadingPage({ params }: { params: Promise<{ id: string }
         {b?.headline && (
           <h1 style={{
             fontFamily: "var(--font-fraunces,Georgia,serif)",
-            fontSize: 40, lineHeight: 1.15, letterSpacing: '-0.015em',
+            fontSize: 44, lineHeight: 1.15, letterSpacing: '-0.02em',
             color: 'var(--c-ink)', marginBottom: 20,
           }}>
             <ItalicLast text={b.headline} />
@@ -278,7 +285,7 @@ export default function ReadingPage({ params }: { params: Promise<{ id: string }
 
         {/* ── Section 01: Their profile ────────────────────────────────────── */}
         {b?.theirProfile && (
-          <div style={{ marginBottom: 40 }}>
+          <div style={{ marginBottom: 48 }}>
             <SectionHeader num="01" title="Their profile" />
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -299,7 +306,7 @@ export default function ReadingPage({ params }: { params: Promise<{ id: string }
                   takeaway={b.theirProfile.communication.takeaway}
                   detail={
                     <div>
-                      <p style={{ margin: '0 0 14px', fontFamily: "var(--font-inter,system-ui)", fontSize: 14, color: 'var(--c-ink-body)', lineHeight: 1.65 }}>
+                      <p style={{ margin: '0 0 14px', fontFamily: "var(--font-inter,system-ui)", fontSize: 15, color: 'var(--c-ink-body)', lineHeight: 1.6 }}>
                         {b.theirProfile.communication.detail}
                       </p>
                       {b.spectrums && (
@@ -322,7 +329,7 @@ export default function ReadingPage({ params }: { params: Promise<{ id: string }
                   takeaway={b.theirProfile.decisions.takeaway}
                   detail={
                     <div>
-                      <p style={{ margin: '0 0 14px', fontFamily: "var(--font-inter,system-ui)", fontSize: 14, color: 'var(--c-ink-body)', lineHeight: 1.65 }}>
+                      <p style={{ margin: '0 0 14px', fontFamily: "var(--font-inter,system-ui)", fontSize: 15, color: 'var(--c-ink-body)', lineHeight: 1.6 }}>
                         {b.theirProfile.decisions.detail}
                       </p>
                       {b.spectrums && (
@@ -353,7 +360,7 @@ export default function ReadingPage({ params }: { params: Promise<{ id: string }
                   takeaway={b.theirProfile.stress.takeaway}
                   detail={
                     <div>
-                      <p style={{ margin: '0 0 14px', fontFamily: "var(--font-inter,system-ui)", fontSize: 14, color: 'var(--c-ink-body)', lineHeight: 1.65 }}>
+                      <p style={{ margin: '0 0 14px', fontFamily: "var(--font-inter,system-ui)", fontSize: 15, color: 'var(--c-ink-body)', lineHeight: 1.6 }}>
                         {b.theirProfile.stress.detail}
                       </p>
                       {b.spectrums && (
@@ -374,7 +381,7 @@ export default function ReadingPage({ params }: { params: Promise<{ id: string }
 
         {/* ── Section 02: Your dynamic ─────────────────────────────────────── */}
         {b?.dynamic && (
-          <div style={{ marginBottom: 40 }}>
+          <div style={{ marginBottom: 48 }}>
             <SectionHeader
               num="02"
               title="Your dynamic"
@@ -387,7 +394,7 @@ export default function ReadingPage({ params }: { params: Promise<{ id: string }
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 16 }}>
                   <ElementChart
                     datasets={chartDatasets}
-                    size={200}
+                    size={280}
                     showGrid
                   />
                   {/* Legend */}
@@ -402,10 +409,11 @@ export default function ReadingPage({ params }: { params: Promise<{ id: string }
                   {/* Resonance label */}
                   {b.dynamic.resonance && (
                     <p style={{
-                      marginTop: 10,
+                      marginTop: 12,
                       fontFamily: "var(--font-fraunces,Georgia,serif)",
-                      fontSize: 15, fontStyle: 'italic',
+                      fontSize: 22, fontStyle: 'italic',
                       color: 'var(--c-ink-body)',
+                      textAlign: 'center',
                     }}>
                       {RESONANCE_LABEL[b.dynamic.resonance] ?? b.dynamic.resonance}
                     </p>
@@ -465,7 +473,7 @@ export default function ReadingPage({ params }: { params: Promise<{ id: string }
 
         {/* ── Section 03: Playbook ─────────────────────────────────────────── */}
         {b?.playbook && b.playbook.length > 0 && (
-          <div style={{ marginBottom: 40 }}>
+          <div style={{ marginBottom: 48 }}>
             <SectionHeader num="03" title="Playbook" />
             <Reveal>
               <div>

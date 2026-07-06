@@ -69,7 +69,7 @@ export function ExpandCard({ icon, label, takeaway, detail, tintColor }: ExpandC
           <span style={{
             display: 'block',
             fontFamily: "var(--font-inter,system-ui)",
-            fontSize: 14,
+            fontSize: 17,
             fontWeight: 600,
             color: 'var(--c-ink)',
             lineHeight: 1.4,
@@ -103,9 +103,9 @@ export function ExpandCard({ icon, label, takeaway, detail, tintColor }: ExpandC
             <p style={{
               margin: 0,
               fontFamily: "var(--font-inter,system-ui)",
-              fontSize: 14,
+              fontSize: 15,
               color: 'var(--c-ink-body)',
-              lineHeight: 1.65,
+              lineHeight: 1.6,
             }}>
               {detail}
             </p>

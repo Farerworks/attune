@@ -22,14 +22,13 @@ const ANGLES = ELEMENT_ORDER.map((_, i) => -Math.PI / 2 + (2 * Math.PI * i) / 5)
 
 function radarPts(
   elements: Record<string, number>,
-  pillarsKnown: number,
+  normMax: number,
   cx: number, cy: number, r: number,
 ): Array<{ x: number; y: number }> {
-  const maxVal = Math.max(pillarsKnown, 1);
   const minR = 0.12; // even 0-count keeps a small blob
   return ELEMENT_ORDER.map((key, i) => {
     const val = Math.max(0, elements[key] ?? 0);
-    const ratio = minR + (1 - minR) * (val / maxVal);
+    const ratio = minR + (1 - minR) * (val / normMax);
     return {
       x: cx + r * ratio * Math.cos(ANGLES[i]),
       y: cy + r * ratio * Math.sin(ANGLES[i]),
@@ -91,10 +90,14 @@ export function ElementChart({
   const CX = 100, CY = 100, R = 68;
   const LABEL_R = R + 18;
 
+  const normMax = Math.max(
+    ...datasets.flatMap(ds => ELEMENT_ORDER.map(k => ds.elements[k] ?? 0)),
+    3,
+  );
   const gridStroke = darkMode
     ? 'rgba(255,255,255,0.08)'
     : 'rgba(0,0,0,0.07)';
-  const fillOpacity = datasets.length === 1 ? 0.25 : 0.18;
+  const fillOpacity = datasets.length === 1 ? 0.25 : 0.22;
 
   return (
     <svg
@@ -132,11 +135,11 @@ export function ElementChart({
       {datasets.map((ds, di) => (
         <path
           key={di}
-          d={smoothPath(radarPts(ds.elements, ds.pillarsKnown, CX, CY, R))}
+          d={smoothPath(radarPts(ds.elements, normMax, CX, CY, R))}
           fill={ds.color}
           fillOpacity={fillOpacity}
           stroke={ds.color}
-          strokeWidth={2}
+          strokeWidth={2.5}
           strokeOpacity={0.85}
         />
       ))}
