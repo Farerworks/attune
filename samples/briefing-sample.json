@@ -1,6 +1,6 @@
 {
   "meta": {
-    "generatedAt": "2026-07-06T07:15:29.145Z",
+    "generatedAt": "2026-07-06T07:40:46.336Z",
     "model": "gemini-2.5-flash",
     "me": {
       "date": "1999-03-14",
@@ -44,66 +44,71 @@
     }
   },
   "briefing": {
-    "headline": "Mia values directness and authenticity, so be clear with your intentions.",
+    "headline": "Mia, before Friday.",
     "theirProfile": {
       "personality": {
-        "takeaway": "Independent, warm, and grounded.",
-        "detail": "Mia tends to be a natural leader, driven by a desire for growth and authenticity. She often projects a warm and stable presence, valuing loyalty in her connections."
+        "takeaway": "A principled pioneer — direct in action, but driven by deeper purpose.",
+        "detail": "Mia tends to be someone who initiates and takes charge, often with a clear vision of what she wants to achieve. You might notice her being the first to propose an idea for a class project, or confidently leading a group discussion."
       },
       "communication": {
-        "takeaway": "Clear, direct, and expressive.",
-        "detail": "Mia is likely to communicate her thoughts and feelings quite directly and openly. She appreciates straightforwardness and tends to be expressive when she feels comfortable."
+        "takeaway": "Clear, direct, moves conversations forward.",
+        "detail": "She's likely to state her thoughts plainly rather than hinting around. If she agrees to something, she'll probably say 'Yes, let's do it' rather than 'Maybe, we'll see'."
       },
       "decisions": {
-        "takeaway": "Practical yet can be quick.",
-        "detail": "Mia tends to make decisions with a blend of practicality and intuition, often moving forward once she's considered the core facts. She may value efficiency but also seeks stability in her choices."
+        "takeaway": "Purpose-driven, acts on conviction.",
+        "detail": "When faced with a choice, Mia tends to weigh options against her core principles or goals before making a move. She might quickly decide on a course of action for a class assignment if it aligns with her understanding of the objective."
       },
       "stress": {
-        "takeaway": "May internalize or push through.",
-        "detail": "When under pressure, Mia might tend to become more focused and determined, sometimes pushing through challenges with resolve. She may also internalize stress, appearing more serious or quiet."
+        "takeaway": "Confronts issues directly, can be unyielding.",
+        "detail": "Under pressure, Mia is more inclined to tackle problems head-on rather than avoid them. If there's a disagreement in a group, she's likely to address it directly, sometimes risking rigidity in her stance."
       }
     },
     "spectrums": {
       "communication": 80,
-      "decisions": 65,
-      "pace": 70,
-      "stress": 60
+      "decisions": 70,
+      "pace": 75,
+      "stress": 85
     },
     "dynamic": {
-      "resonance": "strong-current",
+      "resonance": "slow-build",
       "click": {
-        "takeaway": "Complementary strengths, shared values.",
-        "detail": "Your adaptable Yin Wood nature can beautifully complement Mia's strong Yang Wood presence, creating a supportive and growth-oriented connection. You both share a drive for stability and warmth, which can make your interactions feel natural and comfortable."
+        "takeaway": "Shared growth mindset, complementary action styles.",
+        "detail": "You both share a fundamental drive for growth and development, but express it differently. Your adaptive nature can beautifully complement her pioneering spirit, allowing you to support her initiatives while she helps you branch out."
       },
       "clash": {
-        "takeaway": "Differences in approach.",
-        "detail": "Your more flexible approach might sometimes meet Mia's directness with a slight friction, especially if you feel she's too assertive or she perceives you as less decisive."
+        "takeaway": "Your gentle approach versus her directness.",
+        "detail": "Your tendency to be gently indirect might sometimes feel like hesitation to her, while her directness could occasionally come across as abrupt to your more flexible style. This can lead to minor misunderstandings in pacing."
       },
       "watch": {
-        "takeaway": "Balance independence and support.",
-        "detail": "Mia values her independence, and while your supportive nature is a strength, ensure you also maintain your own space and pursuits to keep the dynamic fresh and balanced."
+        "takeaway": "Her need for purpose, your need for connection.",
+        "detail": "Mia is driven by purpose and principles, so ensure your invitations resonate with a clear intention. Your Yin Wood nature thrives on connection and relationship, so make sure you feel genuinely seen and valued in the interaction."
       }
     },
     "playbook": [
       {
         "type": "do",
-        "tip": "Be direct and clear with your intentions.",
-        "why": "Mia tends to appreciate straightforwardness and authenticity in communication."
+        "tip": "Be clear and direct on Friday.",
+        "why": "Mia appreciates straightforward communication and clear intentions."
       },
       {
         "type": "do",
-        "tip": "Show genuine interest in her aspirations.",
-        "why": "Her Yang Wood nature thrives on growth and purpose, valuing those who recognize it."
+        "tip": "Suggest a specific activity.",
+        "why": "Her pioneering nature responds well to concrete proposals rather than vague ideas."
+      },
+      {
+        "type": "do",
+        "tip": "Acknowledge her ideas in class.",
+        "why": "She's driven by purpose and initiative, and recognition reinforces her drive."
       },
       {
         "type": "dont",
-        "tip": "Avoid being overly indirect or hinting.",
-        "why": "She is likely to prefer clear communication and may miss subtle cues."
+        "tip": "Don't hint or be overly subtle.",
+        "why": "She's likely to miss indirect cues and prefer a clear proposition."
       },
       {
         "type": "dont",
-        "tip": "Don't rush her decisions or push too hard.",
-        "why": "While decisive, she also values practicality and may need space to process."
+        "tip": "Don't make it a public spectacle.",
+        "why": "While direct, a public ask might feel like a challenge or put her on the spot unnecessarily."
       }
     ]
   }

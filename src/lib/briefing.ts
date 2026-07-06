@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { SajuChart } from './saju';
+import { getArchetype, getElementRelationship, COPY_STYLE_RULES } from './interpretGuide';
 
 // ── Zod schema ──────────────────────────────────────────────────────────────
 
@@ -74,32 +75,53 @@ export function buildBriefingPrompt(
   const meChart   = formatChart(me,   'SAJU CHART — ME');
   const themChart = formatChart(them, 'SAJU CHART — THEM');
 
+  // ── Pre-computed personality context (inject specific archetypes only) ──────
+  const myArch   = getArchetype(me.dayMaster.stem);
+  const themArch = getArchetype(them.dayMaster.stem);
+  const elemAxis = getElementRelationship(me.dayMaster.stem, them.dayMaster.stem);
+
+  const personalityContext = `\
+=== DAY MASTER CONTEXT (pre-computed — use as interpretive foundation) ===
+
+YOUR DAY MASTER: ${me.dayMaster.stem} (${myArch.hanja})
+  Core drive:     ${myArch.coreDrive}
+  Communication:  ${myArch.communication}
+  Under stress:   ${myArch.stress}
+
+THEIR DAY MASTER: ${them.dayMaster.stem} (${themArch.hanja})
+  Core drive:     ${themArch.coreDrive}
+  Communication:  ${themArch.communication}
+  Under stress:   ${themArch.stress}
+
+ELEMENT AXIS: ${elemAxis}`;
+
   const cautionNote =
     them.pillarsKnown === 6
-      ? 'Note: their birth time is unknown — 6 of 8 pillars available. Avoid overconfident assertions about their tendencies.'
+      ? '\nNote: their birth time is unknown — 6 of 8 pillars available. Avoid overconfident assertions.'
       : '';
 
   return `You are an emotionally intelligent relationship analyst. Using Four Pillars of Destiny (사주) data, you produce practical personality insights and interaction advice — written in the tone of a highly perceptive friend, not a mystical oracle.
 
 RELATIONSHIP CONTEXT
 Relationship type: ${relationship}
-Situation: ${situation}
-${cautionNote}
+Situation: ${situation}${cautionNote}
 
 ${meChart}
 
 ${themChart}
 
+${personalityContext}
+
 OUTPUT INSTRUCTIONS
 Respond with ONLY a valid JSON object matching the schema below. No explanation text, no markdown fences, no extra keys.
 
 {
-  "headline": "One punchy sentence (12 words or fewer) addressed to me — e.g. 'Maya tends to pause before committing; give her that space.'",
+  "headline": "Format: '<Name>, before <key event>.' — extract the event from situation. If no event, use '<Name>, decoded.'",
   "theirProfile": {
-    "personality":   { "takeaway": "<8 words or fewer>", "detail": "<2–3 sentences>" },
-    "communication": { "takeaway": "<8 words or fewer>", "detail": "<2–3 sentences>" },
-    "decisions":     { "takeaway": "<8 words or fewer>", "detail": "<2–3 sentences>" },
-    "stress":        { "takeaway": "<8 words or fewer>", "detail": "<2–3 sentences>" }
+    "personality":   { "takeaway": "<contrast structure: X — but Y>", "detail": "<2–3 sentences with 1 observable scene>" },
+    "communication": { "takeaway": "<8 words or fewer>", "detail": "<2–3 sentences with 1 observable scene>" },
+    "decisions":     { "takeaway": "<8 words or fewer>", "detail": "<2–3 sentences with 1 observable scene>" },
+    "stress":        { "takeaway": "<8 words or fewer>", "detail": "<2–3 sentences with 1 observable scene>" }
   },
   "spectrums": {
     "communication": <integer 0–100, 0=Indirect, 100=Direct>,
@@ -119,16 +141,18 @@ Respond with ONLY a valid JSON object matching the schema below. No explanation 
   ]
 }
 
-CONTENT RULES (non-negotiable)
-1. All insights must derive only from the saju data provided above. Do not invent information.
-2. Use "tends to" / "is likely to" / "may". Never use the word "will" as a certainty marker.
-3. spectrums are slider coordinates for a UI. Base them on day-master element/polarity and element distribution. If the evidence is weak, stay in the 20–80 range rather than claiming extremes.
-4. resonance is a relationship-flow label (not a score). Do not include numbers or percentages in the dynamic section.
-5. playbook must have 3 to 5 items total (mix of do and dont).
-6. Forbidden words anywhere in the output: "weakness", "exploit", "leverage against", "manipulate", "vulnerable to".
-7. All advice adjusts MY behavior — never instructs me to exploit or pressure them. Sensitive traits are expressed as consideration points.
+CONTENT RULES
+1. All insights must derive only from the saju data above. Do not invent information.
+2. Use "tends to" / "is likely to" / "may". Never "will" as a certainty marker.
+3. spectrums are UI slider coordinates — base on day-master element/polarity and element distribution. Avoid extremes (0–15 or 85–100) unless strongly supported.
+4. resonance is a relationship-flow label only. No numbers or percentages in dynamic.
+5. playbook must have 3–5 items (mix of do/dont).
+6. Forbidden words: "weakness", "exploit", "leverage against", "manipulate", "vulnerable to".
+7. All advice adjusts MY behavior only. Sensitive traits are consideration points, not pressure levers.
 8. No medical, legal, or investment advice.
-9. Tone: emotionally intelligent, practical, no mystical framing.`;
+9. Tone: emotionally intelligent, practical, zero mystical framing.
+
+${COPY_STYLE_RULES}`;
 }
 
 const BANNED_PHRASES = ['weakness', 'exploit', 'leverage against', 'manipulate'] as const;

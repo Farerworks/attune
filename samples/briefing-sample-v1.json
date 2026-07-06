@@ -1,0 +1,110 @@
+{
+  "meta": {
+    "generatedAt": "2026-07-06T07:15:29.145Z",
+    "model": "gemini-2.5-flash",
+    "me": {
+      "date": "1999-03-14",
+      "time": "08:20"
+    },
+    "them": {
+      "date": "2000-11-02",
+      "name": "Mia"
+    },
+    "relationship": "crush",
+    "situation": "We're in the same class. I want to ask her out on Friday.",
+    "meChart": {
+      "dayMaster": {
+        "stem": "Yin Wood",
+        "element": "wood",
+        "polarity": "Yin"
+      },
+      "elements": {
+        "wood": 3,
+        "fire": 1,
+        "earth": 3,
+        "metal": 1,
+        "water": 0
+      },
+      "pillarsKnown": 8
+    },
+    "themChart": {
+      "dayMaster": {
+        "stem": "Yang Wood",
+        "element": "wood",
+        "polarity": "Yang"
+      },
+      "elements": {
+        "wood": 1,
+        "fire": 1,
+        "earth": 2,
+        "metal": 1,
+        "water": 1
+      },
+      "pillarsKnown": 6
+    }
+  },
+  "briefing": {
+    "headline": "Mia values directness and authenticity, so be clear with your intentions.",
+    "theirProfile": {
+      "personality": {
+        "takeaway": "Independent, warm, and grounded.",
+        "detail": "Mia tends to be a natural leader, driven by a desire for growth and authenticity. She often projects a warm and stable presence, valuing loyalty in her connections."
+      },
+      "communication": {
+        "takeaway": "Clear, direct, and expressive.",
+        "detail": "Mia is likely to communicate her thoughts and feelings quite directly and openly. She appreciates straightforwardness and tends to be expressive when she feels comfortable."
+      },
+      "decisions": {
+        "takeaway": "Practical yet can be quick.",
+        "detail": "Mia tends to make decisions with a blend of practicality and intuition, often moving forward once she's considered the core facts. She may value efficiency but also seeks stability in her choices."
+      },
+      "stress": {
+        "takeaway": "May internalize or push through.",
+        "detail": "When under pressure, Mia might tend to become more focused and determined, sometimes pushing through challenges with resolve. She may also internalize stress, appearing more serious or quiet."
+      }
+    },
+    "spectrums": {
+      "communication": 80,
+      "decisions": 65,
+      "pace": 70,
+      "stress": 60
+    },
+    "dynamic": {
+      "resonance": "strong-current",
+      "click": {
+        "takeaway": "Complementary strengths, shared values.",
+        "detail": "Your adaptable Yin Wood nature can beautifully complement Mia's strong Yang Wood presence, creating a supportive and growth-oriented connection. You both share a drive for stability and warmth, which can make your interactions feel natural and comfortable."
+      },
+      "clash": {
+        "takeaway": "Differences in approach.",
+        "detail": "Your more flexible approach might sometimes meet Mia's directness with a slight friction, especially if you feel she's too assertive or she perceives you as less decisive."
+      },
+      "watch": {
+        "takeaway": "Balance independence and support.",
+        "detail": "Mia values her independence, and while your supportive nature is a strength, ensure you also maintain your own space and pursuits to keep the dynamic fresh and balanced."
+      }
+    },
+    "playbook": [
+      {
+        "type": "do",
+        "tip": "Be direct and clear with your intentions.",
+        "why": "Mia tends to appreciate straightforwardness and authenticity in communication."
+      },
+      {
+        "type": "do",
+        "tip": "Show genuine interest in her aspirations.",
+        "why": "Her Yang Wood nature thrives on growth and purpose, valuing those who recognize it."
+      },
+      {
+        "type": "dont",
+        "tip": "Avoid being overly indirect or hinting.",
+        "why": "She is likely to prefer clear communication and may miss subtle cues."
+      },
+      {
+        "type": "dont",
+        "tip": "Don't rush her decisions or push too hard.",
+        "why": "While decisive, she also values practicality and may need space to process."
+      }
+    ]
+  }
+}
