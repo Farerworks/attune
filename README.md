@@ -1,36 +1,32 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Attune
 
-## Getting Started
+상대방 생년월일로 한국식 사주를 계산해 성향 분석과 대화 조언을 영어로 제공하는 웹앱.
 
-First, run the development server:
+## Running
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm run dev   # development server (http://localhost:3000)
+npm test      # run all tests
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Verification
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+The values below are computed by `lunar-javascript` (solar-term based month pillar). Cross-check with a Korean 만세력 site (e.g. saju.co.kr) before relying on these for production.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Fixture dates — Year / Month / Day pillars
 
-## Learn More
+| Date       | Year pillar            | Month pillar          | Day pillar           |
+|------------|------------------------|-----------------------|----------------------|
+| 1999-03-14 | 己卯 Yin Earth/Rabbit  | 丁卯 Yin Fire/Rabbit  | 乙丑 Yin Wood/Ox     |
+| 2000-11-02 | 庚辰 Yang Metal/Dragon | 丙戌 Yang Fire/Dog    | 甲子 Yang Wood/Rat   |
+| 1991-05-17 | 辛未 Yin Metal/Goat    | 癸巳 Yin Water/Snake  | 丁亥 Yin Fire/Pig    |
 
-To learn more about Next.js, take a look at the following resources:
+### 입춘(立春, Ipchun) solar-term boundary — year 2000
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| Date       | Year pillar              | Note                         |
+|------------|--------------------------|------------------------------|
+| 2000-02-03 | 己卯 Yin Earth/Rabbit    | Before 입춘 — 1999 year pillar |
+| 2000-02-04 | 己卯 Yin Earth/Rabbit    | 입춘 day — still prior year  |
+| 2000-02-05 | 庚辰 Yang Metal/Dragon   | After 입춘 — 2000 year pillar  |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The year pillar changes between 2000-02-03 and 2000-02-05, confirming that month/year pillar calculation correctly uses solar terms (절기).
