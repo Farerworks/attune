@@ -172,7 +172,7 @@ export default function NewPage() {
             fontFamily: "var(--font-fraunces,Georgia,serif)",
             fontSize: 30, lineHeight: 1.2, letterSpacing: '-0.01em', color: 'var(--c-ink)', marginBottom: 32,
           }}>
-            Who&apos;s on your mind?
+            Now, them.
           </h1>
 
           {/* Name */}

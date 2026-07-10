@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, FormEvent } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { setProfile } from '@/lib/store';
 
@@ -27,18 +28,16 @@ export default function OnboardingPage() {
         padding: '48px 24px 40px',
       }}
     >
-      {/* Wordmark */}
-      <div
-        style={{
-          fontFamily: 'var(--font-space-mono)',
-          fontSize: 12,
-          letterSpacing: '0.18em',
-          textTransform: 'uppercase',
-          color: 'var(--c-ink)',
-          marginBottom: 40,
-        }}
-      >
-        ATTUNE
+      {/* Back + Wordmark */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 40 }}>
+        <Link href="/" style={{ display: 'flex', color: 'var(--c-ink)', textDecoration: 'none' }} aria-label="Back">
+          <svg width={24} height={24} viewBox="0 0 24 24" fill="none">
+            <path stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" d="M19 12H5M12 19l-7-7 7-7" />
+          </svg>
+        </Link>
+        <div style={{ fontFamily: 'var(--font-space-mono)', fontSize: 12, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--c-ink)' }}>
+          ATTUNE
+        </div>
       </div>
 
       <form onSubmit={handleSubmit} noValidate>
@@ -63,7 +62,7 @@ export default function OnboardingPage() {
             lineHeight: 1.5,
           }}
         >
-          Your birth info lets Attune calibrate readings to your dynamic with others.
+          Your birth info lets Attune calibrate readings to your dynamic with others. One-time setup — saved on this device only.
         </p>
 
         {/* Date of birth */}

@@ -93,7 +93,7 @@ export default function LandingPage() {
             marginBottom: 36,
           }}
         >
-          Powered by Saju (四柱), a 500-year-old Korean system for reading
+          Powered by Saju, a 500-year-old Korean system for reading
           character through birth timing. Not a prediction — a lens.
         </p>
 

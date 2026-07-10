@@ -7,6 +7,13 @@ import { ElementChart } from './ElementChart';
 
 const MIN_MS = 2500;
 
+// Earthly branch → element mapping
+const BRANCH_EL: Record<string, string> = {
+  Rat: 'water', Ox: 'earth', Tiger: 'wood', Rabbit: 'wood',
+  Dragon: 'earth', Snake: 'fire', Horse: 'fire', Goat: 'earth',
+  Monkey: 'metal', Rooster: 'metal', Dog: 'earth', Pig: 'water',
+};
+
 interface Props {
   active: boolean;
   name?: string;
@@ -98,10 +105,10 @@ export function CastingRitual({ active, name, themChart, ready, onDone }: Props)
   const color = ELEMENT_COLORS[el]?.fg ?? '#948B7C';
 
   const PILLARS = [
-    { label: 'YEAR',  p: themChart?.pillars.year,  dashed: false },
-    { label: 'MONTH', p: themChart?.pillars.month, dashed: false },
-    { label: 'DAY',   p: themChart?.pillars.day,   dashed: false },
-    { label: 'HOUR',  p: themChart?.pillars.hour ?? null, dashed: !themChart?.pillars.hour },
+    { label: 'YEAR',  p: themChart?.pillars.year,  unknown: false },
+    { label: 'MONTH', p: themChart?.pillars.month, unknown: false },
+    { label: 'DAY',   p: themChart?.pillars.day,   unknown: false },
+    { label: 'HOUR',  p: themChart?.pillars.hour ?? null, unknown: !themChart?.pillars.hour },
   ];
 
   return (
@@ -137,12 +144,12 @@ export function CastingRitual({ active, name, themChart, ready, onDone }: Props)
       </p>
 
       {/* Pillars */}
-      <div style={{ display: 'flex', gap: 14, marginBottom: 36, alignItems: 'stretch' }}>
-        {PILLARS.map(({ label, p, dashed }, i) => {
+      <div style={{ display: 'flex', gap: 14, marginBottom: 36, alignItems: 'flex-start' }}>
+        {PILLARS.map(({ label, p, unknown }, i) => {
           const vis = pillarN > i;
           return (
             <div key={label} style={{
-              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
               opacity: vis ? 1 : 0,
               transform: vis ? 'none' : 'translateY(16px)',
               transition: 'opacity 0.4s, transform 0.4s',
@@ -153,8 +160,11 @@ export function CastingRitual({ active, name, themChart, ready, onDone }: Props)
               }}>
                 {label}
               </span>
-              <PillarBox dashed={dashed} char={p?.stemHanja} />
-              <PillarBox dashed={dashed} char={p?.branchHanja} />
+              <PillarBlock
+                stem={p?.stem ?? ''}
+                branch={p?.branch ?? ''}
+                unknown={unknown}
+              />
             </div>
           );
         })}
@@ -216,20 +226,22 @@ export function CastingRitual({ active, name, themChart, ready, onDone }: Props)
   );
 }
 
-function PillarBox({ dashed, char }: { dashed: boolean; char?: string }) {
+function PillarBlock({ stem, branch, unknown }: { stem: string; branch: string; unknown: boolean }) {
+  const stemEl   = stem.split(' ').pop()?.toLowerCase() ?? 'earth';
+  const branchEl = BRANCH_EL[branch] ?? 'earth';
+  const topColor    = ELEMENT_COLORS[stemEl]?.fg   ?? 'rgba(148,139,124,0.6)';
+  const bottomColor = ELEMENT_COLORS[branchEl]?.fg ?? 'rgba(148,139,124,0.4)';
+
   return (
     <div style={{
-      width: 42, height: 42, borderRadius: 7,
-      border: dashed
-        ? '1px dashed rgba(148,139,124,0.3)'
-        : '1px solid rgba(148,139,124,0.18)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: 'rgba(255,255,255,0.04)',
+      width: 40, height: 120, borderRadius: 10,
+      overflow: 'hidden',
+      opacity: unknown ? 0.25 : 1,
+      filter: unknown ? 'blur(4px)' : 'none',
+      transition: 'opacity 0.3s, filter 0.3s',
     }}>
-      {char
-        ? <span style={{ fontFamily: "var(--font-fraunces,Georgia)", fontSize: 17, color: '#F1EDE6' }}>{char}</span>
-        : <span style={{ fontSize: 18, color: 'rgba(148,139,124,0.3)' }}>·</span>
-      }
+      <div style={{ height: 60, background: topColor }} />
+      <div style={{ height: 60, background: bottomColor }} />
     </div>
   );
 }

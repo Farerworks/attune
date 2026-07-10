@@ -81,7 +81,7 @@ export default function SettingsPage() {
             marginBottom: 16,
           }}
         >
-          Attune uses Four Pillars of Destiny (사주팔자) — a classical East Asian character-reading system — to generate probabilistic personality insights about the people in your life.
+          Attune uses Four Pillars of Destiny — a classical East Asian character-reading system — to generate probabilistic personality insights about the people in your life.
         </p>
         <p
           style={{

@@ -495,27 +495,29 @@ function MessageBubble({ msg }: { msg: Msg; chipColor: string }) {
         padding: '14px 16px',
         display: 'flex', flexDirection: 'column', gap: 12,
       }}>
-        {m.parts ? (
+        {Array.isArray(m.parts) ? (
           <>
-            {m.parts.map((part, i) => (
-              <div key={i}>
-                <div style={{
-                  fontFamily: "var(--font-space-mono,'Courier New')",
-                  fontSize: 11, letterSpacing: '0.08em',
-                  color: '#C4502E', marginBottom: 4,
-                }}>
-                  {part.label}
+            {m.parts
+              .filter(part => typeof part.label === 'string' && typeof part.text === 'string')
+              .map((part, i) => (
+                <div key={i}>
+                  <div style={{
+                    fontFamily: "var(--font-space-mono,'Courier New')",
+                    fontSize: 11, letterSpacing: '0.08em',
+                    color: '#C4502E', marginBottom: 4,
+                  }}>
+                    {part.label}
+                  </div>
+                  <p style={{
+                    margin: 0,
+                    fontFamily: "var(--font-inter,system-ui)", fontSize: 15,
+                    color: 'var(--c-ink)', lineHeight: 1.55,
+                  }}>
+                    {part.text}
+                  </p>
                 </div>
-                <p style={{
-                  margin: 0,
-                  fontFamily: "var(--font-inter,system-ui)", fontSize: 15,
-                  color: 'var(--c-ink)', lineHeight: 1.55,
-                }}>
-                  {part.text}
-                </p>
-              </div>
-            ))}
-            {m.timing && (
+              ))}
+            {typeof m.timing === 'string' && m.timing && (
               <div style={{
                 background: '#FBF3E4', borderRadius: 8, padding: '10px 12px',
                 display: 'flex', gap: 8, alignItems: 'flex-start',
@@ -534,10 +536,10 @@ function MessageBubble({ msg }: { msg: Msg; chipColor: string }) {
         ) : (
           <p style={{
             margin: 0,
-            fontFamily: "var(--font-inter,system-ui)", fontSize: 14,
+            fontFamily: "var(--font-inter,system-ui)", fontSize: 15,
             color: 'var(--c-ink)', lineHeight: 1.55,
           }}>
-            {m.text ?? ''}
+            {typeof m.text === 'string' ? m.text : ''}
           </p>
         )}
       </div>

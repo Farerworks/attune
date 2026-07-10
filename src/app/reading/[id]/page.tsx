@@ -212,7 +212,7 @@ export default function ReadingPage({ params }: { params: Promise<{ id: string }
     ? { elements: reading.themChart.elements, pillarsKnown: reading.themChart.pillarsKnown, color: theirC.fg }
     : null;
   const myDataset = reading.myChart
-    ? { elements: reading.myChart.elements, pillarsKnown: reading.myChart.pillarsKnown, color: myC.fg }
+    ? { elements: reading.myChart.elements, pillarsKnown: reading.myChart.pillarsKnown, color: '#C4502E' }
     : null;
   const chartDatasets = [
     ...(myDataset ? [myDataset] : []),
@@ -427,7 +427,7 @@ export default function ReadingPage({ params }: { params: Promise<{ id: string }
                   {/* Legend */}
                   <div style={{ display: 'flex', gap: 20, marginTop: 12 }}>
                     {myDataset && (
-                      <LegendDot color={myC.fg} label="You" />
+                      <LegendDot color={'#C4502E'} label="You" />
                     )}
                     {theirDataset && (
                       <LegendDot color={theirC.fg} label={reading.name ?? 'Them'} />
@@ -459,19 +459,19 @@ export default function ReadingPage({ params }: { params: Promise<{ id: string }
                 }}>
                   <SpectrumBar leftLabel="Indirect" rightLabel="Direct" dots={[
                     { value: b.spectrums.communication, color: theirC.fg },
-                    ...(b.mySpectrums ? [{ value: b.mySpectrums.communication, color: myC.fg }] : []),
+                    ...(b.mySpectrums ? [{ value: b.mySpectrums.communication, color: '#C4502E' }] : []),
                   ]} />
                   <SpectrumBar leftLabel="Gut feel" rightLabel="Analysis" dots={[
                     { value: b.spectrums.decisions, color: theirC.fg },
-                    ...(b.mySpectrums ? [{ value: b.mySpectrums.decisions, color: myC.fg }] : []),
+                    ...(b.mySpectrums ? [{ value: b.mySpectrums.decisions, color: '#C4502E' }] : []),
                   ]} />
                   <SpectrumBar leftLabel="Deliberate" rightLabel="Fast-moving" dots={[
                     { value: b.spectrums.pace, color: theirC.fg },
-                    ...(b.mySpectrums ? [{ value: b.mySpectrums.pace, color: myC.fg }] : []),
+                    ...(b.mySpectrums ? [{ value: b.mySpectrums.pace, color: '#C4502E' }] : []),
                   ]} />
                   <SpectrumBar leftLabel="Withdraws" rightLabel="Confronts" dots={[
                     { value: b.spectrums.stress, color: theirC.fg },
-                    ...(b.mySpectrums ? [{ value: b.mySpectrums.stress, color: myC.fg }] : []),
+                    ...(b.mySpectrums ? [{ value: b.mySpectrums.stress, color: '#C4502E' }] : []),
                   ]} />
                 </div>
               </Reveal>
@@ -563,7 +563,7 @@ export default function ReadingPage({ params }: { params: Promise<{ id: string }
           fontSize: 11, color: 'var(--c-muted)', lineHeight: 1.65,
           textAlign: 'center', paddingBottom: 16,
         }}>
-          Attune uses Four Pillars of Destiny (사주) as a personality lens,{' '}
+          Attune uses Saju — Four Pillars of Destiny as a personality lens,{' '}
           not a prediction tool. All insights are starting points for conversation.
         </p>
       </div>

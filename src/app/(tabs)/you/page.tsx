@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { getProfile, ELEMENT_COLORS } from '@/lib/store';
+import { getProfile, getReadings, ELEMENT_COLORS } from '@/lib/store';
 import { formatDate } from '@/lib/format';
 import { ElementChart } from '@/components/ElementChart';
 import { SpectrumBar } from '@/components/SpectrumBar';
@@ -23,11 +23,19 @@ interface ChartData {
   stress: string;
 }
 
+interface MySpectrums {
+  communication: number;
+  decisions: number;
+  pace: number;
+  stress: number;
+}
+
 export default function YouPage() {
   const router = useRouter();
-  const [chart,   setChart]   = useState<ChartData | null>(null);
-  const [profile, setProfile] = useState<{ date: string; time?: string; gender?: string } | null>(null);
-  const [error,   setError]   = useState<string | null>(null);
+  const [chart,       setChart]       = useState<ChartData | null>(null);
+  const [profile,     setProfile]     = useState<{ date: string; time?: string; gender?: string } | null>(null);
+  const [error,       setError]       = useState<string | null>(null);
+  const [mySpectrums, setMySpectrums] = useState<MySpectrums | null>(null);
 
   useEffect(() => {
     const p = getProfile();
@@ -54,6 +62,16 @@ export default function YouPage() {
           });
         } catch (e) {
           setError(e instanceof Error ? e.message : 'Could not calculate chart');
+        }
+
+        // Load mySpectrums from most recent reading that has them
+        const readings = getReadings();
+        for (const r of readings) {
+          const ms = r.briefing?.mySpectrums;
+          if (ms && typeof ms.communication === 'number') {
+            setMySpectrums(ms as MySpectrums);
+            break;
+          }
         }
       })
       .catch(e => setError(String(e)));
@@ -140,14 +158,14 @@ export default function YouPage() {
                 datasets={[{
                   elements:     chart.elements,
                   pillarsKnown: chart.pillarsKnown,
-                  color: ELEMENT_COLORS[chart.element.toLowerCase()]?.fg ?? '#948B7C',
+                  color: '#C4502E',
                 }]}
                 size={280}
                 showGrid
               />
             </div>
 
-            {/* ── Spectrum (placeholder — needs first reading) ──────────────── */}
+            {/* ── Spectrum ──────────────────────────────────────────────────── */}
             <div className="card" style={{ padding: '20px' }}>
               <div style={{
                 fontFamily: "var(--font-fraunces,Georgia,serif)", fontSize: 20,
@@ -155,26 +173,27 @@ export default function YouPage() {
               }}>
                 Your spectrum
               </div>
-              <p style={{
-                margin: '0 0 6px',
-                fontFamily: "var(--font-inter,system-ui)",
-                fontSize: 13, color: 'var(--c-muted)', lineHeight: 1.55, fontStyle: 'italic',
-              }}>
-                Read someone to unlock your full profile.
-              </p>
-              {/* Placeholder bars */}
+              {!mySpectrums && (
+                <p style={{
+                  margin: '0 0 6px',
+                  fontFamily: "var(--font-inter,system-ui)",
+                  fontSize: 13, color: 'var(--c-muted)', lineHeight: 1.55, fontStyle: 'italic',
+                }}>
+                  Read someone to unlock your full profile.
+                </p>
+              )}
               {[
-                { l: 'Indirect', r: 'Direct' },
-                { l: 'Gut feel', r: 'Analysis' },
-                { l: 'Deliberate', r: 'Fast-moving' },
-                { l: 'Withdraws', r: 'Confronts' },
-              ].map(({ l, r }) => (
+                { l: 'Indirect',   r: 'Direct',       k: 'communication' as const },
+                { l: 'Gut feel',   r: 'Analysis',     k: 'decisions'     as const },
+                { l: 'Deliberate', r: 'Fast-moving',  k: 'pace'          as const },
+                { l: 'Withdraws',  r: 'Confronts',    k: 'stress'        as const },
+              ].map(({ l, r, k }) => (
                 <SpectrumBar
                   key={l}
                   leftLabel={l}
                   rightLabel={r}
-                  dots={[]}
-                  style={{ marginBottom: 14, opacity: 0.3 }}
+                  dots={mySpectrums ? [{ value: mySpectrums[k], color: '#C4502E' }] : []}
+                  style={{ marginBottom: 14, opacity: mySpectrums ? 1 : 0.3 }}
                 />
               ))}
             </div>

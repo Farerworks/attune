@@ -98,11 +98,11 @@ ELEMENT AXIS (ME → THEM): ${elemAxis}`;
   const outputSpec = mode === 'person'
     ? `{
   "parts": [
-    { "label": "LIKELY RECEPTION", "text": "2–3 sentences, specific and actionable" },
-    { "label": "WHAT COULD BACKFIRE", "text": "2–3 sentences" },
-    { "label": "HOW TO IMPROVE YOUR ODDS", "text": "2–3 sentences" }
+    { "label": "LIKELY RECEPTION", "text": "2–3 sentences, specific and actionable. HARD LIMIT: max 3 sentences, max 55 words." },
+    { "label": "WHAT COULD BACKFIRE", "text": "2–3 sentences. HARD LIMIT: max 3 sentences, max 55 words." },
+    { "label": "HOW TO IMPROVE YOUR ODDS", "text": "2–3 sentences. HARD LIMIT: max 3 sentences, max 55 words." }
   ],
-  "timing": "Include ONLY if the question is about timing or when to act. Name 2–3 favorable dates (YYYY-MM-DD, day-of-week, stem/branch reason) and 1–2 dates to avoid. Omit the key entirely if not a timing question."
+  "timing": "ONLY if the question is about timing. MUST be a single plain-text string — NEVER an object or array. Name 2–3 favorable dates (YYYY-MM-DD, day-of-week, reason) and 1–2 to avoid. Omit this key entirely if not a timing question."
 }`
     : `{ "text": "Under 120 words. Warm, practical coach tone. Describe tendencies, not predictions." }`;
 
@@ -125,11 +125,51 @@ ${historyText}RULES (non-negotiable):
 4. Forbidden words: weakness, exploit, leverage against, manipulate, vulnerable to
 5. All guidance adjusts MY behavior, not theirs.
 6. No medical, legal, or financial advice.
+7. Parts text exceeding 3 sentences or 55 words will be cut off — stay within limits.
 
 Respond ONLY with valid JSON (no markdown fences, no extra keys):
 ${outputSpec}
 
 QUESTION: ${question}`;
+}
+
+// ── Answer normalizer (validate shape + convert timing objects to string) ────────
+
+function normalizeAnswer(
+  mode: 'me' | 'person' | 'general',
+  raw: unknown,
+): Record<string, unknown> | null {
+  if (typeof raw !== 'object' || raw === null) return null;
+  const r = raw as Record<string, unknown>;
+
+  if (mode === 'me' || mode === 'general') {
+    return typeof r.text === 'string' ? { text: r.text } : null;
+  }
+
+  // person mode — exactly 3 parts with label:string + text:string
+  if (!Array.isArray(r.parts) || r.parts.length !== 3) return null;
+  for (const p of r.parts) {
+    const item = p as Record<string, unknown>;
+    if (typeof item.label !== 'string' || typeof item.text !== 'string') return null;
+  }
+
+  let timing: string | undefined;
+  if (r.timing !== undefined) {
+    if (typeof r.timing === 'string') {
+      timing = r.timing || undefined;
+    } else if (typeof r.timing === 'object' && r.timing !== null) {
+      // LLM returned an object — convert favorable_dates / avoid_dates to a sentence
+      const t = r.timing as Record<string, unknown>;
+      const segs: string[] = [];
+      if (Array.isArray(t.favorable_dates) && (t.favorable_dates as unknown[]).length > 0)
+        segs.push(`Favorable: ${(t.favorable_dates as string[]).join(', ')}.`);
+      if (Array.isArray(t.avoid_dates) && (t.avoid_dates as unknown[]).length > 0)
+        segs.push(`Avoid: ${(t.avoid_dates as string[]).join(', ')}.`);
+      timing = segs.length > 0 ? segs.join(' ') : undefined;
+    }
+  }
+
+  return { parts: r.parts, ...(timing !== undefined ? { timing } : {}) };
 }
 
 // ── Request schema ─────────────────────────────────────────────────────────────
@@ -203,50 +243,52 @@ export async function POST(request: Request) {
     rawAnswer = await withTimeout(llm.generateJson(prompt, 4096), LLM_TIMEOUT);
   } catch (err) {
     console.error('[ask] LLM call failed:', err instanceof Error ? err.message : err);
-    return Response.json(
-      { error: "Attune couldn't finish that thought — ask again." },
-      { status: 502 },
-    );
+    return Response.json({ error: "Attune couldn't finish that thought — ask again." }, { status: 502 });
   }
 
-  let answer: unknown;
-  try { answer = extractJson(rawAnswer); }
+  let rawParsed: unknown;
+  try { rawParsed = extractJson(rawAnswer); }
   catch {
     console.error('[ask] LLM response not parseable:', rawAnswer.slice(0, 300));
     return Response.json({ error: "Attune couldn't finish that thought — ask again." }, { status: 502 });
   }
 
-  // Banned phrase check
-  const violations = findBanned(JSON.stringify(answer));
-  if (violations.length > 0) {
-    const retryPrompt =
-      prompt +
-      `\n\n⚠ PREVIOUS RESPONSE VIOLATION — Banned phrases found: ${violations.map(v => `"${v}"`).join(', ')}. Regenerate the entire JSON without these phrases.`;
+  let answer = normalizeAnswer(mode, rawParsed);
+  const violations = answer ? findBanned(JSON.stringify(answer)) : [];
+
+  // If schema invalid or banned phrases → one retry with combined warnings
+  if (!answer || violations.length > 0) {
+    const warnings: string[] = [];
+    if (!answer) warnings.push('⚠ SCHEMA VIOLATION — Response did not match required JSON shape. Return exactly the specified schema.');
+    if (violations.length > 0) warnings.push(`⚠ BANNED PHRASES — Found: ${violations.map(v => `"${v}"`).join(', ')}. Regenerate without these phrases.`);
+
+    const retryPrompt = prompt + '\n\n' + warnings.join('\n\n');
 
     let retryRaw: string;
     try {
       retryRaw = await withTimeout(llm.generateJson(retryPrompt, 4096), LLM_TIMEOUT);
     } catch (err) {
       console.error('[ask] Retry LLM call failed:', err instanceof Error ? err.message : err);
-      return Response.json(
-        { error: "Attune couldn't finish that thought — ask again." },
-        { status: 502 },
-      );
+      return Response.json({ error: "Attune couldn't finish that thought — ask again." }, { status: 502 });
     }
 
-    try { answer = extractJson(retryRaw); }
+    let retryParsed: unknown;
+    try { retryParsed = extractJson(retryRaw); }
     catch {
       console.error('[ask] Retry LLM response not parseable:', retryRaw.slice(0, 300));
+      return Response.json({ error: "Attune couldn't finish that thought — ask again." }, { status: 502 });
+    }
+
+    answer = normalizeAnswer(mode, retryParsed);
+    if (!answer) {
+      console.error('[ask] Retry still schema-invalid');
       return Response.json({ error: "Attune couldn't finish that thought — ask again." }, { status: 502 });
     }
 
     const retryViolations = findBanned(JSON.stringify(answer));
     if (retryViolations.length > 0) {
       console.error('[ask] Banned phrases after retry:', retryViolations);
-      return Response.json(
-        { error: "Attune couldn't finish that thought — ask again." },
-        { status: 502 },
-      );
+      return Response.json({ error: "Attune couldn't finish that thought — ask again." }, { status: 502 });
     }
   }
 
