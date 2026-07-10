@@ -60,6 +60,11 @@ html, body {
   height: 100%;
 }
 
+/* iOS17 PWA: fixed 요소 밀림 완화 — safe-area-inset-top만큼 html을 늘림 */
+html {
+  min-height: calc(100% + env(safe-area-inset-top));
+}
+
 body {
   background: var(--c-paper);
   color: var(--c-ink);

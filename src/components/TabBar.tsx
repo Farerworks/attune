@@ -46,8 +46,9 @@ export function TabBar() {
       style={{
         position: 'fixed',
         bottom: 0,
-        left: '50%',
-        transform: 'translateX(-50%)',
+        left: 0,
+        right: 0,
+        margin: '0 auto',
         width: '100%',
         maxWidth: 480,
         height: 'calc(var(--tab-bar-height) + env(safe-area-inset-bottom, 0px))',
