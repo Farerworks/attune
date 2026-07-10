@@ -173,9 +173,14 @@ function SectionHeader({ num, title, watermark }: { num: string; title: string; 
 export default function ReadingPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
-  const [reading, setReading] = useState<Reading | null | undefined>(undefined);
+  const [reading, setReading]  = useState<Reading | null | undefined>(undefined);
+  const [askLeft,  setAskLeft]  = useState(5);
 
   useEffect(() => { setReading(getReading(id)); }, [id]);
+  useEffect(() => {
+    const raw = typeof window !== 'undefined' ? sessionStorage.getItem('attune.ask.left') : null;
+    if (raw !== null) setAskLeft(JSON.parse(raw) as number);
+  }, []);
 
   if (reading === undefined) return null;
 
@@ -430,10 +435,22 @@ export default function ReadingPage({ params }: { params: Promise<{ id: string }
                   borderRadius: 12, padding: '16px 16px', marginBottom: 12,
                   display: 'flex', flexDirection: 'column', gap: 18,
                 }}>
-                  <SpectrumBar leftLabel="Indirect" rightLabel="Direct" dots={[{ value: b.spectrums.communication, color: theirC.fg }]} />
-                  <SpectrumBar leftLabel="Gut feel" rightLabel="Analysis" dots={[{ value: b.spectrums.decisions, color: theirC.fg }]} />
-                  <SpectrumBar leftLabel="Deliberate" rightLabel="Fast-moving" dots={[{ value: b.spectrums.pace, color: theirC.fg }]} />
-                  <SpectrumBar leftLabel="Withdraws" rightLabel="Confronts" dots={[{ value: b.spectrums.stress, color: theirC.fg }]} />
+                  <SpectrumBar leftLabel="Indirect" rightLabel="Direct" dots={[
+                    { value: b.spectrums.communication, color: theirC.fg },
+                    ...(b.mySpectrums ? [{ value: b.mySpectrums.communication, color: myC.fg }] : []),
+                  ]} />
+                  <SpectrumBar leftLabel="Gut feel" rightLabel="Analysis" dots={[
+                    { value: b.spectrums.decisions, color: theirC.fg },
+                    ...(b.mySpectrums ? [{ value: b.mySpectrums.decisions, color: myC.fg }] : []),
+                  ]} />
+                  <SpectrumBar leftLabel="Deliberate" rightLabel="Fast-moving" dots={[
+                    { value: b.spectrums.pace, color: theirC.fg },
+                    ...(b.mySpectrums ? [{ value: b.mySpectrums.pace, color: myC.fg }] : []),
+                  ]} />
+                  <SpectrumBar leftLabel="Withdraws" rightLabel="Confronts" dots={[
+                    { value: b.spectrums.stress, color: theirC.fg },
+                    ...(b.mySpectrums ? [{ value: b.mySpectrums.stress, color: myC.fg }] : []),
+                  ]} />
                 </div>
               </Reveal>
             )}
@@ -488,27 +505,33 @@ export default function ReadingPage({ params }: { params: Promise<{ id: string }
         {/* ── CTA card ─────────────────────────────────────────────────────── */}
         <Reveal>
           <Link
-            href="/ask"
+            href={`/ask?person=${reading.id}`}
             style={{
-              display: 'block', textDecoration: 'none',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              textDecoration: 'none',
               background: 'var(--c-card)',
               border: '1px solid var(--c-hairline)',
               borderRadius: 16, padding: '18px 20px',
               marginBottom: 32,
             }}
           >
-            <p style={{
-              margin: '0 0 4px',
-              fontFamily: "var(--font-inter,system-ui)", fontSize: 15, fontWeight: 600, color: 'var(--c-ink)',
-            }}>
-              Ask Attune about {reading.name ?? 'them'} →
-            </p>
-            <p style={{
-              margin: 0,
-              fontFamily: "var(--font-inter,system-ui)", fontSize: 12, color: 'var(--c-muted)',
-            }}>
-              4 questions left
-            </p>
+            <div>
+              <p style={{
+                margin: '0 0 5px',
+                fontFamily: "var(--font-fraunces,Georgia,serif)", fontSize: 20,
+                color: 'var(--c-ink)',
+              }}>
+                Ask Attune about {reading.name ?? 'them'}
+              </p>
+              <p style={{
+                margin: 0,
+                fontFamily: "var(--font-space-mono,'Courier New')", fontSize: 10,
+                letterSpacing: '0.08em', color: 'var(--c-muted)',
+              }}>
+                {askLeft} QUESTIONS LEFT
+              </p>
+            </div>
+            <span style={{ color: '#C4502E', fontSize: 22, lineHeight: 1 }}>→</span>
           </Link>
         </Reveal>
 

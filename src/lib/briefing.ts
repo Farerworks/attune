@@ -23,6 +23,12 @@ export const BriefingSchema = z.object({
     pace:          z.number().int().min(0).max(100),
     stress:        z.number().int().min(0).max(100),
   }),
+  mySpectrums: z.object({
+    communication: z.number().int().min(0).max(100),
+    decisions:     z.number().int().min(0).max(100),
+    pace:          z.number().int().min(0).max(100),
+    stress:        z.number().int().min(0).max(100),
+  }),
   dynamic: z.object({
     resonance: z.enum(['strong-current', 'mixed-signals', 'slow-build']),
     click: InsightSchema,
@@ -124,10 +130,16 @@ Respond with ONLY a valid JSON object matching the schema below. No explanation 
     "stress":        { "takeaway": "<8 words or fewer>", "detail": "<2–3 sentences with 1 observable scene>" }
   },
   "spectrums": {
-    "communication": <integer 0–100, 0=Indirect, 100=Direct>,
-    "decisions":     <integer 0–100, 0=Gut feel, 100=Analysis>,
-    "pace":          <integer 0–100, 0=Deliberate, 100=Fast-moving>,
-    "stress":        <integer 0–100, 0=Withdraws, 100=Confronts>
+    "communication": <integer 0–100, 0=Indirect, 100=Direct — THEIR position>,
+    "decisions":     <integer 0–100, 0=Gut feel, 100=Analysis — THEIR position>,
+    "pace":          <integer 0–100, 0=Deliberate, 100=Fast-moving — THEIR position>,
+    "stress":        <integer 0–100, 0=Withdraws, 100=Confronts — THEIR position>
+  },
+  "mySpectrums": {
+    "communication": <integer 0–100, 0=Indirect, 100=Direct — MY position>,
+    "decisions":     <integer 0–100, 0=Gut feel, 100=Analysis — MY position>,
+    "pace":          <integer 0–100, 0=Deliberate, 100=Fast-moving — MY position>,
+    "stress":        <integer 0–100, 0=Withdraws, 100=Confronts — MY position>
   },
   "dynamic": {
     "resonance": "<exactly one of: strong-current | mixed-signals | slow-build>",
@@ -144,7 +156,7 @@ Respond with ONLY a valid JSON object matching the schema below. No explanation 
 CONTENT RULES
 1. All insights must derive only from the saju data above. Do not invent information.
 2. Use "tends to" / "is likely to" / "may". Never "will" as a certainty marker.
-3. spectrums are UI slider coordinates — base on day-master element/polarity and element distribution. Avoid extremes (0–15 or 85–100) unless strongly supported.
+3. spectrums are THEIR UI slider coordinates; mySpectrums are MY (user's) UI slider coordinates. Both derived from the respective day-master element/polarity and element distribution. Avoid extremes (0–15 or 85–100) unless strongly supported.
 4. resonance is a relationship-flow label only. No numbers or percentages in dynamic.
 5. playbook must have 3–5 items (mix of do/dont).
 6. Forbidden words: "weakness", "exploit", "leverage against", "manipulate", "vulnerable to".

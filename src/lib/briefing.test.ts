@@ -11,7 +11,8 @@ const VALID_BRIEFING: Briefing = {
     decisions:     { takeaway: 'Gut-led, not data-led',      detail: 'Her Metal day master tends toward instinctive conviction. Analysis is likely a secondary step.' },
     stress:        { takeaway: 'Withdraws when overloaded',  detail: 'Under pressure she is likely to pull back rather than confront. Give her room.' },
   },
-  spectrums: { communication: 35, decisions: 40, pace: 30, stress: 25 },
+  spectrums:   { communication: 35, decisions: 40, pace: 30, stress: 25 },
+  mySpectrums: { communication: 60, decisions: 55, pace: 70, stress: 45 },
   dynamic: {
     resonance: 'slow-build',
     click: { takeaway: 'Both value loyalty',      detail: 'Shared Earth element suggests patience and reliability as common ground.' },

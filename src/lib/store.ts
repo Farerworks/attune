@@ -54,6 +54,12 @@ export interface BriefingData {
     pace: number;
     stress: number;
   };
+  mySpectrums?: {
+    communication: number;
+    decisions: number;
+    pace: number;
+    stress: number;
+  };
   dynamic: {
     resonance: 'strong-current' | 'mixed-signals' | 'slow-build';
     click: { takeaway: string; detail: string };
