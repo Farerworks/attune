@@ -89,17 +89,19 @@ export function buildBriefingPrompt(
   const personalityContext = `\
 === DAY MASTER CONTEXT (pre-computed — use as interpretive foundation) ===
 
-YOUR DAY MASTER: ${me.dayMaster.stem} (${myArch.hanja})
+YOUR DAY MASTER: ${me.dayMaster.stem} — ${myArch.name} (${myArch.hanja})
   Core drive:     ${myArch.coreDrive}
   Communication:  ${myArch.communication}
   Under stress:   ${myArch.stress}
 
-THEIR DAY MASTER: ${them.dayMaster.stem} (${themArch.hanja})
+THEIR DAY MASTER: ${them.dayMaster.stem} — ${themArch.name} (${themArch.hanja})
   Core drive:     ${themArch.coreDrive}
   Communication:  ${themArch.communication}
   Under stress:   ${themArch.stress}
 
-ELEMENT AXIS: ${elemAxis}`;
+ELEMENT AXIS: ${elemAxis}
+
+You may refer to them naturally as "${themArch.name}" once or twice in the report — only if it fits the writing. Never force it.`;
 
   const cautionNote =
     them.pillarsKnown === 6
@@ -122,7 +124,7 @@ OUTPUT INSTRUCTIONS
 Respond with ONLY a valid JSON object matching the schema below. No explanation text, no markdown fences, no extra keys.
 
 {
-  "headline": "Format: '<Name>, before <key event>.' — extract the event from situation. If no event, use '<Name>, decoded.'",
+  "headline": "8 words or fewer. Specific to THIS person in THIS situation. Gently disarming — makes the reader pause. Tone register: think 'You're not sad, just bored' (do NOT copy that line — write one for this context). Forbidden: stars, fate, universe, destiny, cosmic clichés, generic truisms. Format: '<Name>, before <key event>.' — extract event from situation. If no event, use '<Name>, decoded.'",
   "theirProfile": {
     "personality":   { "takeaway": "<contrast structure: X — but Y>", "detail": "<2–3 sentences with 1 observable scene>" },
     "communication": { "takeaway": "<8 words or fewer>", "detail": "<2–3 sentences with 1 observable scene>" },

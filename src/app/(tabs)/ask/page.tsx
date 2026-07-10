@@ -85,20 +85,16 @@ export default function AskPage() {
 
     const readings = getReadings();
 
-    Promise.all([
-      import('@/lib/saju'),
-      import('@/lib/interpretGuide'),
-    ]).then(([{ calculateSaju }, { getArchetype }]) => {
+    import('@/lib/saju').then(({ calculateSaju }) => {
       const chipList: Chip[] = [];
 
-      // Me chip — use hanja initial from day master archetype
+      // Me chip
       try {
         const myChart = calculateSaju({ date: profile.date, time: profile.time });
-        const arch    = getArchetype(myChart.dayMaster.stem);
         chipList.push({
           id: 'me', label: 'Me',
           element: myChart.dayMaster.element,
-          initial: arch.hanja,
+          initial: 'M',
         });
       } catch {
         chipList.push({ id: 'me', label: 'Me', initial: 'M' });
@@ -156,10 +152,6 @@ export default function AskPage() {
     setThreads(newThreads);
     ssSet(SS_THREADS, newThreads);
 
-    const newLeft = left - 1;
-    setLeft(newLeft);
-    ssSet(SS_LEFT, newLeft);
-
     setLoading(true);
 
     try {
@@ -204,6 +196,10 @@ export default function AskPage() {
 
       if (!res.ok) throw new Error(data.error ?? 'Something went wrong — try again.');
 
+      const newLeft = left - 1;
+      setLeft(newLeft);
+      ssSet(SS_LEFT, newLeft);
+
       const assistantMsg: AssistantMsg = {
         id: crypto.randomUUID(),
         role: 'assistant',
@@ -247,6 +243,31 @@ export default function AskPage() {
       <div style={{ minHeight: '100%', background: 'var(--c-paper)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ width: 28, height: 28, borderRadius: '50%', border: '2.5px solid var(--c-hairline)', borderTopColor: 'var(--c-vermilion)', animation: 'spin 0.8s linear infinite' }} />
         <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+      </div>
+    );
+  }
+
+  if (!myProfile) {
+    return (
+      <div style={{
+        minHeight: '100%', background: 'var(--c-paper)',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        padding: '40px 24px', textAlign: 'center',
+      }}>
+        <p style={{
+          fontFamily: "var(--font-inter,system-ui)", fontSize: 16,
+          color: 'var(--c-muted)', marginBottom: 20, lineHeight: 1.5,
+        }}>
+          Set up your chart first — it&apos;s half of every answer.
+        </p>
+        <Link href="/onboarding" style={{
+          display: 'inline-block', textDecoration: 'none',
+          background: '#C4502E', color: '#fff',
+          fontFamily: "var(--font-inter,system-ui)", fontSize: 14, fontWeight: 600,
+          padding: '10px 24px', borderRadius: 24,
+        }}>
+          Get started
+        </Link>
       </div>
     );
   }

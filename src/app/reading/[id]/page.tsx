@@ -4,6 +4,8 @@ import { use, useEffect, useState, useRef, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getReading, ELEMENT_COLORS, type Reading, type PlaybookItem } from '@/lib/store';
+import { getArchetype } from '@/lib/interpretGuide';
+import type { TenStem } from '@/lib/saju';
 import { formatDate } from '@/lib/format';
 import { ElementChart } from '@/components/ElementChart';
 import { SpectrumBar } from '@/components/SpectrumBar';
@@ -197,12 +199,13 @@ export default function ReadingPage({ params }: { params: Promise<{ id: string }
     );
   }
 
-  const theirEl   = reading.themChart?.dayMaster?.element?.toLowerCase();
-  const myEl      = reading.myChart?.dayMaster?.element?.toLowerCase();
-  const theirC    = elementColor(theirEl);
-  const myC       = elementColor(myEl);
-  const b         = reading.briefing;
-  const theirArch = reading.themChart?.dayMaster;
+  const theirEl        = reading.themChart?.dayMaster?.element?.toLowerCase();
+  const myEl           = reading.myChart?.dayMaster?.element?.toLowerCase();
+  const theirC         = elementColor(theirEl);
+  const myC            = elementColor(myEl);
+  const b              = reading.briefing;
+  const theirArch      = reading.themChart?.dayMaster;
+  const theirArchetype = theirArch?.stem ? getArchetype(theirArch.stem as TenStem) : null;
 
   // Datasets for ElementChart
   const theirDataset = reading.themChart
@@ -277,6 +280,26 @@ export default function ReadingPage({ params }: { params: Promise<{ id: string }
           }}>
             <ItalicLast text={b.headline} />
           </h1>
+        )}
+
+        {/* Archetype line */}
+        {theirArchetype && theirArch && (
+          <div style={{ marginBottom: 20 }}>
+            <p style={{
+              fontFamily: "var(--font-space-mono,'Courier New')",
+              fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase',
+              color: 'var(--c-muted)', margin: '0 0 4px',
+            }}>
+              {theirArch.element} · {theirArch.polarity}
+            </p>
+            <p style={{
+              fontFamily: "var(--font-fraunces,Georgia,serif)",
+              fontSize: 22, fontStyle: 'italic', margin: 0,
+              color: theirC.fg,
+            }}>
+              {theirArchetype.name}
+            </p>
+          </div>
         )}
 
         {/* Meta chip row */}

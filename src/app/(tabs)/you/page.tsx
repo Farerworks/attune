@@ -8,19 +8,6 @@ import { formatDate } from '@/lib/format';
 import { ElementChart } from '@/components/ElementChart';
 import { SpectrumBar } from '@/components/SpectrumBar';
 
-const NICKNAMES: Record<string, string> = {
-  'Yang Wood':  'The early starter',
-  'Yin Wood':   'The adaptive networker',
-  'Yang Fire':  'The natural radiator',
-  'Yin Fire':   'The quiet illuminator',
-  'Yang Earth': 'The steady anchor',
-  'Yin Earth':  'The quiet enabler',
-  'Yang Metal': 'The principled decider',
-  'Yin Metal':  'The refined observer',
-  'Yang Water': 'The big thinker',
-  'Yin Water':  'The quiet strategist',
-};
-
 interface ChartData {
   stem:     string;
   element:  string;
@@ -28,6 +15,8 @@ interface ChartData {
   elements: Record<string, number>;
   pillarsKnown: number;
   hanja: string;
+  name: string;
+  tagline: string;
   coreDrive: string;
   communication: string;
   stress: string;
@@ -56,6 +45,8 @@ export default function YouPage() {
             elements:     c.elements as Record<string, number>,
             pillarsKnown: c.pillarsKnown,
             hanja:        arc.hanja,
+            name:         arc.name,
+            tagline:      arc.tagline,
             coreDrive:    arc.coreDrive,
             communication: arc.communication,
             stress:        arc.stress,
@@ -118,13 +109,18 @@ export default function YouPage() {
                   }}>
                     {chart.element} · {chart.polarity}
                   </div>
-                  {/* Nickname */}
+                  <div style={{
+                    fontFamily: "var(--font-fraunces,Georgia,serif)",
+                    fontSize: 23, color: 'var(--c-ink)', marginTop: 4, lineHeight: 1.2,
+                  }}>
+                    {chart.name}
+                  </div>
                   <div style={{
                     fontFamily: "var(--font-inter,system-ui)",
-                    fontSize: 12, fontStyle: 'italic',
+                    fontSize: 14, fontStyle: 'italic',
                     color: 'var(--c-muted)', marginTop: 2,
                   }}>
-                    {NICKNAMES[chart.stem] ?? ''}
+                    {chart.tagline}
                   </div>
                 </div>
               </div>

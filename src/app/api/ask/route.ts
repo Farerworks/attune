@@ -11,7 +11,7 @@ const LLM_TIMEOUT = 55_000;
 const RATE_LIMIT  = 10;
 const RATE_WINDOW = 60 * 60 * 1000;
 
-const BANNED = ['weakness', 'exploit', 'leverage against', 'manipulate'];
+const BANNED = ['weakness', 'exploit', 'leverage against', 'manipulate', 'vulnerable to'];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -53,7 +53,7 @@ function buildAskPrompt(
   let chartBlock = '';
   if (mode !== 'general') {
     const myArch = getArchetype(meChart.dayMaster.stem);
-    chartBlock = `ME — ${meChart.dayMaster.stem} (${myArch.hanja}), ${meChart.dayMaster.element} ${meChart.dayMaster.polarity}
+    chartBlock = `ME — ${meChart.dayMaster.stem} (${myArch.name}), ${meChart.dayMaster.element} ${meChart.dayMaster.polarity}
   Drive: ${myArch.coreDrive}
   Communication: ${myArch.communication}
   Under stress: ${myArch.stress}`;
@@ -61,7 +61,7 @@ function buildAskPrompt(
     if (mode === 'person' && themChart) {
       const themArch  = getArchetype(themChart.dayMaster.stem);
       const elemAxis  = getElementRelationship(meChart.dayMaster.stem, themChart.dayMaster.stem);
-      chartBlock += `\n\nTHEM — ${themChart.dayMaster.stem} (${themArch.hanja}), ${themChart.dayMaster.element} ${themChart.dayMaster.polarity}
+      chartBlock += `\n\nTHEM — ${themChart.dayMaster.stem} (${themArch.name}), ${themChart.dayMaster.element} ${themChart.dayMaster.polarity}
   Drive: ${themArch.coreDrive}
   Communication: ${themArch.communication}
   Under stress: ${themArch.stress}
@@ -122,7 +122,7 @@ ${historyText}RULES (non-negotiable):
 1. Use "tends to" / "is likely to" / "may" — never "will" as a certainty marker
 2. No yes/no verdicts. No numerical probabilities or scores.
 3. Describe behavioral tendencies, not predictions of outcomes.
-4. Forbidden words: weakness, exploit, leverage against, manipulate
+4. Forbidden words: weakness, exploit, leverage against, manipulate, vulnerable to
 5. All guidance adjusts MY behavior, not theirs.
 6. No medical, legal, or financial advice.
 

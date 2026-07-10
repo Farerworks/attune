@@ -18,6 +18,8 @@ describe('getArchetype', () => {
       const a = getArchetype(stem);
       expect(a, `missing archetype for ${stem}`).toBeDefined();
       expect(a.hanja).toBeTruthy();
+      expect(a.name).toBeTruthy();
+      expect(a.tagline).toBeTruthy();
       expect(a.coreDrive).toBeTruthy();
       expect(a.communication).toBeTruthy();
       expect(a.stress).toBeTruthy();
@@ -35,6 +37,18 @@ describe('getArchetype', () => {
   it('all 10 hanja are distinct', () => {
     const hanjaSet = new Set(ALL_STEMS.map(s => getArchetype(s).hanja));
     expect(hanjaSet.size).toBe(10);
+  });
+
+  it('all 10 names are distinct non-empty strings', () => {
+    const names = ALL_STEMS.map(s => getArchetype(s).name);
+    expect(new Set(names).size).toBe(10);
+    names.forEach(n => expect(n.length).toBeGreaterThan(0));
+  });
+
+  it('all 10 taglines are distinct non-empty strings', () => {
+    const taglines = ALL_STEMS.map(s => getArchetype(s).tagline);
+    expect(new Set(taglines).size).toBe(10);
+    taglines.forEach(t => expect(t.length).toBeGreaterThan(0));
   });
 
   it('ARCHETYPES record and getArchetype() return the same object', () => {

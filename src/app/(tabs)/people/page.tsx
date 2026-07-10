@@ -2,6 +2,8 @@
 
 import Link from 'next/link';
 import { useReadings, ELEMENT_COLORS } from '@/lib/store';
+import { getArchetype } from '@/lib/interpretGuide';
+import type { TenStem } from '@/lib/saju';
 import { formatDate } from '@/lib/format';
 
 function ElementAvatar({ name, element }: { name?: string; element?: string }) {
@@ -95,8 +97,10 @@ export default function PeoplePage() {
         /* Reading list */
         <ul style={{ listStyle: 'none', margin: 0, padding: '8px 0' }}>
           {readings.map(reading => {
-            const element = reading.themChart?.dayMaster?.element?.toLowerCase();
-            const colors  = element ? ELEMENT_COLORS[element] : undefined;
+            const element  = reading.themChart?.dayMaster?.element?.toLowerCase();
+            const stem     = reading.themChart?.dayMaster?.stem;
+            const colors   = element ? ELEMENT_COLORS[element] : undefined;
+            const archName = stem ? getArchetype(stem as TenStem).name : null;
             return (
               <li key={reading.id}>
                 <Link
@@ -149,7 +153,7 @@ export default function PeoplePage() {
                             borderRadius: 4,
                           }}
                         >
-                          {element}
+                          {archName ?? element}
                         </span>
                       )}
                       <span
