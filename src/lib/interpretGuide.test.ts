@@ -54,6 +54,18 @@ describe('getArchetype', () => {
   it('ARCHETYPES record and getArchetype() return the same object', () => {
     expect(getArchetype('Yang Fire')).toBe(ARCHETYPES['Yang Fire']);
   });
+
+  it('all 10 archetypes have keywords array of exactly 2 non-empty strings', () => {
+    for (const stem of ALL_STEMS) {
+      const { keywords } = getArchetype(stem);
+      expect(Array.isArray(keywords), `${stem}: keywords not an array`).toBe(true);
+      expect(keywords.length, `${stem}: keywords length !== 2`).toBe(2);
+      expect(typeof keywords[0], `${stem}: keywords[0] not string`).toBe('string');
+      expect(typeof keywords[1], `${stem}: keywords[1] not string`).toBe('string');
+      expect(keywords[0].length, `${stem}: keywords[0] empty`).toBeGreaterThan(0);
+      expect(keywords[1].length, `${stem}: keywords[1] empty`).toBeGreaterThan(0);
+    }
+  });
 });
 
 // ── getElementRelationship ───────────────────────────────────────────────────

@@ -6,6 +6,7 @@ export interface Archetype {
   hanja: string;
   name: string;
   tagline: string;
+  keywords: [string, string];
   coreDrive: string;
   communication: string;
   stress: string;
@@ -16,6 +17,7 @@ export const ARCHETYPES: Record<TenStem, Archetype> = {
     hanja:   '甲',
     name:    'The Early Starter',
     tagline: 'Already moving before the plan is done.',
+    keywords: ['Moves first', 'Hates waiting'],
     coreDrive:     'Growth-oriented pioneer; driven by principles and purpose; compelled to initiate and lead',
     communication: 'Direct and action-first; tends to propose before asking; moves conversations forward',
     stress:        'Confronts obstacles head-on; risks rigidity and snapping under sustained pressure',
@@ -24,6 +26,7 @@ export const ARCHETYPES: Record<TenStem, Archetype> = {
     hanja:   '乙',
     name:    'The Quiet Climber',
     tagline: 'Finds a way around every wall.',
+    keywords: ['Adapts fast', 'Finds a way'],
     coreDrive:     'Flexible survivor; grows through relationships and alliances; adaptive networker',
     communication: 'Gently indirect and mediating; suggests and adjusts rather than demands',
     stress:        'Tends to bend, depend on others, or go quiet rather than confront directly',
@@ -32,6 +35,7 @@ export const ARCHETYPES: Record<TenStem, Archetype> = {
     hanja:   '丙',
     name:    'The Main Character',
     tagline: 'The room warms up when they walk in.',
+    keywords: ['Big energy', 'Warms the room'],
     coreDrive:     'Open and expansive; natural performer; driven to radiate warmth and be seen',
     communication: 'Animated and inclusive; broad gestures, warm language, energizes the room',
     stress:        'Erupts when ignored or dismissed; recovers quickly once acknowledged',
@@ -40,6 +44,7 @@ export const ARCHETYPES: Record<TenStem, Archetype> = {
     hanja:   '丁',
     name:    'The Slow Burn',
     tagline: 'Says little. Lands exactly.',
+    keywords: ['Quiet depth', 'Precise words'],
     coreDrive:     'Perceptive and intimate; focuses deeply on one person; driven by insight over spectacle',
     communication: 'Quiet but precise; says little, lands exactly on the nerve when it matters',
     stress:        'Bottles feelings for a long time, then releases everything at once',
@@ -48,6 +53,7 @@ export const ARCHETYPES: Record<TenStem, Archetype> = {
     hanja:   '戊',
     name:    'The Mountain',
     tagline: "Doesn't move. Doesn't need to.",
+    keywords: ['Unmovable', 'No small talk'],
     coreDrive:     'Immovable and trustworthy; values stability and reliability above novelty',
     communication: 'Minimal and conclusory; says only what matters; avoids small talk',
     stress:        'Holds position under pressure; but once the limit is crossed, collapses suddenly',
@@ -56,6 +62,7 @@ export const ARCHETYPES: Record<TenStem, Archetype> = {
     hanja:   '己',
     name:    'The Gardener',
     tagline: 'Grows people without them noticing.',
+    keywords: ['Grows people', 'Quietly practical'],
     coreDrive:     'Nurturing and practical; grows by enabling others; values usefulness over recognition',
     communication: 'Active listener; asks practical clarifying questions; prefers understanding to debating',
     stress:        'Endures silently while calculating; eventually turns cold and withdraws without warning',
@@ -64,6 +71,7 @@ export const ARCHETYPES: Record<TenStem, Archetype> = {
     hanja:   '庚',
     name:    'The Straight Shooter',
     tagline: 'Means every word, every time.',
+    keywords: ['Zero hedging', 'Means it'],
     coreDrive:     'Principled and decisive; operates in clear right/wrong; driven by justice and standards',
     communication: 'Blunt and unambiguous; dislikes hedging; says exactly what they mean',
     stress:        'Confronts injustice or dishonesty head-on; escalates quickly when principles are violated',
@@ -72,6 +80,7 @@ export const ARCHETYPES: Record<TenStem, Archetype> = {
     hanja:   '辛',
     name:    'The Fine Edge',
     tagline: 'Notices everything. Forgets nothing.',
+    keywords: ['Notices everything', 'High standards'],
     coreDrive:     'Refined and recognition-seeking; drawn to precision and beauty; driven by excellence',
     communication: 'Polished and exact; chooses words carefully; reads subtext and tone acutely',
     stress:        'Turns cutting when criticized; carries perceived slights for a long time',
@@ -80,6 +89,7 @@ export const ARCHETYPES: Record<TenStem, Archetype> = {
     hanja:   '壬',
     name:    'The Open Sea',
     tagline: 'Too big for small plans.',
+    keywords: ['Big plans', 'Hates limits'],
     coreDrive:     'Grand-scale thinker; values freedom and possibility; driven by vision and scope',
     communication: 'Fluid and voluble; pivots topics with ease; sweeping and persuasive',
     stress:        'Becomes impulsive or scattered when confined; may flood or act erratically',
@@ -88,6 +98,7 @@ export const ARCHETYPES: Record<TenStem, Archetype> = {
     hanja:   '癸',
     name:    'The Still Water',
     tagline: 'Reads the room before entering it.',
+    keywords: ['Steady', 'Hard to read'],
     coreDrive:     'Quiet strategist; observes before moving; seeps into situations rather than charging',
     communication: 'Indirect by default; candid only in genuinely safe environments; reads people closely',
     stress:        'Withdraws into silence; avoids confrontation; may disappear rather than engage',

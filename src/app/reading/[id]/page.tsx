@@ -8,6 +8,8 @@ import { getArchetype } from '@/lib/interpretGuide';
 import type { TenStem } from '@/lib/saju';
 import { formatDate } from '@/lib/format';
 import { ElementChart } from '@/components/ElementChart';
+import { ArchetypeCard } from '@/components/ArchetypeCard';
+import { ShareModal } from '@/components/ShareModal';
 import { SpectrumBar } from '@/components/SpectrumBar';
 import { ExpandCard } from '@/components/ExpandCard';
 import { PersonalityIcon } from '@/components/icons/PersonalityIcon';
@@ -177,6 +179,7 @@ export default function ReadingPage({ params }: { params: Promise<{ id: string }
   const router = useRouter();
   const [reading, setReading]  = useState<Reading | null | undefined>(undefined);
   const [askLeft,  setAskLeft]  = useState(5);
+  const [shareOpen, setShareOpen] = useState(false);
 
   useEffect(() => { setReading(getReading(id)); }, [id]);
   useEffect(() => {
@@ -206,6 +209,9 @@ export default function ReadingPage({ params }: { params: Promise<{ id: string }
   const b              = reading.briefing;
   const theirArch      = reading.themChart?.dayMaster;
   const theirArchetype = theirArch?.stem ? getArchetype(theirArch.stem as TenStem) : null;
+  const myArchStem     = reading.myChart?.dayMaster?.stem;
+  const myArchetype    = myArchStem ? getArchetype(myArchStem as TenStem) : null;
+  const canShare       = !!(b?.dynamic && reading.themChart && theirArchetype);
 
   // Datasets for ElementChart
   const theirDataset = reading.themChart
@@ -220,6 +226,15 @@ export default function ReadingPage({ params }: { params: Promise<{ id: string }
   ].filter(Boolean);
 
   return (
+    <>
+    {shareOpen && (
+      <ShareModal
+        reading={reading}
+        myArchetype={myArchetype}
+        theirArchetype={theirArchetype}
+        onClose={() => setShareOpen(false)}
+      />
+    )}
     <div style={{ minHeight: '100svh', background: 'var(--c-paper)', paddingBottom: 48 }}>
       {/* ── Sticky top bar ──────────────────────────────────────────────────── */}
       <header style={{
@@ -247,12 +262,14 @@ export default function ReadingPage({ params }: { params: Promise<{ id: string }
         </span>
 
         <button
-          type="button" disabled
+          type="button"
+          onClick={canShare ? () => setShareOpen(true) : undefined}
+          disabled={!canShare}
           style={{
             fontFamily: "var(--font-inter,system-ui)", fontSize: 13, fontWeight: 500,
-            color: 'var(--c-muted)', background: 'none',
+            color: canShare ? 'var(--c-ink)' : 'var(--c-muted)', background: 'none',
             border: '1px solid var(--c-hairline)', borderRadius: 16,
-            padding: '6px 14px', cursor: 'not-allowed', flexShrink: 0,
+            padding: '6px 14px', cursor: canShare ? 'pointer' : 'not-allowed', flexShrink: 0,
           }}
         >
           Save our card
@@ -282,8 +299,18 @@ export default function ReadingPage({ params }: { params: Promise<{ id: string }
           </h1>
         )}
 
-        {/* Archetype line */}
-        {theirArchetype && theirArch && (
+        {/* Archetype card */}
+        {theirArchetype && theirArch && reading.themChart ? (
+          <div style={{ marginBottom: 20 }}>
+            <ArchetypeCard
+              name={reading.name}
+              date={reading.date}
+              archetype={theirArchetype}
+              element={theirArch.element}
+              elements={reading.themChart.elements}
+            />
+          </div>
+        ) : theirArchetype && theirArch ? (
           <div style={{ marginBottom: 20 }}>
             <p style={{
               fontFamily: "var(--font-space-mono,'Courier New')",
@@ -300,7 +327,7 @@ export default function ReadingPage({ params }: { params: Promise<{ id: string }
               {theirArchetype.name}
             </p>
           </div>
-        )}
+        ) : null}
 
         {/* Meta chip row */}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 36 }}>
@@ -568,6 +595,7 @@ export default function ReadingPage({ params }: { params: Promise<{ id: string }
         </p>
       </div>
     </div>
+    </>
   );
 }
 
