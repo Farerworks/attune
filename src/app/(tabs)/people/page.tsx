@@ -38,62 +38,112 @@ export default function PeoplePage() {
   return (
     <div style={{ minHeight: '100%', background: 'var(--c-paper)' }}>
       <TabTopBar />
-      {/* Header */}
-      <header
-        style={{
-          padding: '20px 20px 12px',
-          borderBottom: readings.length > 0 ? '1px solid var(--c-hairline)' : 'none',
-        }}
-      >
-        <h1 className="t-h2">Who&apos;s on your mind?</h1>
-      </header>
+
+      {readings.length > 0 && (
+        <header style={{ padding: '20px 20px 12px', borderBottom: '1px solid var(--c-hairline)' }}>
+          <h1 className="t-h2">Who&apos;s on your mind?</h1>
+        </header>
+      )}
 
       {readings.length === 0 ? (
         /* Empty state */
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            padding: '64px 24px',
-            textAlign: 'center',
-          }}
-        >
-          <div
-            style={{
-              width: 56,
-              height: 56,
-              borderRadius: '50%',
-              background: 'var(--c-surface-alt)',
-              marginBottom: 20,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <svg width={24} height={24} viewBox="0 0 24 24" fill="none">
-              <circle cx="9" cy="7" r="3.5" stroke="var(--c-muted)" strokeWidth={1.5} />
-              <path stroke="var(--c-muted)" strokeWidth={1.5} strokeLinecap="round" d="M3 20v-1a6 6 0 0112 0v1" />
-              <circle cx="17.5" cy="7.5" r="2.75" stroke="var(--c-muted)" strokeWidth={1.5} />
-              <path stroke="var(--c-muted)" strokeWidth={1.5} strokeLinecap="round" d="M15 13.6A6 6 0 0122 19v1" />
-            </svg>
-          </div>
-          <p
-            style={{
-              fontFamily: 'var(--font-inter)',
-              fontSize: 16,
+        <div style={{ padding: '0 20px 48px', overflowX: 'hidden' }}>
+          {/* 0 SO FAR chip */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '16px 0 12px' }}>
+            <span style={{
+              display: 'inline-block',
+              transform: 'rotate(2deg)',
+              fontFamily: "var(--font-space-mono,'Courier New')",
+              fontSize: 9, letterSpacing: '0.12em',
               color: 'var(--c-muted)',
-              marginBottom: 24,
-              lineHeight: 1.5,
-            }}
-          >
-            No one yet.
-            <br />
-            Who are you curious about?
+              border: '1px solid var(--c-hairline)',
+              padding: '4px 8px', borderRadius: 6,
+            }}>
+              0 SO FAR
+            </span>
+          </div>
+
+          {/* Avatar cluster */}
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 24, paddingTop: 16 }}>
+            <div style={{
+              width: 88, height: 88, borderRadius: '50%', flexShrink: 0,
+              background: 'rgba(74,118,172,0.16)',
+              border: '1px solid rgba(74,118,172,0.3)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontFamily: "var(--font-fraunces,Georgia,serif)", fontSize: 34, fontStyle: 'italic',
+              color: '#4A76AC', transform: 'rotate(-4deg)', zIndex: 3,
+            }}>J</div>
+            <div style={{
+              width: 88, height: 88, borderRadius: '50%', flexShrink: 0,
+              background: 'rgba(168,132,44,0.14)',
+              border: '1px solid rgba(168,132,44,0.3)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontFamily: "var(--font-fraunces,Georgia,serif)", fontSize: 34, fontStyle: 'italic',
+              color: '#A8842C', transform: 'rotate(3deg)', marginLeft: -18, zIndex: 2,
+            }}>M</div>
+            <div style={{
+              width: 88, height: 88, borderRadius: '50%', flexShrink: 0,
+              background: 'rgba(255,255,255,0.5)',
+              border: '1.5px dashed #C9C0AD',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontFamily: "var(--font-inter,system-ui)", fontSize: 30, color: '#C9C0AD',
+              marginLeft: -18, zIndex: 1,
+            }}>+</div>
+          </div>
+
+          {/* Headline */}
+          <h2 style={{
+            fontFamily: "var(--font-fraunces,Georgia,serif)",
+            fontSize: 36, fontWeight: 500, color: 'var(--c-ink)',
+            lineHeight: 1.1, textAlign: 'center', marginBottom: 10,
+          }}>
+            Curious about{' '}
+            <em style={{ fontStyle: 'italic', color: '#C4502E' }}>someone</em>?
+          </h2>
+          <p style={{
+            textAlign: 'center',
+            fontFamily: "var(--font-inter,system-ui)",
+            fontSize: 15, color: 'var(--c-muted)', marginBottom: 28, lineHeight: 1.5,
+          }}>
+            All it takes is a birthday.
           </p>
-          <Link href="/new" className="btn-primary" style={{ paddingLeft: 28, paddingRight: 28 }}>
-            Read someone
+
+          {/* Archetype stickers */}
+          <div style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 32 }}>
+            {[
+              { label: 'THE SLOW BURN',   rotate: '-2deg', bg: 'rgba(196,80,46,0.08)',   border: '1px solid rgba(196,80,46,0.25)',   color: '#C4502E' },
+              { label: 'THE STILL WATER', rotate: '2deg',  bg: 'rgba(74,118,172,0.08)',  border: '1px solid rgba(74,118,172,0.25)',  color: '#4A76AC' },
+              { label: 'THE FINE EDGE',   rotate: '-1deg', bg: 'rgba(110,122,128,0.08)', border: '1px solid rgba(110,122,128,0.25)', color: '#6E7A80' },
+            ].map(({ label, rotate, bg, border, color }) => (
+              <div key={label} style={{
+                display: 'inline-block', transform: `rotate(${rotate})`,
+                background: bg, border, color, borderRadius: 6,
+                padding: '5px 10px',
+                fontFamily: "var(--font-space-mono,'Courier New')",
+                fontSize: 9.5, letterSpacing: '0.12em', fontWeight: 700,
+              }}>
+                {label}
+              </div>
+            ))}
+          </div>
+
+          {/* CTA */}
+          <Link href="/new" style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            height: 52, borderRadius: 999,
+            background: '#C4502E', color: '#fff',
+            fontFamily: "var(--font-inter,system-ui)", fontSize: 17, fontWeight: 600,
+            textDecoration: 'none', marginBottom: 12,
+          }}>
+            Read someone →
           </Link>
+          <p style={{
+            textAlign: 'center',
+            fontFamily: "var(--font-space-mono,'Courier New')",
+            fontSize: 10, letterSpacing: '0.1em', color: 'var(--c-muted)', margin: 0,
+          }}>
+            TAKES 30 SECONDS · NOT A VERDICT
+          </p>
         </div>
       ) : (
         /* Reading list */

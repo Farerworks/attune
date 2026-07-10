@@ -208,17 +208,26 @@ export function CastingRitual({ active, name, themChart, ready, onDone }: Props)
       </p>
 
       {/* Bottom hint / spinner */}
-      <div style={{ position: 'absolute', bottom: 40, display: 'flex', alignItems: 'center', gap: 8 }}>
-        {!tagOn && (
-          <span style={{
-            fontFamily: "var(--font-space-mono,'Courier New')",
-            fontSize: 10, letterSpacing: '0.1em',
-            color: 'rgba(148,139,124,0.5)',
-          }}>
-            TAP TO SKIP
-          </span>
-        )}
-        {tagOn && !ready && <Spinner />}
+      <div style={{ position: 'absolute', bottom: 40, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+        <span style={{
+          fontFamily: "var(--font-space-mono,'Courier New')",
+          fontSize: 10, letterSpacing: '0.12em',
+          color: 'rgba(148,139,124,0.45)',
+        }}>
+          NOT A VERDICT — A WAY TO UNDERSTAND
+        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {!tagOn && (
+            <span style={{
+              fontFamily: "var(--font-space-mono,'Courier New')",
+              fontSize: 10, letterSpacing: '0.1em',
+              color: 'rgba(148,139,124,0.5)',
+            }}>
+              TAP TO SKIP
+            </span>
+          )}
+          {tagOn && !ready && <Spinner />}
+        </div>
       </div>
 
       <style>{`@keyframes rspin{to{transform:rotate(360deg)}}`}</style>

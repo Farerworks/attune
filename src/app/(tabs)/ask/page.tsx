@@ -231,11 +231,13 @@ export default function AskPage() {
 
   // ── Derived ───────────────────────────────────────────────────────────────────
 
-  const currentThread = threads[selected] ?? [];
-  const currentChip   = chips.find(c => c.id === selected);
-  const chipColor     = currentChip?.element
+  const currentThread  = threads[selected] ?? [];
+  const currentChip    = chips.find(c => c.id === selected);
+  const chipColor      = currentChip?.element
     ? (ELEMENT_COLORS[currentChip.element.toLowerCase()]?.fg ?? '#948B7C')
     : '#948B7C';
+  const hasPersonChips = chips.some(c => c.id !== 'me' && c.id !== 'general');
+  const hasAnyThread   = Object.values(threads).some(t => t.length > 0);
 
   // ── Render ────────────────────────────────────────────────────────────────────
 
@@ -283,15 +285,42 @@ export default function AskPage() {
         </span>
       }>
         {/* Chip row */}
-        <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 12, scrollbarWidth: 'none' }}>
+        <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 12, scrollbarWidth: 'none', alignItems: 'flex-start' }}>
           <style>{`::-webkit-scrollbar{display:none}`}</style>
-          {chips.map(chip => (
-            <ChipButton
-              key={chip.id}
-              chip={chip}
-              active={selected === chip.id}
-              onClick={() => setSelected(chip.id)}
-            />
+          {/* Me + Person chips */}
+          {chips.filter(c => c.id !== 'general').map(chip => (
+            <div key={chip.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, flexShrink: 0 }}>
+              <ChipButton chip={chip} active={selected === chip.id} onClick={() => setSelected(chip.id)} />
+              {!hasAnyThread && chip.id === 'me' && (
+                <span style={{ fontFamily: "var(--font-space-mono,'Courier New')", fontSize: 8.5, letterSpacing: '0.1em', color: 'var(--c-muted)', textTransform: 'uppercase' }}>YOUR READ</span>
+              )}
+            </div>
+          ))}
+          {/* + Someone chip — only when no saved people */}
+          {!hasPersonChips && (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, flexShrink: 0 }}>
+              <Link href="/new" style={{
+                display: 'flex', alignItems: 'center', padding: '12px 18px',
+                borderRadius: 20, border: '1.5px dashed #C9C0AD',
+                background: 'transparent', color: 'var(--c-muted)',
+                textDecoration: 'none', fontFamily: "var(--font-inter,system-ui)", fontSize: 13,
+                whiteSpace: 'nowrap', minHeight: 48, boxSizing: 'border-box',
+              }}>
+                + Someone
+              </Link>
+              {!hasAnyThread && (
+                <span style={{ fontFamily: "var(--font-space-mono,'Courier New')", fontSize: 8.5, letterSpacing: '0.1em', color: 'var(--c-muted)', textTransform: 'uppercase' }}>ADD A PERSON</span>
+              )}
+            </div>
+          )}
+          {/* General chip */}
+          {chips.filter(c => c.id === 'general').map(chip => (
+            <div key={chip.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, flexShrink: 0 }}>
+              <ChipButton chip={chip} active={selected === chip.id} onClick={() => setSelected(chip.id)} />
+              {!hasAnyThread && (
+                <span style={{ fontFamily: "var(--font-space-mono,'Courier New')", fontSize: 8.5, letterSpacing: '0.1em', color: 'var(--c-muted)', textTransform: 'uppercase' }}>ANY TOPIC</span>
+              )}
+            </div>
           ))}
         </div>
       </TabTopBar>
@@ -300,7 +329,9 @@ export default function AskPage() {
       <div style={{ flex: 1, padding: '20px 16px 8px', display: 'flex', flexDirection: 'column', gap: 12 }}>
 
         {currentThread.length === 0 && !loading && (
-          <EmptyHint chipId={selected} chipLabel={currentChip?.label} />
+          hasAnyThread
+            ? <EmptyHint chipId={selected} chipLabel={currentChip?.label} />
+            : <FirstVisitContent onSelect={(q) => setInput(q)} />
         )}
 
         {currentThread.map(msg => (
@@ -410,7 +441,7 @@ function ChipButton({ chip, active, onClick }: { chip: Chip; active: boolean; on
       onClick={onClick}
       style={{
         display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
-        padding: '4px 10px 4px 4px', borderRadius: 20,
+        padding: '12px 18px 12px 10px', borderRadius: 20, minHeight: 48,
         border: active ? '1px solid rgba(196,80,46,0.35)' : '1px solid var(--c-hairline)',
         background: active ? '#FFF2EE' : 'var(--c-card)',
         cursor: 'pointer',
@@ -434,6 +465,57 @@ function ChipButton({ chip, active, onClick }: { chip: Chip; active: boolean; on
         {chip.label}
       </span>
     </button>
+  );
+}
+
+function FirstVisitContent({ onSelect }: { onSelect: (q: string) => void }) {
+  const EXAMPLES = [
+    { q: 'How do I ask them out?',       color: '#C4502E', right: true,  rot: '-1deg' },
+    { q: 'Why the slow replies?',         color: '#4A76AC', right: false, rot: '1deg' },
+    { q: 'How do I raise a hard topic?', color: '#4E8A52', right: true,  rot: '-0.8deg' },
+  ];
+
+  return (
+    <div style={{ padding: '32px 8px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+      <h2 style={{
+        fontFamily: "var(--font-fraunces,Georgia,serif)",
+        fontSize: 36, textAlign: 'center', color: 'var(--c-ink)',
+        margin: 0, lineHeight: 1.1, fontWeight: 500,
+      }}>
+        Go ahead,{' '}
+        <em style={{ fontStyle: 'italic', color: '#C4502E' }}>ask</em>.
+      </h2>
+      <span style={{
+        fontFamily: "var(--font-space-mono,'Courier New')",
+        fontSize: 10, letterSpacing: '0.1em', color: 'var(--c-muted)',
+        textTransform: 'uppercase',
+      }}>
+        TAP ONE
+      </span>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%' }}>
+        {EXAMPLES.map(({ q, color, right, rot }) => (
+          <div key={q} style={{ display: 'flex', justifyContent: right ? 'flex-end' : 'flex-start' }}>
+            <button
+              type="button"
+              onClick={() => onSelect(q)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                background: 'var(--c-card)', border: '1px solid #EAE4D8',
+                borderRadius: right ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
+                padding: '12px 16px', cursor: 'pointer',
+                boxShadow: '0 4px 12px -6px rgba(26,24,21,0.12)',
+                transform: `rotate(${rot})`,
+                fontFamily: "var(--font-inter,system-ui)", fontSize: 14,
+                color: 'var(--c-ink)', maxWidth: '80%', textAlign: 'left',
+              }}
+            >
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: color, flexShrink: 0 }} />
+              {q}
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 

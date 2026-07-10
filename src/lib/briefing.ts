@@ -165,6 +165,7 @@ CONTENT RULES
 7. All advice adjusts MY behavior only. Sensitive traits are consideration points, not pressure levers.
 8. No medical, legal, or investment advice.
 9. Tone: emotionally intelligent, practical, zero mystical framing.
+10. Every insight must be written as a coupling of YOU and THEM — address the reader as 'you', refer to the other person by name or pronoun. Prefer 'She warms up when you text first' over 'She tends to warm up slowly'. Generic single-person statements are a failure.
 
 ${COPY_STYLE_RULES}`;
 }

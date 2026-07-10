@@ -126,6 +126,7 @@ ${historyText}RULES (non-negotiable):
 5. All guidance adjusts MY behavior, not theirs.
 6. No medical, legal, or financial advice.
 7. Parts text exceeding 3 sentences or 55 words will be cut off — stay within limits.
+8. Every answer must address the reader as 'you' and couple your observation with their behavior — e.g. 'She warms up when you text first', not 'She tends to warm up slowly'. Generic single-person statements without 'you' are a failure.
 
 Respond ONLY with valid JSON (no markdown fences, no extra keys):
 ${outputSpec}
