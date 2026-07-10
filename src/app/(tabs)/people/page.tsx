@@ -140,17 +140,13 @@ export default function PeoplePage() {
                       >
                         {reading.name ?? 'Unknown'}
                       </span>
-                      {element && colors && (
+                      {(archName ?? element) && colors && (
                         <span
                           style={{
-                            fontFamily: 'var(--font-space-mono)',
-                            fontSize: 9,
-                            letterSpacing: '0.05em',
-                            textTransform: 'uppercase',
+                            fontFamily: "var(--font-fraunces,Georgia,serif)",
+                            fontSize: 13.5,
+                            fontStyle: 'italic',
                             color: colors.fg,
-                            background: colors.bg,
-                            padding: '2px 7px',
-                            borderRadius: 4,
                           }}
                         >
                           {archName ?? element}

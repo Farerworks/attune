@@ -240,7 +240,7 @@ export default function AskPage() {
 
   if (!initialized) {
     return (
-      <div style={{ minHeight: '100%', background: 'var(--c-paper)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div className="ask-full" style={{ background: 'var(--c-paper)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ width: 28, height: 28, borderRadius: '50%', border: '2.5px solid var(--c-hairline)', borderTopColor: 'var(--c-vermilion)', animation: 'spin 0.8s linear infinite' }} />
         <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
       </div>
@@ -249,8 +249,8 @@ export default function AskPage() {
 
   if (!myProfile) {
     return (
-      <div style={{
-        minHeight: '100%', background: 'var(--c-paper)',
+      <div className="ask-full" style={{
+        background: 'var(--c-paper)',
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
         padding: '40px 24px', textAlign: 'center',
       }}>
@@ -273,7 +273,7 @@ export default function AskPage() {
   }
 
   return (
-    <div style={{ minHeight: '100%', background: 'var(--c-paper)', display: 'flex', flexDirection: 'column' }}>
+    <div className="ask-full" style={{ background: 'var(--c-paper)', display: 'flex', flexDirection: 'column' }}>
 
       {/* ── Sticky header ─────────────────────────────────────────────────────── */}
       <header style={{

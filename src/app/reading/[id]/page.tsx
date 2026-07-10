@@ -413,7 +413,6 @@ export default function ReadingPage({ params }: { params: Promise<{ id: string }
             <SectionHeader
               num="02"
               title="Your dynamic"
-              watermark={theirArch ? ELEMENT_GLYPH[theirArch.element?.toLowerCase() ?? ''] : undefined}
             />
 
             {/* ElementChart */}
@@ -600,10 +599,3 @@ function LegendDot({ color, label }: { color: string; label: string }) {
   );
 }
 
-const ELEMENT_GLYPH: Record<string, string> = {
-  wood:  '甲',
-  fire:  '丙',
-  earth: '戊',
-  metal: '庚',
-  water: '壬',
-};

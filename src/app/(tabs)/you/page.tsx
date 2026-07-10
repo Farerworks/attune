@@ -93,15 +93,9 @@ export default function YouPage() {
                   fontFamily: "var(--font-fraunces,Georgia,serif)",
                   fontSize: 26, flexShrink: 0,
                 }}>
-                  {chart.hanja}
+                  M
                 </div>
                 <div>
-                  <div style={{
-                    fontFamily: "var(--font-inter,system-ui)",
-                    fontSize: 15, fontWeight: 600, color: 'var(--c-ink)', marginBottom: 2,
-                  }}>
-                    {chart.stem}
-                  </div>
                   <div style={{
                     fontFamily: "var(--font-space-mono,'Courier New')",
                     fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase',
@@ -111,7 +105,7 @@ export default function YouPage() {
                   </div>
                   <div style={{
                     fontFamily: "var(--font-fraunces,Georgia,serif)",
-                    fontSize: 23, color: 'var(--c-ink)', marginTop: 4, lineHeight: 1.2,
+                    fontSize: 23, fontStyle: 'italic', color: 'var(--c-ink)', marginTop: 4, lineHeight: 1.2,
                   }}>
                     {chart.name}
                   </div>

@@ -243,3 +243,9 @@ body {
 .pb-safe {
   padding-bottom: calc(var(--tab-bar-height) + env(safe-area-inset-bottom, 0px));
 }
+
+/* ── Ask page height — fills viewport above fixed tab bar ────────────────── */
+.ask-full {
+  min-height: calc(100svh - var(--tab-bar-height) - env(safe-area-inset-bottom, 0px));
+  min-height: calc(100dvh - var(--tab-bar-height) - env(safe-area-inset-bottom, 0px));
+}
