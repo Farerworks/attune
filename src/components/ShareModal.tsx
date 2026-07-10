@@ -240,7 +240,7 @@ function drawShareCard(
     ctx.letterSpacing = '0px';
     const displayText = `“${quoteText}”`;
     const lines = wrapText(ctx, displayText, 812);
-    ctx.translate(PAD, 1010);
+    ctx.translate(PAD, 1500);
     ctx.rotate(-1.5 * Math.PI / 180);
     lines.forEach((line, i) => ctx.fillText(line, 0, i * 82));
     ctx.restore();
@@ -250,7 +250,7 @@ function drawShareCard(
   ctx.font = '400 27px "Space Mono"';
   ctx.letterSpacing = '4px';
   ctx.fillStyle = '#9A8F7C';
-  ctx.fillText('not a verdict on anyone', PAD, 1288);
+  ctx.fillText('not a verdict on anyone', PAD, 1720);
   ctx.letterSpacing = '0px';
 
   // Hairline
