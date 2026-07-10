@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { getProfile, getReadings, ELEMENT_COLORS } from '@/lib/store';
 import type { BriefingData } from '@/lib/store';
+import { TabTopBar } from '@/components/TabTopBar';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -276,23 +277,11 @@ export default function AskPage() {
     <div className="ask-full" style={{ background: 'var(--c-paper)', display: 'flex', flexDirection: 'column' }}>
 
       {/* ── Sticky header ─────────────────────────────────────────────────────── */}
-      <header style={{
-        position: 'sticky', top: 0, zIndex: 50,
-        background: 'rgba(250,248,244,0.92)',
-        backdropFilter: 'blur(8px)',
-        WebkitBackdropFilter: 'blur(8px)',
-        borderBottom: '1px solid var(--c-hairline)',
-        padding: '12px 20px 0',
-      }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-          <span style={{ fontFamily: "var(--font-space-mono,'Courier New')", fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--c-ink)' }}>
-            ATTUNE
-          </span>
-          <span style={{ fontFamily: "var(--font-space-mono,'Courier New')", fontSize: 10, letterSpacing: '0.08em', color: 'var(--c-muted)' }}>
-            {left} QUESTIONS LEFT
-          </span>
-        </div>
-
+      <TabTopBar right={
+        <span style={{ fontFamily: "var(--font-space-mono,'Courier New')", fontSize: 11, letterSpacing: '0.08em', color: 'var(--c-muted)' }}>
+          {left} QUESTIONS LEFT
+        </span>
+      }>
         {/* Chip row */}
         <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 12, scrollbarWidth: 'none' }}>
           <style>{`::-webkit-scrollbar{display:none}`}</style>
@@ -305,7 +294,7 @@ export default function AskPage() {
             />
           ))}
         </div>
-      </header>
+      </TabTopBar>
 
       {/* ── Chat area ─────────────────────────────────────────────────────────── */}
       <div style={{ flex: 1, padding: '20px 16px 8px', display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -471,7 +460,7 @@ function LoadingBubble() {
       <div style={{
         background: 'var(--c-card)', border: '1px solid #EAE4D8',
         borderRadius: '16px 16px 16px 4px', padding: '12px 16px',
-        fontFamily: "var(--font-inter,system-ui)", fontSize: 14,
+        fontFamily: "var(--font-inter,system-ui)", fontSize: 15,
         fontStyle: 'italic', color: 'var(--c-muted)',
       }}>
         Reading the pillars…
@@ -488,7 +477,7 @@ function MessageBubble({ msg }: { msg: Msg; chipColor: string }) {
           maxWidth: '80%', background: '#1A1815', color: '#fff',
           borderRadius: '16px 16px 4px 16px',
           padding: '12px 16px',
-          fontFamily: "var(--font-inter,system-ui)", fontSize: 14.5, lineHeight: 1.5,
+          fontFamily: "var(--font-inter,system-ui)", fontSize: 15, lineHeight: 1.5,
         }}>
           {msg.text}
         </div>
@@ -512,14 +501,14 @@ function MessageBubble({ msg }: { msg: Msg; chipColor: string }) {
               <div key={i}>
                 <div style={{
                   fontFamily: "var(--font-space-mono,'Courier New')",
-                  fontSize: 10, letterSpacing: '0.08em',
+                  fontSize: 11, letterSpacing: '0.08em',
                   color: '#C4502E', marginBottom: 4,
                 }}>
                   {part.label}
                 </div>
                 <p style={{
                   margin: 0,
-                  fontFamily: "var(--font-inter,system-ui)", fontSize: 14,
+                  fontFamily: "var(--font-inter,system-ui)", fontSize: 15,
                   color: 'var(--c-ink)', lineHeight: 1.55,
                 }}>
                   {part.text}

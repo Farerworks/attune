@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { clearAllData } from '@/lib/store';
 import { ChevronIcon } from '@/components/icons/ChevronIcon';
+import { TabTopBar } from '@/components/TabTopBar';
 
 interface RowProps {
   label: string;
@@ -56,6 +57,7 @@ export default function SettingsPage() {
 
   return (
     <div style={{ minHeight: '100%', background: 'var(--c-paper)' }}>
+      <TabTopBar />
       {/* Header */}
       <header style={{ padding: '20px 20px 12px' }}>
         <h1 className="t-h2">Settings</h1>

@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useReadings, ELEMENT_COLORS } from '@/lib/store';
+import { TabTopBar } from '@/components/TabTopBar';
 import { getArchetype } from '@/lib/interpretGuide';
 import type { TenStem } from '@/lib/saju';
 import { formatDate } from '@/lib/format';
@@ -36,6 +37,7 @@ export default function PeoplePage() {
 
   return (
     <div style={{ minHeight: '100%', background: 'var(--c-paper)' }}>
+      <TabTopBar />
       {/* Header */}
       <header
         style={{
@@ -133,7 +135,7 @@ export default function PeoplePage() {
                       <span
                         style={{
                           fontFamily: 'var(--font-inter)',
-                          fontSize: 15,
+                          fontSize: 17,
                           fontWeight: 600,
                           color: 'var(--c-ink)',
                         }}
@@ -171,11 +173,11 @@ export default function PeoplePage() {
                     {reading.briefing?.headline && (
                       <p
                         style={{
-                          fontFamily: 'var(--font-inter)',
-                          fontSize: 13,
+                          fontFamily: "var(--font-fraunces,Georgia,serif)",
+                          fontSize: 18,
                           color: 'var(--c-ink-body)',
                           marginBottom: 8,
-                          lineHeight: 1.4,
+                          lineHeight: 1.3,
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
                           whiteSpace: 'nowrap',
@@ -189,7 +191,7 @@ export default function PeoplePage() {
                     <div
                       style={{
                         fontFamily: 'var(--font-space-mono)',
-                        fontSize: 10,
+                        fontSize: 11,
                         letterSpacing: '0.04em',
                         color: 'var(--c-muted)',
                       }}

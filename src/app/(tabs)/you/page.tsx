@@ -7,6 +7,7 @@ import { getProfile, ELEMENT_COLORS } from '@/lib/store';
 import { formatDate } from '@/lib/format';
 import { ElementChart } from '@/components/ElementChart';
 import { SpectrumBar } from '@/components/SpectrumBar';
+import { TabTopBar } from '@/components/TabTopBar';
 
 interface ChartData {
   stem:     string;
@@ -60,6 +61,7 @@ export default function YouPage() {
 
   return (
     <div style={{ minHeight: '100%', background: 'var(--c-paper)' }}>
+      <TabTopBar />
       {/* Header */}
       <header style={{ padding: '20px 20px 12px', borderBottom: '1px solid var(--c-hairline)' }}>
         <h1 className="t-h2">You</h1>
@@ -98,7 +100,7 @@ export default function YouPage() {
                 <div>
                   <div style={{
                     fontFamily: "var(--font-space-mono,'Courier New')",
-                    fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase',
+                    fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase',
                     color: ELEMENT_COLORS[chart.element.toLowerCase()]?.fg ?? 'var(--c-muted)',
                   }}>
                     {chart.element} · {chart.polarity}
@@ -111,7 +113,7 @@ export default function YouPage() {
                   </div>
                   <div style={{
                     fontFamily: "var(--font-inter,system-ui)",
-                    fontSize: 14, fontStyle: 'italic',
+                    fontSize: 15, fontStyle: 'italic',
                     color: 'var(--c-muted)', marginTop: 2,
                   }}>
                     {chart.tagline}

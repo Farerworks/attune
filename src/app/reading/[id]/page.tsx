@@ -109,7 +109,7 @@ function PlaybookRow({ item, last }: { item: PlaybookItem; last: boolean }) {
         </span>
         <span style={{
           flex: 1,
-          fontFamily: "var(--font-inter,system-ui)", fontSize: 14,
+          fontFamily: "var(--font-inter,system-ui)", fontSize: 15,
           fontWeight: 500, color: 'var(--c-ink)', lineHeight: 1.5,
         }}>
           {item.tip}
@@ -126,7 +126,7 @@ function PlaybookRow({ item, last }: { item: PlaybookItem; last: boolean }) {
         <p style={{
           margin: '0 0 14px 58px',
           fontFamily: "var(--font-inter,system-ui)",
-          fontSize: 13, color: 'var(--c-muted)', lineHeight: 1.6,
+          fontSize: 15, color: 'var(--c-muted)', lineHeight: 1.6,
         }}>
           {item.why}
         </p>

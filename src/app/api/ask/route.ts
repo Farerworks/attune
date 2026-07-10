@@ -200,10 +200,11 @@ export async function POST(request: Request) {
   // First attempt
   let rawAnswer: string;
   try {
-    rawAnswer = await withTimeout(llm.generateJson(prompt, 1024), LLM_TIMEOUT);
+    rawAnswer = await withTimeout(llm.generateJson(prompt, 4096), LLM_TIMEOUT);
   } catch (err) {
+    console.error('[ask] LLM call failed:', err instanceof Error ? err.message : err);
     return Response.json(
-      { error: 'LLM call failed', detail: err instanceof Error ? err.message : String(err) },
+      { error: "Attune couldn't finish that thought — ask again." },
       { status: 502 },
     );
   }
@@ -211,7 +212,8 @@ export async function POST(request: Request) {
   let answer: unknown;
   try { answer = extractJson(rawAnswer); }
   catch {
-    return Response.json({ error: 'LLM response was not valid JSON' }, { status: 502 });
+    console.error('[ask] LLM response not parseable:', rawAnswer.slice(0, 300));
+    return Response.json({ error: "Attune couldn't finish that thought — ask again." }, { status: 502 });
   }
 
   // Banned phrase check
@@ -223,23 +225,26 @@ export async function POST(request: Request) {
 
     let retryRaw: string;
     try {
-      retryRaw = await withTimeout(llm.generateJson(retryPrompt, 1024), LLM_TIMEOUT);
+      retryRaw = await withTimeout(llm.generateJson(retryPrompt, 4096), LLM_TIMEOUT);
     } catch (err) {
+      console.error('[ask] Retry LLM call failed:', err instanceof Error ? err.message : err);
       return Response.json(
-        { error: 'Retry LLM call failed', detail: err instanceof Error ? err.message : String(err) },
+        { error: "Attune couldn't finish that thought — ask again." },
         { status: 502 },
       );
     }
 
     try { answer = extractJson(retryRaw); }
     catch {
-      return Response.json({ error: 'LLM retry response was not valid JSON' }, { status: 502 });
+      console.error('[ask] Retry LLM response not parseable:', retryRaw.slice(0, 300));
+      return Response.json({ error: "Attune couldn't finish that thought — ask again." }, { status: 502 });
     }
 
     const retryViolations = findBanned(JSON.stringify(answer));
     if (retryViolations.length > 0) {
+      console.error('[ask] Banned phrases after retry:', retryViolations);
       return Response.json(
-        { error: 'Response contains banned phrases after retry', detail: retryViolations },
+        { error: "Attune couldn't finish that thought — ask again." },
         { status: 502 },
       );
     }

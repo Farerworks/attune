@@ -57,7 +57,7 @@ export function ExpandCard({ icon, label, takeaway, detail, tintColor }: ExpandC
             <span style={{
               display: 'block',
               fontFamily: "var(--font-space-mono,'Courier New')",
-              fontSize: 9,
+              fontSize: 11,
               letterSpacing: '0.08em',
               textTransform: 'uppercase',
               color: 'var(--c-muted)',

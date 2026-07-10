@@ -29,6 +29,7 @@ class GeminiProvider implements LlmProvider {
           temperature: 0.4,
           maxOutputTokens: maxTokens,
           responseMimeType: 'application/json',
+          thinkingConfig: { thinkingBudget: 0 },
         },
       }),
     });
@@ -38,8 +39,18 @@ class GeminiProvider implements LlmProvider {
       throw new Error(`Gemini API error ${res.status}: ${errText}`);
     }
 
-    const data = await res.json();
-    return data.candidates[0].content.parts[0].text as string;
+    const data = await res.json() as {
+      candidates?: Array<{
+        finishReason?: string;
+        content?: { parts?: Array<{ text?: string }> };
+      }>;
+    };
+    const candidate = data.candidates?.[0];
+    const text = candidate?.content?.parts?.[0]?.text;
+    if (!text) {
+      throw new Error(`Gemini returned no text (finishReason: ${candidate?.finishReason ?? 'UNKNOWN'})`);
+    }
+    return text;
   }
 }
 
