@@ -1,11 +1,65 @@
 'use client';
 
 import type { CSSProperties } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { clearAllData } from '@/lib/store';
 import { ChevronIcon } from '@/components/icons/ChevronIcon';
 import { TabTopBar } from '@/components/TabTopBar';
+
+// beforeinstallprompt is non-standard — define locally
+type BeforeInstallPromptEvent = Event & {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+};
+
+function InstallSheet({ onClose }: { onClose: () => void }) {
+  const isIOS = typeof navigator !== 'undefined' && /iphone|ipad|ipod/i.test(navigator.userAgent);
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 200,
+        background: 'rgba(26,24,21,0.48)',
+        display: 'flex', alignItems: 'flex-end',
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          width: '100%',
+          background: 'var(--c-card)',
+          borderRadius: '20px 20px 0 0',
+          padding: '28px 24px 48px',
+        }}
+      >
+        <p style={{
+          fontFamily: 'var(--font-inter)',
+          fontSize: 15, lineHeight: 1.6,
+          color: 'var(--c-ink)', marginBottom: 24,
+        }}>
+          {isIOS
+            ? 'In Safari: tap the Share button, then "Add to Home Screen".'
+            : 'In Chrome: tap the menu (⋮), then "Install app".'}
+        </p>
+        <button
+          type="button"
+          onClick={onClose}
+          style={{
+            width: '100%', height: 48, borderRadius: 999,
+            background: 'var(--c-surface-alt)',
+            border: '1px solid var(--c-hairline)',
+            fontFamily: 'var(--font-inter)', fontSize: 15,
+            color: 'var(--c-ink)', cursor: 'pointer',
+          }}
+        >
+          Got it
+        </button>
+      </div>
+    </div>
+  );
+}
 
 interface RowProps {
   label: string;
@@ -47,6 +101,26 @@ function Row({ label, href, danger, onClick }: RowProps) {
 
 export default function SettingsPage() {
   const router = useRouter();
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [showInstallSheet, setShowInstallSheet] = useState(false);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e as BeforeInstallPromptEvent);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  async function handleAddToHome() {
+    if (deferredPrompt) {
+      await deferredPrompt.prompt();
+      setDeferredPrompt(null);
+    } else {
+      setShowInstallSheet(true);
+    }
+  }
 
   function handleClearData() {
     if (window.confirm('Clear all readings and your birth info? This cannot be undone.')) {
@@ -56,6 +130,8 @@ export default function SettingsPage() {
   }
 
   return (
+    <>
+    {showInstallSheet && <InstallSheet onClose={() => setShowInstallSheet(false)} />}
     <div style={{ minHeight: '100%', background: 'var(--c-paper)' }}>
       <TabTopBar />
       {/* Header */}
@@ -67,6 +143,7 @@ export default function SettingsPage() {
       <div style={{ marginTop: 8 }}>
         <Row label="What is Saju?" href="/saju" />
         <Row label="Edit birth info" href="/onboarding" />
+        <Row label="Add to Home Screen" onClick={handleAddToHome} />
         <Row label="Clear all data" danger onClick={handleClearData} />
       </div>
 
@@ -95,5 +172,6 @@ export default function SettingsPage() {
         </p>
       </div>
     </div>
+    </>
   );
 }

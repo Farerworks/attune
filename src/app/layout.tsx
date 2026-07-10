@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
 import { Fraunces, Inter, Space_Mono } from 'next/font/google';
 import './globals.css';
+import { ServiceWorkerRegistrar } from '@/components/ServiceWorkerRegistrar';
 
 const fraunces = Fraunces({
   subsets: ['latin'],
@@ -25,8 +26,17 @@ const spaceMono = Space_Mono({
 
 export const metadata: Metadata = {
   title: 'Attune',
-  description: 'Know everyone you\'re about to talk to.',
+  description: 'Understand them before you talk to them.',
   applicationName: 'Attune',
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'Attune',
+  },
+  icons: {
+    apple: '/apple-touch-icon.png',
+  },
 };
 
 export const viewport: Viewport = {
@@ -48,6 +58,7 @@ export default function RootLayout({
       className={`${fraunces.variable} ${inter.variable} ${spaceMono.variable}`}
     >
       <body>
+        <ServiceWorkerRegistrar />
         <div className="app-frame">
           {children}
         </div>
