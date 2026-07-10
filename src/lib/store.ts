@@ -140,6 +140,8 @@ export function clearAllData(): void {
   if (typeof window === 'undefined') return;
   localStorage.removeItem(PROFILE_KEY);
   localStorage.removeItem(READINGS_KEY);
+  localStorage.removeItem('attune.ask.threads');
+  localStorage.removeItem('attune.ask.quota');
 }
 
 // ── React hooks ───────────────────────────────────────────────────────────────

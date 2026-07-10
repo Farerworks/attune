@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { getProfile, getReadings, ELEMENT_COLORS } from '@/lib/store';
+import { getQuotaLeft, incrementQuotaUsed, DAILY_QUOTA_MAX } from '@/lib/askQuota';
 import type { BriefingData } from '@/lib/store';
 import { TabTopBar } from '@/components/TabTopBar';
 
@@ -22,6 +23,7 @@ interface UserMsg {
   id: string;
   role: 'user';
   text: string;
+  createdAt?: string;
 }
 
 interface AssistantMsg {
@@ -31,28 +33,32 @@ interface AssistantMsg {
   text?: string;
   parts?: Array<{ label: string; text: string }>;
   timing?: string;
+  createdAt?: string;
 }
 
 type Msg = UserMsg | AssistantMsg;
 type Threads = Record<string, Msg[]>;
 
-// ── sessionStorage helpers ────────────────────────────────────────────────────
+// ── localStorage helpers ──────────────────────────────────────────────────────
 
-const SS_THREADS    = 'attune.ask.threads';
-const SS_LEFT       = 'attune.ask.left';
-const INITIAL_QUOTA = 5;
+const LS_THREADS      = 'attune.ask.threads';
+const MAX_THREAD_MSGS = 40;
 
-function ssGet<T>(key: string, fallback: T): T {
-  if (typeof window === 'undefined') return fallback;
+function loadThreads(): Threads {
+  if (typeof window === 'undefined') return {};
   try {
-    const raw = sessionStorage.getItem(key);
-    return raw !== null ? (JSON.parse(raw) as T) : fallback;
-  } catch { return fallback; }
+    const raw = localStorage.getItem(LS_THREADS);
+    return raw ? (JSON.parse(raw) as Threads) : {};
+  } catch { return {}; }
 }
 
-function ssSet(key: string, value: unknown): void {
+function saveThreads(threads: Threads): void {
   if (typeof window === 'undefined') return;
-  try { sessionStorage.setItem(key, JSON.stringify(value)); } catch {}
+  const capped: Threads = {};
+  for (const [k, msgs] of Object.entries(threads)) {
+    capped[k] = msgs.length > MAX_THREAD_MSGS ? msgs.slice(-MAX_THREAD_MSGS) : msgs;
+  }
+  try { localStorage.setItem(LS_THREADS, JSON.stringify(capped)); } catch {}
 }
 
 // ── Quick prompts ─────────────────────────────────────────────────────────────
@@ -72,7 +78,7 @@ export default function AskPage() {
   const [chips,     setChips]     = useState<Chip[]>([]);
   const [selected,  setSelected]  = useState<string>('me');
   const [threads,   setThreads]   = useState<Threads>({});
-  const [left,      setLeft]      = useState(INITIAL_QUOTA);
+  const [left,      setLeft]      = useState(DAILY_QUOTA_MAX);
   const [loading,   setLoading]   = useState(false);
   const [input,     setInput]     = useState('');
   const [myProfile, setMyProfile] = useState<{ date: string; time?: string } | null>(null);
@@ -119,9 +125,9 @@ export default function AskPage() {
 
       setChips(chipList);
 
-      // Session state
-      setThreads(ssGet<Threads>(SS_THREADS, {}));
-      setLeft(ssGet<number>(SS_LEFT, INITIAL_QUOTA));
+      // Persistent state
+      setThreads(loadThreads());
+      setLeft(getQuotaLeft());
 
       // Auto-select from URL ?person=
       const params   = new URLSearchParams(window.location.search);
@@ -147,11 +153,11 @@ export default function AskPage() {
     setInput('');
 
     const prevThread   = threads[selected] ?? [];
-    const userMsg: UserMsg = { id: crypto.randomUUID(), role: 'user', text };
+    const userMsg: UserMsg = { id: crypto.randomUUID(), role: 'user', text, createdAt: new Date().toISOString() };
     const withUser     = [...prevThread, userMsg];
     const newThreads   = { ...threads, [selected]: withUser };
     setThreads(newThreads);
-    ssSet(SS_THREADS, newThreads);
+    saveThreads(newThreads);
 
     setLoading(true);
 
@@ -197,21 +203,21 @@ export default function AskPage() {
 
       if (!res.ok) throw new Error(data.error ?? 'Something went wrong — try again.');
 
-      const newLeft = left - 1;
+      const newLeft = incrementQuotaUsed();
       setLeft(newLeft);
-      ssSet(SS_LEFT, newLeft);
 
       const assistantMsg: AssistantMsg = {
         id: crypto.randomUUID(),
         role: 'assistant',
         mode,
+        createdAt: new Date().toISOString(),
         ...data.answer,
       };
 
       const final        = [...withUser, assistantMsg];
       const finalThreads = { ...newThreads, [selected]: final };
       setThreads(finalThreads);
-      ssSet(SS_THREADS, finalThreads);
+      saveThreads(finalThreads);
 
     } catch (err) {
       const errorMsg: AssistantMsg = {
@@ -223,7 +229,7 @@ export default function AskPage() {
       const final        = [...withUser, errorMsg];
       const finalThreads = { ...newThreads, [selected]: final };
       setThreads(finalThreads);
-      ssSet(SS_THREADS, finalThreads);
+      saveThreads(finalThreads);
     } finally {
       setLoading(false);
     }
@@ -238,6 +244,12 @@ export default function AskPage() {
     : '#948B7C';
   const hasPersonChips = chips.some(c => c.id !== 'me' && c.id !== 'general');
   const hasAnyThread   = Object.values(threads).some(t => t.length > 0);
+
+  // Show date divider if last message is from a previous day (>24h ago)
+  const lastMsg = currentThread[currentThread.length - 1];
+  const showDateDivider = currentThread.length > 0
+    && !!lastMsg?.createdAt
+    && (Date.now() - new Date(lastMsg.createdAt).getTime() > 24 * 60 * 60 * 1000);
 
   // ── Render ────────────────────────────────────────────────────────────────────
 
@@ -281,7 +293,7 @@ export default function AskPage() {
       {/* ── Sticky header ─────────────────────────────────────────────────────── */}
       <TabTopBar right={
         <span style={{ fontFamily: "var(--font-space-mono,'Courier New')", fontSize: 11, letterSpacing: '0.08em', color: 'var(--c-muted)' }}>
-          {left} QUESTIONS LEFT
+          {left} QUESTIONS LEFT TODAY
         </span>
       }>
         {/* Chip row */}
@@ -334,6 +346,10 @@ export default function AskPage() {
             : <FirstVisitContent onSelect={(q) => setInput(q)} />
         )}
 
+        {showDateDivider && currentThread[0]?.createdAt && (
+          <DateDivider isoStr={currentThread[0].createdAt} />
+        )}
+
         {currentThread.map(msg => (
           <MessageBubble key={msg.id} msg={msg} chipColor={chipColor} />
         ))}
@@ -346,18 +362,14 @@ export default function AskPage() {
       {/* ── Bottom input area ─────────────────────────────────────────────────── */}
       <div style={{ position: 'sticky', bottom: 0, background: 'var(--c-paper)', borderTop: '1px solid var(--c-hairline)', padding: '12px 16px 10px' }}>
         {left <= 0 ? (
-          <div style={{ textAlign: 'center', padding: '8px 0 4px' }}>
-            <p style={{ fontFamily: "var(--font-inter,system-ui)", fontSize: 14, color: 'var(--c-muted)', marginBottom: 14 }}>
-              That&apos;s all for this reading — start a new one to keep asking.
-            </p>
-            <Link href="/new" style={{
-              display: 'inline-block', textDecoration: 'none',
-              background: '#C4502E', color: '#fff',
-              fontFamily: "var(--font-inter,system-ui)", fontSize: 14, fontWeight: 600,
-              padding: '10px 24px', borderRadius: 24,
+          <div style={{ textAlign: 'center', padding: '12px 0 4px' }}>
+            <p style={{
+              fontFamily: "var(--font-fraunces,Georgia,serif)",
+              fontSize: 17, fontStyle: 'italic',
+              color: 'var(--c-ink-body)', margin: 0,
             }}>
-              Read someone
-            </Link>
+              That&apos;s all for today. Five more tomorrow.
+            </p>
           </div>
         ) : (
           <>
@@ -431,6 +443,25 @@ export default function AskPage() {
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
+
+function DateDivider({ isoStr }: { isoStr: string }) {
+  const label = new Date(isoStr)
+    .toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    .toUpperCase();
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0' }}>
+      <div style={{ flex: 1, height: 1, background: 'var(--c-hairline)' }} />
+      <span style={{
+        fontFamily: "var(--font-space-mono,'Courier New')",
+        fontSize: 10, letterSpacing: '0.1em',
+        color: 'var(--c-muted)', textTransform: 'uppercase', whiteSpace: 'nowrap',
+      }}>
+        {label}
+      </span>
+      <div style={{ flex: 1, height: 1, background: 'var(--c-hairline)' }} />
+    </div>
+  );
+}
 
 function ChipButton({ chip, active, onClick }: { chip: Chip; active: boolean; onClick: () => void }) {
   const elC = chip.element ? ELEMENT_COLORS[chip.element.toLowerCase()] : null;

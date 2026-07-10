@@ -4,6 +4,7 @@ import { use, useEffect, useState, useRef, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getReading, ELEMENT_COLORS, type Reading, type PlaybookItem } from '@/lib/store';
+import { getQuotaLeft } from '@/lib/askQuota';
 import { getArchetype } from '@/lib/interpretGuide';
 import type { TenStem } from '@/lib/saju';
 import { formatDate } from '@/lib/format';
@@ -183,8 +184,7 @@ export default function ReadingPage({ params }: { params: Promise<{ id: string }
 
   useEffect(() => { setReading(getReading(id)); }, [id]);
   useEffect(() => {
-    const raw = typeof window !== 'undefined' ? sessionStorage.getItem('attune.ask.left') : null;
-    if (raw !== null) setAskLeft(JSON.parse(raw) as number);
+    if (typeof window !== 'undefined') setAskLeft(getQuotaLeft());
   }, []);
 
   if (reading === undefined) return null;
@@ -577,7 +577,7 @@ export default function ReadingPage({ params }: { params: Promise<{ id: string }
                 fontFamily: "var(--font-space-mono,'Courier New')", fontSize: 10,
                 letterSpacing: '0.08em', color: 'var(--c-muted)',
               }}>
-                {askLeft} QUESTIONS LEFT
+                {askLeft} LEFT TODAY
               </p>
             </div>
             <span style={{ color: '#C4502E', fontSize: 22, lineHeight: 1 }}>→</span>
