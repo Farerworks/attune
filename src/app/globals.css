@@ -281,7 +281,7 @@ body {
 /* ── Motion utilities ───────────────────────────────────────────────────────── */
 
 .anim-rise {
-  animation: rise var(--dur-slow) var(--ease-out) both;
+  animation: fade-in var(--dur-base) var(--ease-out) both;
 }
 
 .stagger > * {
