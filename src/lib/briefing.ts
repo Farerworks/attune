@@ -155,6 +155,9 @@ Respond with ONLY a valid JSON object matching the schema below. No explanation 
   ]
 }
 
+LANGUAGE
+Detect the language of the user's situation text. Write ALL free-text values (headline, every takeaway, every detail, click/clash/watch, playbook tips and whys) entirely in that language. Never mix languages in one sentence. If the situation is in English or empty, write in English. JSON keys stay in English. Do not translate archetype names.
+
 CONTENT RULES
 1. All insights must derive only from the saju data above. Do not invent information.
 2. Use "tends to" / "is likely to" / "may". Never "will" as a certainty marker.
@@ -170,7 +173,7 @@ CONTENT RULES
 ${COPY_STYLE_RULES}`;
 }
 
-const BANNED_PHRASES = ['weakness', 'exploit', 'leverage against', 'manipulate'] as const;
+const BANNED_PHRASES = ['weakness', 'exploit', 'leverage against', 'manipulate', '약점', '조종', '공략'];
 
 export function containsBannedPhrases(briefing: Briefing): string[] {
   const texts = [

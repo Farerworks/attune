@@ -11,7 +11,7 @@ const LLM_TIMEOUT = 55_000;
 const RATE_LIMIT  = 10;
 const RATE_WINDOW = 60 * 60 * 1000;
 
-const BANNED = ['weakness', 'exploit', 'leverage against', 'manipulate', 'vulnerable to'];
+const BANNED = ['weakness', 'exploit', 'leverage against', 'manipulate', 'vulnerable to', '약점', '조종', '공략'];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -127,6 +127,7 @@ ${historyText}RULES (non-negotiable):
 6. No medical, legal, or financial advice.
 7. Parts text exceeding 3 sentences or 55 words will be cut off — stay within limits.
 8. Every answer must address the reader as 'you' and couple your observation with their behavior — e.g. 'She warms up when you text first', not 'She tends to warm up slowly'. Generic single-person statements without 'you' are a failure.
+9. LANGUAGE: Detect the language of the question. Write all free-text output (every part text, timing string, or text field) entirely in that language. Never mix languages in one sentence. If the question is in English, write in English. JSON keys stay in English.
 
 Respond ONLY with valid JSON (no markdown fences, no extra keys):
 ${outputSpec}
