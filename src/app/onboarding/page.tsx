@@ -1,23 +1,28 @@
 'use client';
 
-import { useState, FormEvent } from 'react';
-import Link from 'next/link';
+import { useState, useEffect, useRef, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { setProfile } from '@/lib/store';
+import { getProfile, setProfile } from '@/lib/store';
+import { SmartBackLink } from '@/components/InAppNav';
 
 const GENDER_OPTIONS = ['She/Her', 'He/Him', 'They/Them'];
 
 export default function OnboardingPage() {
   const router = useRouter();
+  const wasEdit = useRef(false);
   const [date, setDate]       = useState('');
   const [time, setTime]       = useState('');
   const [gender, setGender]   = useState('');
+
+  useEffect(() => {
+    if (getProfile() !== null) wasEdit.current = true;
+  }, []);
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!date) return;
     setProfile({ date, time: time || undefined, gender: gender || undefined });
-    router.push('/new');
+    router.push(wasEdit.current ? '/you' : '/new');
   }
 
   return (
@@ -30,11 +35,7 @@ export default function OnboardingPage() {
     >
       {/* Back + Wordmark */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 40 }}>
-        <Link href="/" style={{ display: 'flex', color: 'var(--c-ink)', textDecoration: 'none' }} aria-label="Back">
-          <svg width={24} height={24} viewBox="0 0 24 24" fill="none">
-            <path stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" d="M19 12H5M12 19l-7-7 7-7" />
-          </svg>
-        </Link>
+        <SmartBackLink />
         <div style={{ fontFamily: 'var(--font-space-mono)', fontSize: 12, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--c-ink)' }}>
           ATTUNE
         </div>

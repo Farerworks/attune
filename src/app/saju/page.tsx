@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { SmartBackLink, ConditionalTabBar } from '@/components/InAppNav';
 
 export const metadata = { title: 'What is Saju — Attune' };
 
@@ -8,7 +9,7 @@ export default function SajuPage() {
       style={{
         minHeight: '100svh',
         background: 'var(--c-paper)',
-        padding: '0 0 48px',
+        padding: '0 0 calc(var(--tab-bar-height) + env(safe-area-inset-bottom, 0px) + 24px)',
       }}
     >
       {/* Nav */}
@@ -20,20 +21,7 @@ export default function SajuPage() {
           gap: 8,
         }}
       >
-        <Link
-          href="/"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            color: 'var(--c-ink)',
-            textDecoration: 'none',
-          }}
-          aria-label="Back"
-        >
-          <svg width={24} height={24} viewBox="0 0 24 24" fill="none">
-            <path stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" d="M19 12H5M12 19l-7-7 7-7" />
-          </svg>
-        </Link>
+        <SmartBackLink />
         <span
           style={{
             fontFamily: 'var(--font-space-mono)',
@@ -208,6 +196,8 @@ export default function SajuPage() {
         </div>
 
       </div>
+
+      <ConditionalTabBar />
     </div>
   );
 }
