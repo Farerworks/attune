@@ -50,6 +50,8 @@ export default function NewPage() {
     const profile = getProfile();
     if (!profile) { router.push('/onboarding'); return; }
 
+    const finalSituation = situation.trim() || 'No specific situation — I just want to understand them and how to approach them.';
+
     setLoading(true);
     setError(null);
 
@@ -81,7 +83,7 @@ export default function NewPage() {
           me:   { date: profile.date, time: cleanTime(profile.time) },
           them: { date, time: cleanTime(time), name: name || undefined },
           relationship,
-          situation,
+          situation: finalSituation,
         }),
       });
 
@@ -100,7 +102,7 @@ export default function NewPage() {
         date,
         time:         cleanTime(time),
         relationship,
-        situation,
+        situation:    finalSituation,
         createdAt:    new Date().toISOString(),
         briefing:     data.briefing,
         myChart:      data.charts.me,
@@ -240,7 +242,7 @@ export default function NewPage() {
           {/* Situation */}
           <div style={{ marginBottom: 32 }}>
             <label htmlFor="situation" className="t-label" style={{ display: 'block', marginBottom: 8 }}>
-              What&apos;s the situation?
+              What&apos;s the situation? <span style={{ color: 'var(--c-muted)', fontWeight: 400 }}>(optional)</span>
             </label>
             <textarea
               id="situation"

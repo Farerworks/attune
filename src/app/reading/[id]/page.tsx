@@ -585,6 +585,23 @@ export default function ReadingPage({ params }: { params: Promise<{ id: string }
           </Link>
         </Reveal>
 
+        {/* ── Bottom share CTA ─────────────────────────────────────────────── */}
+        <button
+          type="button"
+          onClick={() => canShare && setShareOpen(true)}
+          disabled={!canShare}
+          className="pressable"
+          style={{
+            width: '100%', height: 52, borderRadius: 999,
+            background: 'var(--c-ink)', color: '#FFF',
+            fontFamily: "var(--font-inter,system-ui)", fontSize: 15, fontWeight: 600,
+            border: 'none', cursor: canShare ? 'pointer' : 'default',
+            marginBottom: 20, opacity: canShare ? 1 : 0.35,
+          }}
+        >
+          Save our card
+        </button>
+
         {/* ── Footer disclaimer ────────────────────────────────────────────── */}
         <p style={{
           fontFamily: "var(--font-inter,system-ui)",

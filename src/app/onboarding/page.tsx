@@ -28,7 +28,7 @@ export default function OnboardingPage() {
     e.preventDefault();
     if (!date) return;
     setProfile({ date, time: time || undefined, gender: gender || undefined });
-    router.push(wasEdit.current ? '/you' : '/new');
+    router.push(wasEdit.current ? '/you' : '/reveal');
   }
 
   return (
