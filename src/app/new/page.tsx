@@ -4,6 +4,7 @@ import { useState, useRef, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { addReading, getProfile, type BriefingData, type ChartSummary } from '@/lib/store';
 import { CastingRitual } from '@/components/CastingRitual';
+import { ConditionalTabBar } from '@/components/InAppNav';
 
 const RELATIONSHIP_CHIPS = [
   'Crush',
@@ -138,7 +139,7 @@ export default function NewPage() {
         onDone={handleRitualDone}
       />
 
-      <div style={{ minHeight: '100svh', background: 'var(--c-paper)', padding: '0 0 40px' }}>
+      <div style={{ minHeight: '100svh', background: 'var(--c-paper)', padding: '0 0 calc(var(--tab-bar-height) + env(safe-area-inset-bottom, 0px) + 24px)' }}>
         {/* Header */}
         <header style={{
           display: 'flex',
@@ -280,6 +281,7 @@ export default function NewPage() {
           </button>
         </form>
       </div>
+      <ConditionalTabBar />
     </>
   );
 }
