@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getProfile, getReadings, ELEMENT_COLORS } from '@/lib/store';
+import type { TenStem } from '@/lib/saju';
+import { GlyphAvatar } from '@/components/ArchetypeGlyph';
 import type { TodayNote } from '@/lib/today';
 import { formatDate } from '@/lib/format';
 import { ElementChart } from '@/components/ElementChart';
@@ -107,17 +109,8 @@ export default function YouPage() {
             {/* ── Day master card ───────────────────────────────────────────── */}
             <div className="card" style={{ padding: '20px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
-                {/* Element avatar */}
-                <div style={{
-                  width: 56, height: 56, borderRadius: '50%',
-                  background: ELEMENT_COLORS[chart.element.toLowerCase()]?.bg ?? 'var(--c-surface-alt)',
-                  color:      ELEMENT_COLORS[chart.element.toLowerCase()]?.fg ?? 'var(--c-muted)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontFamily: "var(--font-fraunces,Georgia,serif)",
-                  fontSize: 26, flexShrink: 0,
-                }}>
-                  M
-                </div>
+                {/* Glyph avatar */}
+                <GlyphAvatar stem={chart.stem as TenStem} element={chart.element} size={56} />
                 <div>
                   <div style={{
                     fontFamily: "var(--font-space-mono,'Courier New')",

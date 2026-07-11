@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { getProfile, getReadings, ELEMENT_COLORS } from '@/lib/store';
 import { getQuotaLeft, incrementQuotaUsed, DAILY_QUOTA_MAX } from '@/lib/askQuota';
 import type { BriefingData } from '@/lib/store';
+import type { TenStem } from '@/lib/saju';
+import { GlyphAvatar } from '@/components/ArchetypeGlyph';
 import { TabTopBar } from '@/components/TabTopBar';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -13,7 +15,8 @@ interface Chip {
   id: string;          // 'me' | 'general' | readingId
   label: string;
   element?: string;    // for avatar bg/fg
-  initial: string;     // avatar character
+  stem?: string;       // for GlyphAvatar
+  initial: string;     // avatar fallback character
   personDate?: string; // person chips only
   personTime?: string;
   briefing?: BriefingData;
@@ -101,6 +104,7 @@ export default function AskPage() {
         chipList.push({
           id: 'me', label: 'Me',
           element: myChart.dayMaster.element,
+          stem:    myChart.dayMaster.stem,
           initial: 'M',
         });
       } catch {
@@ -113,6 +117,7 @@ export default function AskPage() {
           id:          r.id,
           label:       r.name ?? 'Unknown',
           element:     r.themChart?.dayMaster?.element,
+          stem:        r.themChart?.dayMaster?.stem,
           initial:     r.name ? r.name.charAt(0).toUpperCase() : '?',
           personDate:  r.date,
           personTime:  r.time,
@@ -481,16 +486,19 @@ function ChipButton({ chip, active, onClick }: { chip: Chip; active: boolean; on
         cursor: 'pointer',
       }}
     >
-      <div style={{
-        width: 24, height: 24, borderRadius: '50%', flexShrink: 0,
-        background: active ? '#F7E4DC' : (elC?.bg ?? 'var(--c-surface-alt)'),
-        color: active ? '#A83E20' : (elC?.fg ?? 'var(--c-muted)'),
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontFamily: chip.id === 'general' ? undefined : "var(--font-fraunces,Georgia,serif)",
-        fontSize: chip.id === 'general' ? 11 : 10,
-      }}>
-        {chip.initial}
-      </div>
+      {chip.id !== 'general' && chip.stem && chip.element ? (
+        <GlyphAvatar stem={chip.stem as TenStem} element={chip.element} size={26} />
+      ) : (
+        <div style={{
+          width: 26, height: 26, borderRadius: '50%', flexShrink: 0,
+          background: active ? '#F7E4DC' : (elC?.bg ?? 'var(--c-surface-alt)'),
+          color: active ? '#A83E20' : (elC?.fg ?? 'var(--c-muted)'),
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 11,
+        }}>
+          {chip.initial}
+        </div>
+      )}
       <span style={{
         fontFamily: "var(--font-inter,system-ui)", fontSize: 13,
         color: active ? '#A83E20' : 'var(--c-ink)',

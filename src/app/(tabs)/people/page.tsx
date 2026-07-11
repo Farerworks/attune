@@ -6,33 +6,10 @@ import { useReadings, ELEMENT_COLORS } from '@/lib/store';
 import { TabTopBar } from '@/components/TabTopBar';
 import { getArchetype } from '@/lib/interpretGuide';
 import type { TenStem, Element } from '@/lib/saju';
+import { GlyphAvatar } from '@/components/ArchetypeGlyph';
 import { formatDate } from '@/lib/format';
 import type { TodayNote } from '@/lib/today';
 
-function ElementAvatar({ name, element }: { name?: string; element?: string }) {
-  const initial = name ? name.charAt(0).toUpperCase() : '?';
-  const colors = element ? ELEMENT_COLORS[element.toLowerCase()] : undefined;
-  return (
-    <div
-      style={{
-        width: 44,
-        height: 44,
-        borderRadius: '50%',
-        background: colors?.bg ?? 'var(--c-surface-alt)',
-        color: colors?.fg ?? 'var(--c-muted)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        flexShrink: 0,
-        fontFamily: 'var(--font-fraunces)',
-        fontSize: 18,
-        fontWeight: 400,
-      }}
-    >
-      {initial}
-    </div>
-  );
-}
 
 export default function PeoplePage() {
   const [readings] = useReadings();
@@ -217,8 +194,17 @@ export default function PeoplePage() {
                     background: 'var(--c-card)',
                   }}
                 >
-                  {/* Element avatar */}
-                  <ElementAvatar name={reading.name} element={element} />
+                  {/* Glyph avatar */}
+                  {stem && element ? (
+                    <GlyphAvatar stem={stem as TenStem} element={element} size={44} />
+                  ) : (
+                    <div style={{
+                      width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
+                      background: element ? (ELEMENT_COLORS[element]?.bg ?? 'var(--c-surface-alt)') : 'var(--c-surface-alt)',
+                      color: element ? (ELEMENT_COLORS[element]?.fg ?? 'var(--c-muted)') : 'var(--c-muted)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>?</div>
+                  )}
 
                   {/* Content */}
                   <div style={{ flex: 1, minWidth: 0 }}>

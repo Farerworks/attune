@@ -12,6 +12,7 @@ import { ElementChart } from '@/components/ElementChart';
 import { ArchetypeCard } from '@/components/ArchetypeCard';
 import { ShareModal } from '@/components/ShareModal';
 import { ConditionalTabBar } from '@/components/InAppNav';
+import { GlyphAvatar } from '@/components/ArchetypeGlyph';
 import { SpectrumBar } from '@/components/SpectrumBar';
 import { ExpandCard } from '@/components/ExpandCard';
 import { PersonalityIcon } from '@/components/icons/PersonalityIcon';
@@ -254,7 +255,11 @@ export default function ReadingPage({ params }: { params: Promise<{ id: string }
           </svg>
         </button>
 
-        <ElementAvatar name={reading.name} element={theirEl} size={32} />
+        {theirArch?.stem ? (
+          <GlyphAvatar stem={theirArch.stem as TenStem} element={theirEl ?? ''} size={32} />
+        ) : (
+          <ElementAvatar name={reading.name} element={theirEl} size={32} />
+        )}
         <span style={{
           fontFamily: "var(--font-inter,system-ui)", fontSize: 15, fontWeight: 600,
           color: 'var(--c-ink)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
