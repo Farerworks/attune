@@ -154,7 +154,7 @@ export default function PeoplePage() {
           </div>
 
           {/* CTA */}
-          <Link href="/new" style={{
+          <Link href="/new" className="pressable" style={{
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             height: 52, borderRadius: 999,
             background: '#C4502E', color: '#fff',
@@ -195,17 +195,18 @@ export default function PeoplePage() {
           )}
 
           {/* Reading list */}
-          <ul style={{ listStyle: 'none', margin: 0, padding: '8px 0' }}>
-          {readings.map(reading => {
+          <ul className="stagger" style={{ listStyle: 'none', margin: 0, padding: '8px 0' }}>
+          {readings.map((reading, i) => {
             const element  = reading.themChart?.dayMaster?.element?.toLowerCase();
             const stem     = reading.themChart?.dayMaster?.stem;
             const colors   = element ? ELEMENT_COLORS[element] : undefined;
             const archName = stem ? getArchetype(stem as TenStem).name : null;
             const todayNote = todayNotes[reading.id];
             return (
-              <li key={reading.id}>
+              <li key={reading.id} style={{ animationDelay: `${Math.min(i, 8) * 45}ms` }}>
                 <Link
                   href={`/reading/${reading.id}`}
+                  className="pressable"
                   style={{
                     display: 'flex',
                     alignItems: 'flex-start',

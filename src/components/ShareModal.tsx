@@ -346,6 +346,7 @@ export function ShareModal({ reading, myArchetype, theirArchetype, onClose }: Pr
         display: 'flex', flexDirection: 'column',
         alignItems: 'center', justifyContent: 'center',
         padding: '24px 20px', gap: 20,
+        animation: 'fade-in 200ms ease backwards',
       }}
     >
       {/* 9:16 preview */}
@@ -377,7 +378,7 @@ export function ShareModal({ reading, myArchetype, theirArchetype, onClose }: Pr
       </div>
 
       {/* Buttons */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%', maxWidth: 360 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%', maxWidth: 360, animation: 'sheet-up var(--dur-slow) var(--ease-sheet) backwards' }}>
         <button
           type="button"
           onClick={handleDownload}

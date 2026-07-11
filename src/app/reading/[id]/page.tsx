@@ -277,7 +277,7 @@ export default function ReadingPage({ params }: { params: Promise<{ id: string }
       </header>
 
       {/* ── Scrollable body ─────────────────────────────────────────────────── */}
-      <div style={{ padding: '32px 20px 0' }}>
+      <div className="stagger" style={{ padding: '32px 20px 0' }}>
 
         {/* YOUR BRIEFING label */}
         <p style={{
@@ -340,7 +340,7 @@ export default function ReadingPage({ params }: { params: Promise<{ id: string }
 
         {/* ── Section 01: Their profile ────────────────────────────────────── */}
         {b?.theirProfile && (
-          <div style={{ marginBottom: 48 }}>
+          <div style={{ marginBottom: 48, animationDelay: '45ms' }}>
             <SectionHeader num="01" title="Their profile" />
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -436,7 +436,7 @@ export default function ReadingPage({ params }: { params: Promise<{ id: string }
 
         {/* ── Section 02: Your dynamic ─────────────────────────────────────── */}
         {b?.dynamic && (
-          <div style={{ marginBottom: 48 }}>
+          <div style={{ marginBottom: 48, animationDelay: '90ms' }}>
             <SectionHeader
               num="02"
               title="Your dynamic"
@@ -539,7 +539,7 @@ export default function ReadingPage({ params }: { params: Promise<{ id: string }
 
         {/* ── Section 03: Playbook ─────────────────────────────────────────── */}
         {b?.playbook && b.playbook.length > 0 && (
-          <div style={{ marginBottom: 48 }}>
+          <div style={{ marginBottom: 48, animationDelay: '135ms' }}>
             <SectionHeader num="03" title="Playbook" />
             <Reveal>
               <div>
@@ -555,6 +555,7 @@ export default function ReadingPage({ params }: { params: Promise<{ id: string }
         <Reveal>
           <Link
             href={`/ask?person=${reading.id}`}
+            className="pressable"
             style={{
               display: 'flex', justifyContent: 'space-between', alignItems: 'center',
               textDecoration: 'none',

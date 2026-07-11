@@ -380,6 +380,7 @@ export default function AskPage() {
                   key={q}
                   type="button"
                   onClick={() => setInput(q)}
+                  className="pressable"
                   style={{
                     flexShrink: 0,
                     fontFamily: "var(--font-inter,system-ui)", fontSize: 13,
@@ -417,6 +418,7 @@ export default function AskPage() {
                 onClick={() => void handleSend()}
                 disabled={loading || !input.trim()}
                 aria-label="Send"
+                className="pressable"
                 style={{
                   flexShrink: 0, width: 50, height: 50, borderRadius: '50%',
                   background: loading || !input.trim() ? 'var(--c-hairline)' : '#C4502E',
@@ -470,6 +472,7 @@ function ChipButton({ chip, active, onClick }: { chip: Chip; active: boolean; on
     <button
       type="button"
       onClick={onClick}
+      className="pressable"
       style={{
         display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
         padding: '12px 18px 12px 10px', borderRadius: 20, minHeight: 48,

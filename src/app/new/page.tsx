@@ -271,7 +271,7 @@ export default function NewPage() {
           <button
             type="submit"
             disabled={loading || !date || !relationship}
-            className="btn-primary"
+            className="btn-primary pressable"
             style={{ width: '100%' }}
           >
             Get my briefing

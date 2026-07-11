@@ -30,6 +30,12 @@
   --c-water-bg:     #E1EAF4;
   /* Layout */
   --tab-bar-height: 64px;
+  /* Motion */
+  --dur-fast:   120ms;
+  --dur-base:   250ms;
+  --dur-slow:   320ms;
+  --ease-out:   cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-sheet: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 /* ── Tailwind theme mapping ─────────────────────────────────────────────────── */
@@ -253,4 +259,64 @@ body {
 .ask-full {
   min-height: calc(100svh - var(--tab-bar-height) - env(safe-area-inset-bottom, 0px));
   min-height: calc(100dvh - var(--tab-bar-height) - env(safe-area-inset-bottom, 0px));
+}
+
+/* ── Motion keyframes ───────────────────────────────────────────────────────── */
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes sheet-up {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+/* ── Motion utilities ───────────────────────────────────────────────────────── */
+
+.anim-rise {
+  animation: rise var(--dur-slow) var(--ease-out) both;
+}
+
+.stagger > * {
+  animation: rise var(--dur-slow) var(--ease-out) backwards;
+}
+
+.pressable {
+  transition: transform var(--dur-fast) var(--ease-out),
+              opacity  var(--dur-fast) var(--ease-out);
+}
+
+.pressable:active {
+  transform: scale(0.97);
+  opacity: 0.85;
+}
+
+/* ── Paper grain ────────────────────────────────────────────────────────────── */
+
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 200px 200px;
+}
+
+/* ── Reduced motion ─────────────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-delay: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
 }

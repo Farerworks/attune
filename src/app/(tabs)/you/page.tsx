@@ -88,7 +88,7 @@ export default function YouPage() {
         <h1 className="t-h2">You</h1>
       </header>
 
-      <div style={{ padding: '24px 20px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div className="stagger" style={{ padding: '24px 20px', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
         {error ? (
           <div style={{ color: 'var(--c-vermilion)', fontFamily: "var(--font-inter,system-ui)", fontSize: 14 }}>{error}</div>
@@ -151,7 +151,7 @@ export default function YouPage() {
 
             {/* ── Today note ───────────────────────────────────────────────── */}
             {todayNote && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, animationDelay: '45ms' }}>
                 <div style={{
                   width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
                   background: todayNote.tone === 'good'
@@ -171,7 +171,7 @@ export default function YouPage() {
             )}
 
             {/* ── Element chart ─────────────────────────────────────────────── */}
-            <div className="card" style={{ padding: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div className="card" style={{ padding: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center', animationDelay: '90ms' }}>
               <div style={{
                 fontFamily: "var(--font-fraunces,Georgia,serif)", fontSize: 20,
                 color: 'var(--c-ink)', marginBottom: 16, alignSelf: 'flex-start',
@@ -190,7 +190,7 @@ export default function YouPage() {
             </div>
 
             {/* ── Spectrum ──────────────────────────────────────────────────── */}
-            <div className="card" style={{ padding: '20px' }}>
+            <div className="card" style={{ padding: '20px', animationDelay: '135ms' }}>
               <div style={{
                 fontFamily: "var(--font-fraunces,Georgia,serif)", fontSize: 20,
                 color: 'var(--c-ink)', marginBottom: 14,
@@ -224,7 +224,7 @@ export default function YouPage() {
 
             {/* Born meta */}
             {profile && (
-              <p className="t-meta" style={{ padding: '0 4px' }}>
+              <p className="t-meta" style={{ padding: '0 4px', animationDelay: '180ms' }}>
                 BORN {formatDate(profile.date)}{profile.time ? ` · ${profile.time}` : ''}
                 {profile.gender ? ` · ${profile.gender}` : ''}
               </p>

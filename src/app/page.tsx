@@ -101,6 +101,7 @@ export default function LandingPage() {
         {/* CTA */}
         <Link
           href="/onboarding"
+          className="pressable"
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -220,6 +221,7 @@ export default function LandingPage() {
         {/* CTA */}
         <Link
           href="/onboarding"
+          className="pressable"
           style={{
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             padding: '18px', marginTop: 40, marginBottom: 14,

@@ -167,7 +167,7 @@ export default function OnboardingPage() {
         <button
           type="submit"
           disabled={!date}
-          className="btn-primary"
+          className="btn-primary pressable"
           style={{ width: '100%' }}
         >
           Continue →

@@ -23,6 +23,7 @@ function InstallSheet({ onClose }: { onClose: () => void }) {
         position: 'fixed', inset: 0, zIndex: 200,
         background: 'rgba(26,24,21,0.48)',
         display: 'flex', alignItems: 'flex-end',
+        animation: 'fade-in 200ms ease backwards',
       }}
     >
       <div
@@ -32,6 +33,7 @@ function InstallSheet({ onClose }: { onClose: () => void }) {
           background: 'var(--c-card)',
           borderRadius: '20px 20px 0 0',
           padding: '28px 24px 48px',
+          animation: 'sheet-up var(--dur-slow) var(--ease-sheet) backwards',
         }}
       >
         <p style={{
@@ -85,7 +87,7 @@ function Row({ label, href, danger, onClick }: RowProps) {
 
   if (href) {
     return (
-      <Link href={href} style={style}>
+      <Link href={href} className="pressable" style={style}>
         <span>{label}</span>
         <ChevronIcon width={18} height={18} style={{ color: 'var(--c-muted)' }} />
       </Link>
@@ -93,7 +95,7 @@ function Row({ label, href, danger, onClick }: RowProps) {
   }
 
   return (
-    <button type="button" style={{ ...style, width: '100%', border: 'none' as const, textAlign: 'left' as const }} onClick={onClick}>
+    <button type="button" className="pressable" style={{ ...style, width: '100%', border: 'none' as const, textAlign: 'left' as const }} onClick={onClick}>
       <span>{label}</span>
     </button>
   );
