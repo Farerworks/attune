@@ -46,7 +46,7 @@ function MiniRadar({ elements, color }: { elements: Props['elements']; color: st
   }
 
   return (
-    <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} aria-hidden>
+    <svg viewBox={`0 0 ${SIZE} ${SIZE}`} style={{ width: '55%', height: 'auto', display: 'block' }} aria-hidden>
       {[0.4, 0.7, 1].map(r => (
         <path key={r} d={pentRing(R * r)} fill="none" stroke="var(--c-hairline)" strokeWidth={0.5} />
       ))}
@@ -125,10 +125,11 @@ export function ArchetypeCard({ name, date, archetype, element, elements }: Prop
         </div>
       </div>
 
-      {/* Bottom row: radar + wordmark */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+      {/* Bottom row: radar centered + wordmark bottom-right */}
+      <div style={{ position: 'relative', display: 'flex', justifyContent: 'center' }}>
         <MiniRadar elements={elements} color={colors.fg} />
         <span style={{
+          position: 'absolute', bottom: 0, right: 0,
           fontFamily: "var(--font-space-mono,'Courier New')",
           fontSize: 9, letterSpacing: '0.3em', textTransform: 'uppercase',
           color: 'var(--c-muted)',

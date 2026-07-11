@@ -42,6 +42,22 @@ function roundRectPath(
   ctx.closePath();
 }
 
+function fitFontSize(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxW: number,
+  startSize: number,
+  minSize: number,
+): number {
+  let size = startSize;
+  while (size > minSize) {
+    ctx.font = `500 ${size}px Fraunces`;
+    if (ctx.measureText(text).width <= maxW) break;
+    size -= 4;
+  }
+  return Math.max(size, minSize);
+}
+
 function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
   const words = text.split(' ');
   const lines: string[] = [];
@@ -185,7 +201,8 @@ function drawShareCard(
 
   // My archetype name + polarity dot
   if (myArchetype) {
-    ctx.font = '500 108px Fraunces';
+    const myFontSize = fitFontSize(ctx, myArchetype.name, W - 2 * PAD, 108, 56);
+    ctx.font = `500 ${myFontSize}px Fraunces`;
     ctx.fillStyle = '#F5F1E8';
     ctx.fillText(myArchetype.name, PAD, 360);
     const nameW = ctx.measureText(myArchetype.name).width;
@@ -201,7 +218,8 @@ function drawShareCard(
 
   // Their archetype name + polarity dot
   if (theirArchetype) {
-    ctx.font = '500 108px Fraunces';
+    const theirFontSize = fitFontSize(ctx, theirArchetype.name, W - 2 * PAD, 108, 56);
+    ctx.font = `500 ${theirFontSize}px Fraunces`;
     ctx.fillStyle = '#F5F1E8';
     ctx.fillText(theirArchetype.name, PAD, 582);
     const nameW = ctx.measureText(theirArchetype.name).width;
