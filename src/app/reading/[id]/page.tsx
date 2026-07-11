@@ -11,6 +11,7 @@ import { formatDate } from '@/lib/format';
 import { ElementChart } from '@/components/ElementChart';
 import { ArchetypeCard } from '@/components/ArchetypeCard';
 import { ShareModal } from '@/components/ShareModal';
+import { ConditionalTabBar } from '@/components/InAppNav';
 import { SpectrumBar } from '@/components/SpectrumBar';
 import { ExpandCard } from '@/components/ExpandCard';
 import { PersonalityIcon } from '@/components/icons/PersonalityIcon';
@@ -235,7 +236,7 @@ export default function ReadingPage({ params }: { params: Promise<{ id: string }
         onClose={() => setShareOpen(false)}
       />
     )}
-    <div style={{ minHeight: '100svh', background: 'var(--c-paper)', paddingBottom: 48 }}>
+    <div style={{ minHeight: '100svh', background: 'var(--c-paper)', paddingBottom: 'calc(var(--tab-bar-height) + env(safe-area-inset-bottom, 0px) + 24px)' }}>
       {/* ── Sticky top bar ──────────────────────────────────────────────────── */}
       <header style={{
         display: 'flex', alignItems: 'center', gap: 12,
@@ -245,7 +246,7 @@ export default function ReadingPage({ params }: { params: Promise<{ id: string }
         position: 'sticky', top: 0, zIndex: 50,
       }}>
         <button
-          type="button" onClick={() => router.back()} aria-label="Back"
+          type="button" onClick={() => router.push('/people')} aria-label="Back"
           style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: 'var(--c-ink)', display: 'flex', flexShrink: 0 }}
         >
           <svg width={24} height={24} viewBox="0 0 24 24" fill="none">
@@ -613,6 +614,7 @@ export default function ReadingPage({ params }: { params: Promise<{ id: string }
         </p>
       </div>
     </div>
+    <ConditionalTabBar />
     </>
   );
 }
