@@ -6,14 +6,14 @@ import { ServiceWorkerRegistrar } from '@/components/ServiceWorkerRegistrar';
 
 const fraunces = Fraunces({
   subsets: ['latin'],
-  variable: '--font-fraunces',
+  variable: '--font-fraunces-latin',
   style: ['normal', 'italic'],
   display: 'swap',
 });
 
 const inter = Inter({
   subsets: ['latin'],
-  variable: '--font-inter',
+  variable: '--font-inter-latin',
   display: 'swap',
 });
 
@@ -56,6 +56,10 @@ export default function RootLayout({
       lang="en"
       className={`${fraunces.variable} ${inter.variable} ${spaceMono.variable}`}
     >
+      <head>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&display=swap" />
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendard-dynamic-subset.css" />
+      </head>
       <body>
         <ServiceWorkerRegistrar />
         <div className="app-frame">

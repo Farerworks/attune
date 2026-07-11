@@ -3,6 +3,9 @@
 /* ── Design tokens ─────────────────────────────────────────────────────────── */
 
 :root {
+  /* Font stacks — Korean fallback composited here; next/font provides -latin vars */
+  --font-fraunces: var(--font-fraunces-latin), 'Gowun Batang', Georgia, serif;
+  --font-inter: 'Pretendard Variable', var(--font-inter-latin), system-ui, sans-serif;
   /* Surface */
   --c-paper:        #F1EDE6;
   --c-card:         #FFFFFF;
