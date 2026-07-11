@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getProfile, getReadings, ELEMENT_COLORS } from '@/lib/store';
+import type { TodayNote } from '@/lib/today';
 import { formatDate } from '@/lib/format';
 import { ElementChart } from '@/components/ElementChart';
 import { SpectrumBar } from '@/components/SpectrumBar';
@@ -36,14 +37,15 @@ export default function YouPage() {
   const [profile,     setProfile]     = useState<{ date: string; time?: string; gender?: string } | null>(null);
   const [error,       setError]       = useState<string | null>(null);
   const [mySpectrums, setMySpectrums] = useState<MySpectrums | null>(null);
+  const [todayNote,   setTodayNote]   = useState<TodayNote | null>(null);
 
   useEffect(() => {
     const p = getProfile();
     if (!p) { router.replace('/onboarding'); return; }
     setProfile(p);
 
-    Promise.all([import('@/lib/saju'), import('@/lib/interpretGuide')])
-      .then(([{ calculateSaju }, { getArchetype }]) => {
+    Promise.all([import('@/lib/saju'), import('@/lib/interpretGuide'), import('@/lib/today')])
+      .then(([{ calculateSaju }, { getArchetype }, { getTodayNote, localDateStr }]) => {
         try {
           const c   = calculateSaju({ date: p.date, time: p.time });
           const arc = getArchetype(c.dayMaster.stem);
@@ -60,6 +62,7 @@ export default function YouPage() {
             communication: arc.communication,
             stress:        arc.stress,
           });
+          setTodayNote(getTodayNote(c.dayMaster.element, 'me', localDateStr()));
         } catch (e) {
           setError(e instanceof Error ? e.message : 'Could not calculate chart');
         }
@@ -145,6 +148,27 @@ export default function YouPage() {
                 <ArchRow label="Stress" text={chart.stress} />
               </div>
             </div>
+
+            {/* ── Today note ───────────────────────────────────────────────── */}
+            {todayNote && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div style={{
+                  width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+                  background: todayNote.tone === 'good'
+                    ? '#C4502E'
+                    : (ELEMENT_COLORS[todayNote.todayElement]?.fg ?? '#948B7C'),
+                }} />
+                <span style={{
+                  fontFamily: "var(--font-space-mono,'Courier New')",
+                  fontSize: 9, letterSpacing: '0.12em',
+                  color: 'var(--c-muted)', textTransform: 'uppercase', flexShrink: 0,
+                }}>TODAY</span>
+                <span style={{
+                  fontFamily: "var(--font-inter,system-ui)",
+                  fontSize: 12.5, color: 'var(--c-ink-body)', lineHeight: 1.4,
+                }}>{todayNote.line}</span>
+              </div>
+            )}
 
             {/* ── Element chart ─────────────────────────────────────────────── */}
             <div className="card" style={{ padding: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>

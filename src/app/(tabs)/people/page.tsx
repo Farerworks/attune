@@ -1,11 +1,13 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useReadings, ELEMENT_COLORS } from '@/lib/store';
 import { TabTopBar } from '@/components/TabTopBar';
 import { getArchetype } from '@/lib/interpretGuide';
-import type { TenStem } from '@/lib/saju';
+import type { TenStem, Element } from '@/lib/saju';
 import { formatDate } from '@/lib/format';
+import type { TodayNote } from '@/lib/today';
 
 function ElementAvatar({ name, element }: { name?: string; element?: string }) {
   const initial = name ? name.charAt(0).toUpperCase() : '?';
@@ -34,6 +36,30 @@ function ElementAvatar({ name, element }: { name?: string; element?: string }) {
 
 export default function PeoplePage() {
   const [readings] = useReadings();
+  const [todayEl,    setTodayEl]    = useState<Element | null>(null);
+  const [todayLabel, setTodayLabel] = useState('');
+  const [todayNotes, setTodayNotes] = useState<Record<string, TodayNote>>({});
+
+  useEffect(() => {
+    if (readings.length === 0) return;
+    import('@/lib/today').then(({ getTodayNote, localDateStr }) => {
+      const ds = localDateStr();
+      const label = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toUpperCase();
+      const notes: Record<string, TodayNote> = {};
+      let el: Element | null = null;
+      for (const r of readings) {
+        const rEl = r.themChart?.dayMaster?.element?.toLowerCase() as Element | undefined;
+        if (rEl) {
+          const note = getTodayNote(rEl, 'them', ds);
+          notes[r.id] = note;
+          if (!el) el = note.todayElement;
+        }
+      }
+      setTodayEl(el);
+      setTodayLabel(label);
+      setTodayNotes(notes);
+    });
+  }, [readings]);
 
   return (
     <div style={{ minHeight: '100%', background: 'var(--c-paper)' }}>
@@ -146,13 +172,36 @@ export default function PeoplePage() {
           </p>
         </div>
       ) : (
-        /* Reading list */
-        <ul style={{ listStyle: 'none', margin: 0, padding: '8px 0' }}>
+        <>
+          {/* Today element anchor — appears above list when today element is known */}
+          {todayEl && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '10px 20px',
+              borderBottom: '1px solid var(--c-hairline)',
+            }}>
+              <div style={{
+                width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+                background: ELEMENT_COLORS[todayEl]?.fg ?? '#948B7C',
+              }} />
+              <span style={{
+                fontFamily: "var(--font-space-mono,'Courier New')",
+                fontSize: 10, letterSpacing: '0.08em', color: 'var(--c-muted)',
+                textTransform: 'uppercase',
+              }}>
+                {todayLabel} · TODAY&apos;S ELEMENT: {todayEl.toUpperCase()}
+              </span>
+            </div>
+          )}
+
+          {/* Reading list */}
+          <ul style={{ listStyle: 'none', margin: 0, padding: '8px 0' }}>
           {readings.map(reading => {
             const element  = reading.themChart?.dayMaster?.element?.toLowerCase();
             const stem     = reading.themChart?.dayMaster?.stem;
             const colors   = element ? ELEMENT_COLORS[element] : undefined;
             const archName = stem ? getArchetype(stem as TenStem).name : null;
+            const todayNote = todayNotes[reading.id];
             return (
               <li key={reading.id}>
                 <Link
@@ -248,6 +297,27 @@ export default function PeoplePage() {
                     >
                       READ {formatDate(reading.createdAt)} · BORN {formatDate(reading.date)}
                     </div>
+
+                    {/* Today line — skipped when themChart data is missing */}
+                    {todayNote && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
+                        <div style={{
+                          width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+                          background: todayNote.tone === 'good'
+                            ? '#C4502E'
+                            : (ELEMENT_COLORS[todayNote.todayElement]?.fg ?? '#948B7C'),
+                        }} />
+                        <span style={{
+                          fontFamily: "var(--font-space-mono,'Courier New')",
+                          fontSize: 9, letterSpacing: '0.12em',
+                          color: 'var(--c-muted)', textTransform: 'uppercase', flexShrink: 0,
+                        }}>TODAY</span>
+                        <span style={{
+                          fontFamily: "var(--font-inter,system-ui)",
+                          fontSize: 12.5, color: 'var(--c-ink-body)', lineHeight: 1.4,
+                        }}>{todayNote.line}</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Chevron */}
@@ -258,7 +328,8 @@ export default function PeoplePage() {
               </li>
             );
           })}
-        </ul>
+          </ul>
+        </>
       )}
     </div>
   );
