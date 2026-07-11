@@ -15,7 +15,13 @@ export default function OnboardingPage() {
   const [gender, setGender]   = useState('');
 
   useEffect(() => {
-    if (getProfile() !== null) wasEdit.current = true;
+    const profile = getProfile();
+    if (profile !== null) {
+      wasEdit.current = true;
+      setDate(profile.date);
+      setTime(profile.time ?? '');
+      setGender(profile.gender ?? '');
+    }
   }, []);
 
   function handleSubmit(e: FormEvent) {
