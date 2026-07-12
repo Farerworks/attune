@@ -27,7 +27,7 @@ export default function PeoplePage() {
       for (const r of readings) {
         const rEl = r.themChart?.dayMaster?.element?.toLowerCase() as Element | undefined;
         if (rEl) {
-          const note = getTodayNote(rEl, 'them', ds);
+          const note = getTodayNote(rEl, 'them', ds, r.name);
           notes[r.id] = note;
           if (!el) el = note.todayElement;
         }

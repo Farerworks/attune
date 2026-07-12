@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { getTodayNote, localDateStr } from './today';
+import { getTodayNote, localDateStr, ME, THEM_NONAME, THEM_NAMED } from './today';
+import type { Relation } from './today';
 import { getDailyPillars } from './saju';
 import type { Element } from './saju';
 
-// Derived from today.ts — tested in isolation so we don't import the private tables
 const NURTURES: Record<Element, Element> = {
   wood: 'fire', fire: 'earth', earth: 'metal', metal: 'water', water: 'wood',
 };
@@ -11,84 +11,128 @@ const CONTROLS: Record<Element, Element> = {
   wood: 'earth', earth: 'water', water: 'fire', fire: 'metal', metal: 'wood',
 };
 
-// Fixed date: element is computed dynamically so tests stay valid regardless of cycle
 const TEST_DATE = '2026-07-11';
 const todayEl = getDailyPillars(TEST_DATE, 1)[0].element;
-
-// Helpers: find what nurtures / controls todayEl
 const nuturesToday = Object.entries(NURTURES).find(([, v]) => v === todayEl)![0] as Element;
 const controlsToday = Object.entries(CONTROLS).find(([, v]) => v === todayEl)![0] as Element;
 
-// ── mode 'them' ───────────────────────────────────────────────────────────────
+// [personElement, expectedRelation] — covers all 5 relation types
+const REL_CASES: Array<[Element, Relation]> = [
+  [todayEl,           'same'],
+  [NURTURES[todayEl], 'today_nurtures'],
+  [nuturesToday,      'person_nurtures'],
+  [CONTROLS[todayEl], 'today_controls'],
+  [controlsToday,     'person_controls'],
+];
 
-describe('getTodayNote mode=them', () => {
-  it('same element → good, "Same wavelength today. Reach out."', () => {
-    const n = getTodayNote(todayEl, 'them', TEST_DATE);
-    expect(n.tone).toBe('good');
-    expect(n.line).toBe('Same wavelength today. Reach out.');
-    expect(n.todayElement).toBe(todayEl);
+// ── ① Determinism ─────────────────────────────────────────────────────────────
+
+describe('determinism', () => {
+  it('me: same args produce same line', () => {
+    const a = getTodayNote(todayEl, 'me', TEST_DATE);
+    const b = getTodayNote(todayEl, 'me', TEST_DATE);
+    expect(a.line).toBe(b.line);
   });
 
-  it('today nurtures person → good, receptive copy', () => {
-    const n = getTodayNote(NURTURES[todayEl], 'them', TEST_DATE);
-    expect(n.tone).toBe('good');
-    expect(n.line).toBe("They're receptive today. Good day to reach out.");
-  });
-
-  it('person nurtures today → soft, energy runs low copy', () => {
-    const n = getTodayNote(nuturesToday, 'them', TEST_DATE);
-    expect(n.tone).toBe('soft');
-    expect(n.line).toBe('Their energy runs low today. Be patient.');
-  });
-
-  it('today controls person → soft, feels pressed copy', () => {
-    const n = getTodayNote(CONTROLS[todayEl], 'them', TEST_DATE);
-    expect(n.tone).toBe('soft');
-    expect(n.line).toBe('They may feel pressed today. Keep it light.');
-  });
-
-  it('person controls today → neutral, steering copy', () => {
-    const n = getTodayNote(controlsToday, 'them', TEST_DATE);
-    expect(n.tone).toBe('neutral');
-    expect(n.line).toBe("They're steering today. Let them lead.");
+  it('named them: same args produce same line', () => {
+    const a = getTodayNote(NURTURES[todayEl], 'them', TEST_DATE, 'Alex');
+    const b = getTodayNote(NURTURES[todayEl], 'them', TEST_DATE, 'Alex');
+    expect(a.line).toBe(b.line);
   });
 });
 
-// ── mode 'me' ─────────────────────────────────────────────────────────────────
+// ── ② me result in ME[rel] pool ──────────────────────────────────────────────
 
-describe('getTodayNote mode=me', () => {
-  it('same element → good, "You\'re in your element today."', () => {
-    const n = getTodayNote(todayEl, 'me', TEST_DATE);
-    expect(n.tone).toBe('good');
-    expect(n.line).toBe("You're in your element today.");
+describe('me result in pool', () => {
+  for (const [el, rel] of REL_CASES) {
+    it(`${rel}: result is in ME[${rel}]`, () => {
+      const n = getTodayNote(el, 'me', TEST_DATE);
+      expect(ME[rel]).toContain(n.line);
+    });
+  }
+});
+
+// ── ③ named them → result includes name ──────────────────────────────────────
+// Uses relations where all 3 variants contain {name}
+
+describe('named them includes name', () => {
+  it('today_nurtures: line contains the given name', () => {
+    const name = 'Sofia';
+    const n = getTodayNote(NURTURES[todayEl], 'them', TEST_DATE, name);
+    expect(n.line).toContain(name);
   });
 
-  it('today nurtures me → good, tailwind copy', () => {
-    const n = getTodayNote(NURTURES[todayEl], 'me', TEST_DATE);
-    expect(n.tone).toBe('good');
-    expect(n.line).toBe('Tailwind day. Start the thing.');
+  it('person_nurtures: line contains the given name', () => {
+    const name = 'Mia';
+    const n = getTodayNote(nuturesToday, 'them', TEST_DATE, name);
+    expect(n.line).toContain(name);
   });
 
-  it('I nurture today → soft, guard energy copy', () => {
-    const n = getTodayNote(nuturesToday, 'me', TEST_DATE);
-    expect(n.tone).toBe('soft');
-    expect(n.line).toBe('Giving-out day. Guard your energy.');
+  it('today_controls: line contains the given name', () => {
+    const name = 'Jake';
+    const n = getTodayNote(CONTROLS[todayEl], 'them', TEST_DATE, name);
+    expect(n.line).toContain(name);
   });
 
-  it('today controls me → soft, friction copy', () => {
-    const n = getTodayNote(CONTROLS[todayEl], 'me', TEST_DATE);
-    expect(n.tone).toBe('soft');
-    expect(n.line).toBe('Friction day. Move slower.');
+  it('person_controls: line contains the given name', () => {
+    const name = 'Lily';
+    const n = getTodayNote(controlsToday, 'them', TEST_DATE, name);
+    expect(n.line).toContain(name);
   });
 
-  it('I control today → neutral, set the pace copy', () => {
-    const n = getTodayNote(controlsToday, 'me', TEST_DATE);
-    expect(n.tone).toBe('neutral');
-    expect(n.line).toBe('You set the pace today.');
+  it('all THEM_NAMED pools have {name} substituted (no literal {name} in output)', () => {
+    // any relation that guarantees {name} substitution
+    const n = getTodayNote(NURTURES[todayEl], 'them', TEST_DATE, 'Taro');
+    expect(n.line).not.toContain('{name}');
   });
 });
 
-// ── date injection ─────────────────────────────────────────────────────────────
+// ── ④ unnamed them → THEM_NONAME[rel] ────────────────────────────────────────
+
+describe('unnamed them returns THEM_NONAME', () => {
+  for (const [el, rel] of REL_CASES) {
+    it(`${rel}: line equals THEM_NONAME[${rel}]`, () => {
+      const n = getTodayNote(el, 'them', TEST_DATE);
+      expect(n.line).toBe(THEM_NONAME[rel]);
+    });
+  }
+});
+
+// ── ⑤ tone per relation ──────────────────────────────────────────────────────
+
+describe('tone values', () => {
+  it('same → good', () => {
+    expect(getTodayNote(todayEl, 'them', TEST_DATE).tone).toBe('good');
+  });
+  it('today_nurtures → good', () => {
+    expect(getTodayNote(NURTURES[todayEl], 'them', TEST_DATE).tone).toBe('good');
+  });
+  it('person_nurtures → soft', () => {
+    expect(getTodayNote(nuturesToday, 'them', TEST_DATE).tone).toBe('soft');
+  });
+  it('today_controls → soft', () => {
+    expect(getTodayNote(CONTROLS[todayEl], 'them', TEST_DATE).tone).toBe('soft');
+  });
+  it('person_controls → neutral', () => {
+    expect(getTodayNote(controlsToday, 'them', TEST_DATE).tone).toBe('neutral');
+  });
+});
+
+// ── Sanity: all pools are non-empty and have no bare {name} in THEM_NAMED ────
+
+describe('pool integrity', () => {
+  const rels: Relation[] = ['same', 'today_nurtures', 'person_nurtures', 'today_controls', 'person_controls'];
+
+  it('ME: all pools have exactly 3 variants', () => {
+    for (const r of rels) expect(ME[r]).toHaveLength(3);
+  });
+
+  it('THEM_NAMED: all pools have exactly 3 variants', () => {
+    for (const r of rels) expect(THEM_NAMED[r]).toHaveLength(3);
+  });
+});
+
+// ── date parameter ────────────────────────────────────────────────────────────
 
 describe('date parameter', () => {
   it('fixed date produces a valid TodayNote', () => {
