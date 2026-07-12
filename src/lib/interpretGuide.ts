@@ -190,6 +190,23 @@ export function getElementRelationship(
   );
 }
 
+// ── Day-animal notes ─────────────────────────────────────────────────────────
+
+export const DAY_NOTES: Record<string, string> = {
+  Rat:     "Rat day — quick eyes, quicker footwork.",
+  Ox:      "Ox day — steady underneath, slow to bend.",
+  Tiger:   "Tiger day — moves first, explains later.",
+  Rabbit:  "Rabbit day — soft touch, careful steps.",
+  Dragon:  "Dragon day — carries weather wherever they go.",
+  Snake:   "Snake day — says less, sees more.",
+  Horse:   "Horse day — built for open road, hates idling.",
+  Goat:    "Goat day — keeps the warm corner of the room.",
+  Monkey:  "Monkey day — finds the side door every time.",
+  Rooster: "Rooster day — notices the crooked picture frame.",
+  Dog:     "Dog day — loyal past the point of reason.",
+  Pig:     "Pig day — an open door and a full table.",
+};
+
 // ── Copy style rules (included in full every prompt) ─────────────────────────
 
 export const COPY_STYLE_RULES = `\

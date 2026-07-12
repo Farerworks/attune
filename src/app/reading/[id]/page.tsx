@@ -314,6 +314,7 @@ export default function ReadingPage({ params }: { params: Promise<{ id: string }
               archetype={theirArchetype}
               element={theirArch.element}
               elements={reading.themChart.elements}
+              dayBranch={reading.themChart.pillars.day.branch}
             />
           </div>
         ) : theirArchetype && theirArch ? (

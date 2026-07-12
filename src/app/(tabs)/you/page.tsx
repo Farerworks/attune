@@ -7,6 +7,7 @@ import { getProfile, getReadings, ELEMENT_COLORS } from '@/lib/store';
 import type { TenStem } from '@/lib/saju';
 import { GlyphAvatar } from '@/components/ArchetypeGlyph';
 import type { TodayNote } from '@/lib/today';
+import { DAY_NOTES } from '@/lib/interpretGuide';
 import { formatDate } from '@/lib/format';
 import { ElementChart } from '@/components/ElementChart';
 import { SpectrumBar } from '@/components/SpectrumBar';
@@ -24,6 +25,7 @@ interface ChartData {
   coreDrive: string;
   communication: string;
   stress: string;
+  dayBranch: string;
 }
 
 interface MySpectrums {
@@ -63,6 +65,7 @@ export default function YouPage() {
             coreDrive:    arc.coreDrive,
             communication: arc.communication,
             stress:        arc.stress,
+            dayBranch:    c.pillars.day.branch,
           });
           setTodayNote(getTodayNote(c.dayMaster.element, 'me', localDateStr()));
         } catch (e) {
@@ -132,6 +135,14 @@ export default function YouPage() {
                   }}>
                     {chart.tagline}
                   </div>
+                  {DAY_NOTES[chart.dayBranch] && (
+                    <div style={{
+                      fontFamily: "var(--font-inter,system-ui)",
+                      fontSize: 12.5, color: 'var(--c-muted)', marginTop: 4,
+                    }}>
+                      {DAY_NOTES[chart.dayBranch]}
+                    </div>
+                  )}
                 </div>
               </div>
 

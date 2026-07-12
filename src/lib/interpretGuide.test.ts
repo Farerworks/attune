@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getArchetype, getElementRelationship, ARCHETYPES } from './interpretGuide';
+import { getArchetype, getElementRelationship, ARCHETYPES, DAY_NOTES } from './interpretGuide';
 import type { TenStem } from './saju';
 
 const ALL_STEMS: TenStem[] = [
@@ -65,6 +65,37 @@ describe('getArchetype', () => {
       expect(keywords[0].length, `${stem}: keywords[0] empty`).toBeGreaterThan(0);
       expect(keywords[1].length, `${stem}: keywords[1] empty`).toBeGreaterThan(0);
     }
+  });
+});
+
+// ── DAY_NOTES ────────────────────────────────────────────────────────────────
+
+describe('DAY_NOTES', () => {
+  const TWELVE_BRANCHES = [
+    'Rat', 'Ox', 'Tiger', 'Rabbit', 'Dragon', 'Snake',
+    'Horse', 'Goat', 'Monkey', 'Rooster', 'Dog', 'Pig',
+  ];
+
+  it('has exactly 12 keys, one per branch', () => {
+    expect(Object.keys(DAY_NOTES)).toHaveLength(12);
+  });
+
+  it('all 12 branches have a non-empty note', () => {
+    for (const branch of TWELVE_BRANCHES) {
+      expect(DAY_NOTES[branch], `missing note for ${branch}`).toBeTruthy();
+      expect(DAY_NOTES[branch].length).toBeGreaterThan(0);
+    }
+  });
+
+  it('each note starts with the branch name + " day —"', () => {
+    for (const branch of TWELVE_BRANCHES) {
+      expect(DAY_NOTES[branch]).toMatch(new RegExp(`^${branch} day —`));
+    }
+  });
+
+  it('all 12 notes are distinct', () => {
+    const notes = TWELVE_BRANCHES.map(b => DAY_NOTES[b]);
+    expect(new Set(notes).size).toBe(12);
   });
 });
 

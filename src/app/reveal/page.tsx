@@ -20,6 +20,7 @@ interface RevealData {
   element: string;
   elements: Record<string, number>;
   revealLine: string;
+  dayBranch: string;
 }
 
 export default function RevealPage() {
@@ -40,6 +41,7 @@ export default function RevealPage() {
             element: c.dayMaster.element,
             elements: c.elements as Record<string, number>,
             revealLine: pickVariant(REVEAL, `reveal|${p.date ?? localDateStr()}`),
+            dayBranch: c.pillars.day.branch,
           });
         } catch { /* stay on loading skeleton */ }
       });
@@ -67,6 +69,7 @@ export default function RevealPage() {
           archetype={data.archetype}
           element={data.element}
           elements={data.elements as { wood: number; fire: number; earth: number; metal: number; water: number }}
+          dayBranch={data.dayBranch}
         />
       ) : (
         <div style={{
