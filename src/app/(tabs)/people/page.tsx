@@ -13,9 +13,21 @@ import type { TodayNote } from '@/lib/today';
 
 export default function PeoplePage() {
   const [readings] = useReadings();
+  const [greeting,   setGreeting]   = useState("Who's on your mind?");
   const [todayEl,    setTodayEl]    = useState<Element | null>(null);
   const [todayLabel, setTodayLabel] = useState('');
   const [todayNotes, setTodayNotes] = useState<Record<string, TodayNote>>({});
+
+  useEffect(() => {
+    const h = new Date().getHours();
+    setGreeting(
+      h < 5 || h >= 18
+        ? "Thinking about someone tonight?"
+        : h < 11
+        ? "Who's on your mind this morning?"
+        : "Who's on your mind?"
+    );
+  }, []);
 
   useEffect(() => {
     if (readings.length === 0) return;
@@ -44,7 +56,7 @@ export default function PeoplePage() {
 
       {readings.length > 0 && (
         <header style={{ padding: '20px 20px 12px', borderBottom: '1px solid var(--c-hairline)' }}>
-          <h1 className="t-h2">Who&apos;s on your mind?</h1>
+          <h1 className="t-h2">{greeting}</h1>
         </header>
       )}
 

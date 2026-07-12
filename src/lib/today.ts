@@ -34,7 +34,7 @@ function getRelation(t: Element, p: Element): Relation {
 }
 
 // Deterministic variant picker — same seed always yields same variant, no Math.random
-function pickVariant(pool: string[], seed: string): string {
+export function pickVariant(pool: string[], seed: string): string {
   let h = 5381;
   for (let i = 0; i < seed.length; i++) h = ((h << 5) + h + seed.charCodeAt(i)) >>> 0;
   return pool[h % pool.length];

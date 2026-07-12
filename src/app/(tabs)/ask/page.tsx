@@ -8,6 +8,7 @@ import type { BriefingData } from '@/lib/store';
 import type { TenStem } from '@/lib/saju';
 import { GlyphAvatar } from '@/components/ArchetypeGlyph';
 import { TabTopBar } from '@/components/TabTopBar';
+import { pickVariant, localDateStr } from '@/lib/today';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -63,6 +64,14 @@ function saveThreads(threads: Threads): void {
   }
   try { localStorage.setItem(LS_THREADS, JSON.stringify(capped)); } catch {}
 }
+
+// ── Exhausted variants ────────────────────────────────────────────────────────
+
+const EXHAUSTED = [
+  "That's all for today. Five more tomorrow.",
+  "You've used today's questions. Back at midnight.",
+  "That's your five for today. More tomorrow.",
+];
 
 // ── Quick prompts ─────────────────────────────────────────────────────────────
 
@@ -373,7 +382,7 @@ export default function AskPage() {
               fontSize: 17, fontStyle: 'italic',
               color: 'var(--c-ink-body)', margin: 0,
             }}>
-              That&apos;s all for today. Five more tomorrow.
+              {pickVariant(EXHAUSTED, `exhausted|${localDateStr()}`)}
             </p>
           </div>
         ) : (

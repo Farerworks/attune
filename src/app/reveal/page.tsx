@@ -6,12 +6,20 @@ import { useRouter } from 'next/navigation';
 import { getProfile } from '@/lib/store';
 import { ArchetypeCard } from '@/components/ArchetypeCard';
 import type { Archetype } from '@/lib/interpretGuide';
+import { pickVariant, localDateStr } from '@/lib/today';
+
+const REVEAL = [
+  "This is your pattern. Now see how it meets someone else's.",
+  "This is how you're built. Now read someone.",
+  "Your pattern, on paper. Time to meet someone else's.",
+];
 
 interface RevealData {
   date: string;
   archetype: Archetype;
   element: string;
   elements: Record<string, number>;
+  revealLine: string;
 }
 
 export default function RevealPage() {
@@ -31,6 +39,7 @@ export default function RevealPage() {
             archetype: getArchetype(c.dayMaster.stem),
             element: c.dayMaster.element,
             elements: c.elements as Record<string, number>,
+            revealLine: pickVariant(REVEAL, `reveal|${p.date ?? localDateStr()}`),
           });
         } catch { /* stay on loading skeleton */ }
       });
@@ -82,7 +91,7 @@ export default function RevealPage() {
         fontSize: 15, color: 'var(--c-ink-body)',
         lineHeight: 1.5, margin: '24px 0',
       }}>
-        This is your pattern. Now see how it meets someone else&apos;s.
+        {data?.revealLine ?? REVEAL[0]}
       </p>
 
       {/* CTA */}
