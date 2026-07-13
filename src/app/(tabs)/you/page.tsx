@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { getProfile, getReadings, ELEMENT_COLORS } from '@/lib/store';
 import type { TenStem } from '@/lib/saju';
 import { GlyphAvatar } from '@/components/ArchetypeGlyph';
+import { MyCardModal } from '@/components/MyCardModal';
 import type { TodayNote } from '@/lib/today';
 import { DAY_NOTES, ELEMENT_INSIGHT } from '@/lib/interpretGuide';
 import { formatDate } from '@/lib/format';
@@ -45,6 +46,7 @@ export default function YouPage() {
   const [reads,       setReads]       = useState(0);
   const [strong,      setStrong]      = useState(0);
   const [daysIn,      setDaysIn]      = useState(1);
+  const [showMyCard,  setShowMyCard]  = useState(false);
 
   useEffect(() => {
     const p = getProfile();
@@ -102,6 +104,16 @@ export default function YouPage() {
     : null;
 
   return (
+    <>
+    {showMyCard && chart && (
+      <MyCardModal
+        archetypeName={chart.name}
+        element={chart.element}
+        polarity={chart.polarity}
+        elements={chart.elements}
+        onClose={() => setShowMyCard(false)}
+      />
+    )}
     <div style={{ minHeight: '100%', background: 'var(--c-paper)' }}>
       <TabTopBar />
       {/* Header */}
@@ -179,6 +191,21 @@ export default function YouPage() {
                 {reads} READS · {daysIn} DAYS IN · {strong} STRONG CURRENTS
               </div>
             </div>
+
+            {/* ── Share my card ────────────────────────────────────────────── */}
+            <button
+              type="button"
+              onClick={() => setShowMyCard(true)}
+              style={{
+                width: '100%', height: 50, borderRadius: 999,
+                background: 'none', border: '1.5px solid var(--c-ink)',
+                color: 'var(--c-ink)',
+                fontFamily: 'var(--font-inter,system-ui)', fontSize: 15, fontWeight: 600,
+                marginBottom: 12, cursor: 'pointer',
+              }}
+            >
+              Share my card ↗️
+            </button>
 
             {/* ── Today note ───────────────────────────────────────────────── */}
             {todayNote && (
@@ -288,6 +315,7 @@ export default function YouPage() {
         </Link>
       </div>
     </div>
+    </>
   );
 }
 
