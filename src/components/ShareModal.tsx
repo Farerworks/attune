@@ -131,24 +131,6 @@ function drawRadarLayer(
   }
 }
 
-function drawPolarityDot(
-  ctx: CanvasRenderingContext2D,
-  cx: number, cy: number, r: number,
-  color: string, isYang: boolean,
-) {
-  ctx.beginPath();
-  ctx.arc(cx, cy, r, 0, Math.PI * 2);
-  if (isYang) {
-    ctx.fillStyle = color;
-    ctx.shadowColor = 'transparent';
-    ctx.fill();
-  } else {
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 3;
-    ctx.stroke();
-  }
-}
-
 function drawShareCard(
   ctx: CanvasRenderingContext2D,
   reading: Reading,
@@ -171,7 +153,7 @@ function drawShareCard(
     bgCanvas.width = W; bgCanvas.height = H;
     const bgCtx = bgCanvas.getContext('2d');
     if (bgCtx) {
-      drawRadarLayer(bgCtx, 430, 1050, 575, [
+      drawRadarLayer(bgCtx, 540, 1050, 575, [
         { elements: reading.myChart.elements, color: '#D96A45' },
         { elements: reading.themChart.elements, color: DARK_TONES[theirEl] ?? '#AEB4B8' },
       ]);
@@ -183,10 +165,6 @@ function drawShareCard(
   }
 
   // 3. Foreground text
-  const theirEl = reading.themChart?.dayMaster?.element?.toLowerCase() ?? '';
-  const theirDark = DARK_TONES[theirEl] ?? '#AEB4B8';
-  const myPolarity  = reading.myChart?.dayMaster?.polarity;
-  const themPolarity = reading.themChart?.dayMaster?.polarity;
   const b = reading.briefing;
 
   ctx.textBaseline = 'alphabetic';
@@ -199,15 +177,13 @@ function drawShareCard(
   ctx.fillText('our dynamic', PAD, 173);
   ctx.letterSpacing = '0px';
 
-  // My archetype name + polarity dot
+  // My archetype name
   if (myArchetype) {
     const myFontSize = fitFontSize(ctx, myArchetype.name, W - 2 * PAD, 108, 56);
     ctx.font = `500 ${myFontSize}px Fraunces`;
     ctx.fillStyle = '#F5F1E8';
     ctx.fillText(myArchetype.name, PAD, 360);
-    const nameW = ctx.measureText(myArchetype.name).width;
     ctx.shadowBlur = 0;
-    drawPolarityDot(ctx, PAD + nameW + 26, 310, 12, '#D96A45', myPolarity === 'Yang');
   }
 
   // "×"
@@ -216,15 +192,13 @@ function drawShareCard(
   ctx.fillStyle = '#D96A45';
   ctx.fillText('×', PAD, 472);
 
-  // Their archetype name + polarity dot
+  // Their archetype name
   if (theirArchetype) {
     const theirFontSize = fitFontSize(ctx, theirArchetype.name, W - 2 * PAD, 108, 56);
     ctx.font = `500 ${theirFontSize}px Fraunces`;
     ctx.fillStyle = '#F5F1E8';
     ctx.fillText(theirArchetype.name, PAD, 582);
-    const nameW = ctx.measureText(theirArchetype.name).width;
     ctx.shadowBlur = 0;
-    drawPolarityDot(ctx, PAD + nameW + 26, 532, 12, theirDark, themPolarity === 'Yang');
   }
 
   // Resonance pill
@@ -250,7 +224,7 @@ function drawShareCard(
   }
 
   // Quote, rotated –1.5°
-  const quoteText = b?.dynamic?.clash?.takeaway ?? b?.dynamic?.click?.takeaway ?? '';
+  const quoteText = b?.dynamic?.click?.takeaway ?? b?.dynamic?.clash?.takeaway ?? '';
   if (quoteText) {
     ctx.save();
     ctx.font = 'italic 57px Fraunces';
