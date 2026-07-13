@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { SajuChart } from './saju';
-import { getArchetype, getElementRelationship, COPY_STYLE_RULES } from './interpretGuide';
+import { getArchetype, getElementRelationship, COPY_STYLE_RULES, localeVoiceBlock } from './interpretGuide';
 
 // ── Zod schema ──────────────────────────────────────────────────────────────
 
@@ -157,7 +157,6 @@ Respond with ONLY a valid JSON object matching the schema below. No explanation 
 
 LANGUAGE
 Detect the language of the user's situation text. Write ALL free-text values (headline, every takeaway, every detail, click/clash/watch, playbook tips and whys) entirely in that language. Never mix languages in one sentence. If the situation is in English or empty, write in English. JSON keys stay in English. Do not translate archetype names.
-In Korean, never use '당신'; omit the second-person subject naturally and use honorific endings (…해요/…하세요). Refer to the other person by name.
 
 CONTENT RULES
 1. All insights must derive only from the saju data above. Do not invent information.
@@ -170,6 +169,8 @@ CONTENT RULES
 8. No medical, legal, or investment advice.
 9. Tone: emotionally intelligent, practical, zero mystical framing.
 10. Every insight must be written as a coupling of YOU and THEM — address the reader as 'you', refer to the other person by name or pronoun. Prefer 'She warms up when you text first' over 'She tends to warm up slowly'. Generic single-person statements are a failure.
+
+${localeVoiceBlock()}
 
 ${COPY_STYLE_RULES}`;
 }

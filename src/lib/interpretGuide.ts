@@ -217,6 +217,32 @@ export const ELEMENT_INSIGHT: Record<string, string> = {
   water: "Water-led. You read the current before you move — perceptive, adaptive, deep beneath a calm surface.",
 };
 
+// ── Locale voice modules ──────────────────────────────────────────────────────
+
+export const LOCALE_VOICE: Record<string, string> = {
+  Korean: `KOREAN VOICE — applies ONLY when the output language is Korean. Ignore for English/other languages.
+Goal: sound like a perceptive Korean friend who knows 사주 — never a translated English text. Re-express ideas in natural Korean; never map English sentence structure word-for-word.
+1) Register: warm 해요체. Omit the 2nd-person subject entirely (never '당신'; avoid '그/그녀' as subject). Refer to the other person by name. Endings: …해요 / …하는 편이에요 / …거든요.
+2) Saju-native vocabulary (use instead of literal translations):
+   - '기운' for element/energy: "수(水) 기운을 타고났어요" (NOT "물이 이끄는").
+   - '~하는 편이에요' / '성향이에요' for tendencies.
+   - '결' for nature/fit: "결이 잘 맞아요", "부딪히는 지점".
+   - Element first mention with hanja: 목(木)·화(火)·토(土)·금(金)·수(水).
+3) De-translate metaphors: "reads the room" → "자리에 들어서기 전에 분위기부터 살펴요" (not "방을 읽어요"). "X — but Y" → "겉은 X한데 속은 Y".
+4) Archetype names stay in English (brand); attach particles naturally: "The Still Water는…", "The Straight Line 같은 사람은…". Never translate them.
+5) Details still need one concrete observable scene, phrased in Korean idiom.
+6) Headline: keep the existing format rule as-is; do not restyle here.
+7) Gold-standard Korean examples (match this texture):
+   - personality takeaway: "겉은 잔잔한데 속은 쉽게 안 꺾여요."
+   - communication detail: "사람 많은 자리에선 정면으로 안 부딪치고 말수부터 줄어요. 편해지면 슬쩍 떠보듯 얘기 꺼내고요."
+   - element line: "수(水) 기운을 타고났어요. 나서기 전에 흐름부터 읽는 편이라 눈치 빠르고 속이 깊어요."
+   - playbook do: "둘이 있을 때 편하게 물어보기 — 사람들 앞에선 예의로 얼버무리거든요."`,
+};
+
+export function localeVoiceBlock(): string {
+  return Object.values(LOCALE_VOICE).join('\n\n');
+}
+
 // ── Copy style rules (included in full every prompt) ─────────────────────────
 
 export const COPY_STYLE_RULES = `\
