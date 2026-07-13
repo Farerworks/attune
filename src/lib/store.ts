@@ -8,6 +8,7 @@ export interface MyProfile {
   date: string;      // YYYY-MM-DD
   time?: string;     // HH:MM
   gender?: string;
+  name?: string;
 }
 
 export interface DayMaster {

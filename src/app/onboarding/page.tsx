@@ -10,6 +10,7 @@ const GENDER_OPTIONS = ['She/Her', 'He/Him', 'They/Them'];
 export default function OnboardingPage() {
   const router = useRouter();
   const wasEdit = useRef(false);
+  const [name,   setName]     = useState('');
   const [date, setDate]       = useState('');
   const [time, setTime]       = useState('');
   const [gender, setGender]   = useState('');
@@ -18,6 +19,7 @@ export default function OnboardingPage() {
     const profile = getProfile();
     if (profile !== null) {
       wasEdit.current = true;
+      setName(profile.name ?? '');
       setDate(profile.date);
       setTime(profile.time ?? '');
       setGender(profile.gender ?? '');
@@ -27,7 +29,7 @@ export default function OnboardingPage() {
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!date) return;
-    setProfile({ date, time: time || undefined, gender: gender || undefined });
+    setProfile({ date, time: time || undefined, gender: gender || undefined, name: name.trim() || undefined });
     router.push(wasEdit.current ? '/you' : '/reveal');
   }
 
@@ -71,6 +73,32 @@ export default function OnboardingPage() {
         >
           Your birth info lets Attune calibrate readings to your dynamic with others. One-time setup — saved on this device only.
         </p>
+
+        {/* Name */}
+        <div style={{ marginBottom: 20 }}>
+          <label
+            htmlFor="uname"
+            style={{
+              display: 'block',
+              fontFamily: 'var(--font-inter)',
+              fontSize: 13,
+              fontWeight: 600,
+              color: 'var(--c-ink)',
+              marginBottom: 8,
+              letterSpacing: '0.01em',
+            }}
+          >
+            Your name <span style={{ color: 'var(--c-muted)', fontWeight: 400 }}>(optional)</span>
+          </label>
+          <input
+            id="uname"
+            type="text"
+            className="field-input"
+            placeholder="What should we call you?"
+            value={name}
+            onChange={e => setName(e.target.value)}
+          />
+        </div>
 
         {/* Date of birth */}
         <div style={{ marginBottom: 20 }}>

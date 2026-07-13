@@ -111,7 +111,7 @@ export default function AskPage() {
       try {
         const myChart = calculateSaju({ date: profile.date, time: profile.time });
         chipList.push({
-          id: 'me', label: 'Me',
+          id: 'me', label: profile.name?.trim() || 'Me',
           element: myChart.dayMaster.element,
           stem:    myChart.dayMaster.stem,
           initial: 'M',
