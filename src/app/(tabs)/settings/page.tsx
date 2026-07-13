@@ -63,6 +63,73 @@ function InstallSheet({ onClose }: { onClose: () => void }) {
   );
 }
 
+function AboutSheet({ onClose }: { onClose: () => void }) {
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 200,
+        background: 'rgba(26,24,21,0.48)',
+        display: 'flex', alignItems: 'flex-end',
+        animation: 'fade-in 200ms ease backwards',
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          width: '100%',
+          background: 'var(--c-card)',
+          borderRadius: '20px 20px 0 0',
+          padding: '28px 24px 48px',
+          animation: 'sheet-up var(--dur-slow) var(--ease-sheet) backwards',
+        }}
+      >
+        <p style={{
+          fontFamily: 'var(--font-space-mono)',
+          fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase',
+          color: 'var(--c-muted)', marginBottom: 20,
+        }}>
+          ATTUNE · v1.0
+        </p>
+        <p style={{
+          fontFamily: 'var(--font-inter)',
+          fontSize: 13, lineHeight: 1.6,
+          color: 'var(--c-muted)', marginBottom: 16,
+        }}>
+          Attune uses Four Pillars of Destiny — a classical East Asian character-reading system — to generate probabilistic personality insights about the people in your life.
+        </p>
+        <p style={{
+          fontFamily: 'var(--font-inter)',
+          fontSize: 13, lineHeight: 1.6,
+          color: 'var(--c-muted)', marginBottom: 24,
+        }}>
+          All readings are stored locally on your device. Nothing is sent to a server except the birth dates needed to generate a briefing. No account required. Free to use.
+        </p>
+        <p style={{
+          fontFamily: 'var(--font-inter)',
+          fontSize: 13, lineHeight: 1.6,
+          color: 'var(--c-muted)', marginBottom: 24,
+        }}>
+          Made by farerworks
+        </p>
+        <button
+          type="button"
+          onClick={onClose}
+          style={{
+            width: '100%', height: 48, borderRadius: 999,
+            background: 'var(--c-surface-alt)',
+            border: '1px solid var(--c-hairline)',
+            fontFamily: 'var(--font-inter)', fontSize: 15,
+            color: 'var(--c-ink)', cursor: 'pointer',
+          }}
+        >
+          Got it
+        </button>
+      </div>
+    </div>
+  );
+}
+
 interface RowProps {
   label: string;
   href?: string;
@@ -105,6 +172,7 @@ export default function SettingsPage() {
   const router = useRouter();
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showInstallSheet, setShowInstallSheet] = useState(false);
+  const [showAboutSheet, setShowAboutSheet] = useState(false);
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -124,6 +192,15 @@ export default function SettingsPage() {
     }
   }
 
+  function handleShare() {
+    const url = 'https://attune-silk.vercel.app';
+    if (navigator.share) {
+      navigator.share({ title: 'Attune', text: 'Read anyone.', url }).catch(() => {});
+    } else {
+      navigator.clipboard?.writeText(url).catch(() => {});
+    }
+  }
+
   function handleClearData() {
     if (window.confirm('Clear all readings and your birth info? This cannot be undone.')) {
       clearAllData();
@@ -134,6 +211,7 @@ export default function SettingsPage() {
   return (
     <>
     {showInstallSheet && <InstallSheet onClose={() => setShowInstallSheet(false)} />}
+    {showAboutSheet && <AboutSheet onClose={() => setShowAboutSheet(false)} />}
     <div style={{ minHeight: '100%', background: 'var(--c-paper)' }}>
       <TabTopBar />
       {/* Header */}
@@ -146,32 +224,10 @@ export default function SettingsPage() {
         <Row label="What is Saju?" href="/saju" />
         <Row label="Edit birth info" href="/onboarding" />
         <Row label="Add to Home Screen" onClick={handleAddToHome} />
+        <Row label="Share Attune" onClick={handleShare} />
+        <Row label="Send feedback" href="mailto:farerworks@gmail.com?subject=Attune%20feedback" />
+        <Row label="About Attune" onClick={() => setShowAboutSheet(true)} />
         <Row label="Clear all data" danger onClick={handleClearData} />
-      </div>
-
-      {/* About section */}
-      <div style={{ padding: '32px 20px' }}>
-        <p
-          style={{
-            fontFamily: 'var(--font-inter)',
-            fontSize: 13,
-            lineHeight: 1.6,
-            color: 'var(--c-muted)',
-            marginBottom: 16,
-          }}
-        >
-          Attune uses Four Pillars of Destiny — a classical East Asian character-reading system — to generate probabilistic personality insights about the people in your life.
-        </p>
-        <p
-          style={{
-            fontFamily: 'var(--font-inter)',
-            fontSize: 13,
-            lineHeight: 1.6,
-            color: 'var(--c-muted)',
-          }}
-        >
-          All readings are stored locally on your device. Nothing is sent to a server except the birth dates needed to generate a briefing. No account required. Free to use.
-        </p>
       </div>
     </div>
     </>

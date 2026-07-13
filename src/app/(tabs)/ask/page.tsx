@@ -344,7 +344,7 @@ export default function AskPage() {
             <div key={chip.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, flexShrink: 0 }}>
               <ChipButton chip={chip} active={selected === chip.id} onClick={() => setSelected(chip.id)} />
               {!hasAnyThread && (
-                <span style={{ fontFamily: "var(--font-space-mono,'Courier New')", fontSize: 8.5, letterSpacing: '0.1em', color: 'var(--c-muted)', textTransform: 'uppercase' }}>ANY TOPIC</span>
+                <span style={{ fontFamily: "var(--font-space-mono,'Courier New')", fontSize: 8.5, letterSpacing: '0.1em', color: 'var(--c-muted)', textTransform: 'uppercase' }}>You · timing · anything</span>
               )}
             </div>
           ))}
@@ -573,7 +573,7 @@ function FirstVisitContent({ onSelect }: { onSelect: (q: string) => void }) {
 function EmptyHint({ chipId, chipLabel }: { chipId: string; chipLabel?: string }) {
   const msg =
     chipId === 'me'      ? 'Ask about yourself.' :
-    chipId === 'general' ? 'Ask about anything.' :
+    chipId === 'general' ? 'Ask about you, timing, or anything — no person needed.' :
     `${chipLabel ?? 'Their'}'s chart and briefing are loaded as context.`;
 
   return (
