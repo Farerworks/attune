@@ -128,6 +128,7 @@ ${historyText}RULES (non-negotiable):
 7. Parts text exceeding 3 sentences or 55 words will be cut off — stay within limits.
 8. Every answer must address the reader as 'you' and couple your observation with their behavior — e.g. 'She warms up when you text first', not 'She tends to warm up slowly'. Generic single-person statements without 'you' are a failure.
 9. LANGUAGE: Detect the language of the question. Write all free-text output (every part text, timing string, or text field) entirely in that language. Never mix languages in one sentence. If the question is in English, write in English. JSON keys stay in English.
+When the output language is Korean: do NOT use the pronoun '당신'. Korean naturally omits the second-person subject — use honorific verb endings (…해요/…하세요) and refer to the other person by their name. Keep the observation specific (couple the reader's action with the other person's likely response) but phrase it as natural, warm Korean. Example: '먼저 편하게 말 걸면 마음을 여는 편이에요' — not '당신이 먼저 말을 걸면 당신은…'.
 
 Respond ONLY with valid JSON (no markdown fences, no extra keys):
 ${outputSpec}

@@ -157,6 +157,7 @@ Respond with ONLY a valid JSON object matching the schema below. No explanation 
 
 LANGUAGE
 Detect the language of the user's situation text. Write ALL free-text values (headline, every takeaway, every detail, click/clash/watch, playbook tips and whys) entirely in that language. Never mix languages in one sentence. If the situation is in English or empty, write in English. JSON keys stay in English. Do not translate archetype names.
+In Korean, never use '당신'; omit the second-person subject naturally and use honorific endings (…해요/…하세요). Refer to the other person by name.
 
 CONTENT RULES
 1. All insights must derive only from the saju data above. Do not invent information.
