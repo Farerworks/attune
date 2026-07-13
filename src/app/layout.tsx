@@ -25,6 +25,7 @@ const spaceMono = Space_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://attune-silk.vercel.app'),
   title: 'Attune',
   description: 'Understand them before you talk to them.',
   applicationName: 'Attune',
@@ -36,6 +37,18 @@ export const metadata: Metadata = {
   },
   icons: {
     apple: '/apple-touch-icon.png',
+  },
+  openGraph: {
+    title: 'Attune',
+    description: 'Understand them before you talk to them.',
+    url: 'https://attune-silk.vercel.app',
+    siteName: 'Attune',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Attune',
+    description: 'Understand them before you talk to them.',
   },
 };
 
