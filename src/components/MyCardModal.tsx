@@ -81,29 +81,36 @@ function drawMyCard(
   ctx.fillText('ATTUNE', PAD, 150);
   ctx.letterSpacing = '0px';
 
-  // 3. Kicker
-  ctx.font = '400 34px "Space Mono"';
-  ctx.fillStyle = kickerColor;
-  ctx.fillText(`${element} · ${polarity}`.toUpperCase(), PAD, 792);
+  // 3~5. Center block (top-baseline, no overlap)
+  ctx.textBaseline = 'top';
 
-  // 4. Archetype name
   const nameFontSize = fitFontSize(ctx, archetypeName, CW, 156, 92);
   ctx.font = `500 ${nameFontSize}px Fraunces`;
-  ctx.fillStyle = '#F5F1E8';
   const nameLines = wrapText(ctx, archetypeName, CW);
-  const nameLineHeight = nameFontSize * 1.05;
-  const nameStartY = 864;
-  nameLines.forEach((line, i) => ctx.fillText(line, PAD, nameStartY + i * nameLineHeight));
+  const nameLineHeight = nameFontSize * 1.06;
 
-  // 5. Element insight
+  // kicker
+  const kickerTop = 720;
+  ctx.font = '400 34px "Space Mono"';
+  ctx.fillStyle = kickerColor;
+  ctx.fillText(`${element} · ${polarity}`.toUpperCase(), PAD, kickerTop);
+
+  // name
+  const nameTop = kickerTop + 34 + 26;   // kicker glyph + gap
+  ctx.font = `500 ${nameFontSize}px Fraunces`;
+  ctx.fillStyle = '#F5F1E8';
+  nameLines.forEach((line, i) => ctx.fillText(line, PAD, nameTop + i * nameLineHeight));
+
+  // insight
   if (insight) {
+    const insightTop = nameTop + nameLines.length * nameLineHeight + 44;
     ctx.font = '400 54px Fraunces';
     ctx.fillStyle = '#EDE4D2';
     const insightLines = wrapText(ctx, insight, CW);
-    const insightLineHeight = 76;
-    const insightStartY = nameStartY + nameLines.length * nameLineHeight + 64;
-    insightLines.forEach((line, i) => ctx.fillText(line, PAD, insightStartY + i * insightLineHeight));
+    insightLines.forEach((line, i) => ctx.fillText(line, PAD, insightTop + i * 76));
   }
+
+  ctx.textBaseline = 'alphabetic';   // 푸터 계산 원상복구
 
   // 6. Footer
   const footerHairlineY = H - 150;
