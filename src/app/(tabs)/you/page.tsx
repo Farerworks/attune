@@ -7,7 +7,7 @@ import { getProfile, getReadings, ELEMENT_COLORS } from '@/lib/store';
 import type { TenStem } from '@/lib/saju';
 import { GlyphAvatar } from '@/components/ArchetypeGlyph';
 import type { TodayNote } from '@/lib/today';
-import { DAY_NOTES } from '@/lib/interpretGuide';
+import { DAY_NOTES, ELEMENT_INSIGHT } from '@/lib/interpretGuide';
 import { formatDate } from '@/lib/format';
 import { ElementChart } from '@/components/ElementChart';
 import { SpectrumBar } from '@/components/SpectrumBar';
@@ -38,10 +38,13 @@ interface MySpectrums {
 export default function YouPage() {
   const router = useRouter();
   const [chart,       setChart]       = useState<ChartData | null>(null);
-  const [profile,     setProfile]     = useState<{ date: string; time?: string; gender?: string } | null>(null);
+  const [profile,     setProfile]     = useState<{ date: string; time?: string; gender?: string; createdAt?: string } | null>(null);
   const [error,       setError]       = useState<string | null>(null);
   const [mySpectrums, setMySpectrums] = useState<MySpectrums | null>(null);
   const [todayNote,   setTodayNote]   = useState<TodayNote | null>(null);
+  const [reads,       setReads]       = useState(0);
+  const [strong,      setStrong]      = useState(0);
+  const [daysIn,      setDaysIn]      = useState(1);
 
   useEffect(() => {
     const p = getProfile();
@@ -81,9 +84,22 @@ export default function YouPage() {
             break;
           }
         }
+
+        // Collection stats
+        setReads(readings.length);
+        setStrong(readings.filter(r => r.briefing?.dynamic?.resonance === 'strong-current').length);
+        const stamps = [p.createdAt, ...readings.map(r => r.createdAt)]
+          .filter(Boolean)
+          .map(s => new Date(s as string).getTime());
+        setDaysIn(stamps.length ? Math.floor((Date.now() - Math.min(...stamps)) / 86400000) + 1 : 1);
       })
       .catch(e => setError(String(e)));
   }, [router]);
+
+  const domEl = chart
+    ? (['wood', 'fire', 'earth', 'metal', 'water'] as const).reduce((a, b) =>
+        (chart.elements[b] ?? 0) > (chart.elements[a] ?? 0) ? b : a)
+    : null;
 
   return (
     <div style={{ minHeight: '100%', background: 'var(--c-paper)' }}>
@@ -151,6 +167,17 @@ export default function YouPage() {
                 <ArchRow label="Comm"   text={chart.communication} />
                 <ArchRow label="Stress" text={chart.stress} />
               </div>
+
+              {/* Collection stats strip */}
+              <div style={{
+                marginTop: 16, paddingTop: 12,
+                borderTop: '1px solid var(--c-hairline)',
+                fontFamily: "var(--font-space-mono,'Courier New')",
+                fontSize: 10.5, letterSpacing: '0.08em', textTransform: 'uppercase',
+                color: 'var(--c-muted)',
+              }}>
+                {reads} READS · {daysIn} DAYS IN · {strong} STRONG CURRENTS
+              </div>
             </div>
 
             {/* ── Today note ───────────────────────────────────────────────── */}
@@ -171,6 +198,23 @@ export default function YouPage() {
                   fontFamily: "var(--font-inter,system-ui)",
                   fontSize: 12.5, color: 'var(--c-ink-body)', lineHeight: 1.4,
                 }}>{todayNote.line}</span>
+              </div>
+            )}
+
+            {/* ── Element insight ──────────────────────────────────────────── */}
+            {domEl && ELEMENT_INSIGHT[domEl] && (
+              <div className="card" style={{ padding: '16px 18px', animationDelay: '68ms' }}>
+                <p style={{
+                  margin: 0,
+                  fontFamily: "var(--font-inter,system-ui)",
+                  fontSize: 14.5, color: 'var(--c-ink-body)', lineHeight: 1.55,
+                }}>
+                  <strong style={{ color: ELEMENT_COLORS[domEl]?.fg, fontWeight: 700 }}>
+                    {ELEMENT_INSIGHT[domEl].split(' ')[0]}
+                  </strong>
+                  {' '}
+                  {ELEMENT_INSIGHT[domEl].split(' ').slice(1).join(' ')}
+                </p>
               </div>
             )}
 

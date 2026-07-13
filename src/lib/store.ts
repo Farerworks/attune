@@ -9,6 +9,7 @@ export interface MyProfile {
   time?: string;     // HH:MM
   gender?: string;
   name?: string;
+  createdAt?: string; // ISO
 }
 
 export interface DayMaster {

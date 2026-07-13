@@ -29,7 +29,10 @@ export default function OnboardingPage() {
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!date) return;
-    setProfile({ date, time: time || undefined, gender: gender || undefined, name: name.trim() || undefined });
+    setProfile({
+      date, time: time || undefined, gender: gender || undefined, name: name.trim() || undefined,
+      createdAt: getProfile()?.createdAt ?? new Date().toISOString(),
+    });
     router.push(wasEdit.current ? '/you' : '/reveal');
   }
 

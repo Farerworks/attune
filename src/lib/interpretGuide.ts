@@ -207,6 +207,16 @@ export const DAY_NOTES: Record<string, string> = {
   Pig:     "Pig day — an open door and a full table.",
 };
 
+// ── Element insight (You tab) ─────────────────────────────────────────────────
+
+export const ELEMENT_INSIGHT: Record<string, string> = {
+  wood:  "Wood-led. You grow toward what you want — persistent, a little restless, always reaching.",
+  fire:  "Fire-led. You bring the heat into a room — expressive, warm, quick to light up.",
+  earth: "Earth-led. You're the steady ground others lean on — grounded, patient, hard to rush.",
+  metal: "Metal-led. You cut to what's true — precise, principled, allergic to fluff.",
+  water: "Water-led. You read the current before you move — perceptive, adaptive, deep beneath a calm surface.",
+};
+
 // ── Copy style rules (included in full every prompt) ─────────────────────────
 
 export const COPY_STYLE_RULES = `\
