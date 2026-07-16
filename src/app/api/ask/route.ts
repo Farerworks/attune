@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { calculateSaju, getDailyPillars } from '@/lib/saju';
 import type { SajuChart, DailyPillar } from '@/lib/saju';
 import { getArchetype, getElementRelationship, localeVoiceBlock } from '@/lib/interpretGuide';
-import { createLlmProvider } from '@/lib/llm';
+import { createLlmProvider, type ChatTurn } from '@/lib/llm';
 import { checkRateLimit } from '@/lib/rateLimit';
 
 export const maxDuration = 60;
@@ -40,14 +40,12 @@ function findBanned(text: string): string[] {
 
 // ── Prompt builder ─────────────────────────────────────────────────────────────
 
-function buildAskPrompt(
+function buildAskSystem(
   mode: 'me' | 'person' | 'general',
   meChart: SajuChart,
   themChart: SajuChart | null,
   briefing: Record<string, unknown> | undefined,
   dailyPillars: DailyPillar[],
-  history: Array<{ role: 'user' | 'assistant'; text: string }>,
-  question: string,
   meName?: string,
   themName?: string,
 ): string {
@@ -91,17 +89,14 @@ ELEMENT AXIS (ME → THEM): ${elemAxis}`;
     return `${p.date} (${dow}): ${p.stem} / ${p.branch} — ${p.element}`;
   }).join('\n');
 
-  // History
-  const historyText = history.length > 0
-    ? `CONVERSATION HISTORY (use as context):\n${history.map(h => `${h.role === 'user' ? 'USER' : 'ATTUNE'}: ${h.text}`).join('\n')}\n\n`
-    : '';
-
   // Output schema per mode
   const outputSpec = mode === 'person'
     ? `Choose the 3 part labels to fit the question (labels in English, UPPERCASE):
 - If the user is deciding whether to DO something (should I…, is it a good idea…): LIKELY RECEPTION / WHAT COULD BACKFIRE / HOW TO IMPROVE YOUR ODDS.
 - If the user is trying to UNDERSTAND (why is…, what's going on…, how does he feel…): WHAT'S LIKELY GOING ON / WHY (FROM THE CHART) / WHAT YOU CAN DO.
 
+Respond ONLY with valid JSON (no markdown fences, no extra keys). Choose ONE shape:
+1) If the latest message is a NEW substantive question (a decision to make, a situation to read, a timing ask):
 {
   "parts": [
     { "label": "<chosen label>", "text": "2–3 sentences, specific and actionable. HARD LIMIT: max 3 sentences, max 55 words." },
@@ -109,8 +104,11 @@ ELEMENT AXIS (ME → THEM): ${elemAxis}`;
     { "label": "<chosen label>", "text": "2–3 sentences. HARD LIMIT: max 3 sentences, max 55 words." }
   ],
   "timing": "ONLY if the question is about timing. MUST be a single plain-text string — NEVER an object or array. Name 2–3 favorable dates (YYYY-MM-DD, day-of-week, reason) and 1–2 to avoid. Omit this key entirely if not a timing question."
-}`
-    : `{ "text": "Under 120 words. Warm, practical coach tone. Describe tendencies, not predictions." }`;
+}
+2) If the latest message is a follow-up, clarification, or short reaction to your previous answer:
+{ "text": "Under 100 words. Conversational and direct, same coaching voice. Answer the follow-up specifically — do not restate your previous answer." }`
+    : `Respond ONLY with valid JSON (no markdown fences, no extra keys):
+{ "text": "Under 120 words. Warm, practical coach tone. Describe tendencies, not predictions." }`;
 
   const persona = mode === 'person'
     ? 'You are Attune, a Four Pillars relationship coach. Your job is to help the user understand the other person and navigate this specific relationship. Read the other person\'s likely feelings, motives, and reactions from their saju chart and the conversation so far, then give the user specific, practical guidance. Always frame your read as understanding and connection — never as a way to control, pressure, or outmaneuver them.'
@@ -125,7 +123,7 @@ ELEMENT AXIS (ME → THEM): ${elemAxis}`;
 4. Forbidden words: weakness, exploit, leverage against, manipulate, vulnerable to. Never frame guidance as controlling or pressuring the other person.
 5. Help the user understand the other person AND adjust their own approach. Offer moves the user can make; never tactics to manipulate or corner the other person.
 6. No medical, legal, or financial advice.
-7. This may be a follow-up. Read CONVERSATION HISTORY and answer in light of it — build on earlier turns, don't repeat them, address what the user just asked.
+7. This is an ongoing conversation. Build on earlier turns instead of repeating them, and address what the user just asked.
 8. Answer the user's actual question directly and first. Do NOT recite archetype names or chart labels back to the reader; use the chart only as your private reasoning.
 9. Refer to the other person by their name when given. LANGUAGE: detect the question's language and write all free text in it, never mixing. In English, address the user as "you" and tie your read of the other person to what the user can do. In Korean, follow the KOREAN VOICE block below (omit 당신; use the other person's name). JSON keys and part labels stay in English.
 10. Each part must contain one concrete, specific scene tied to THIS relationship — not a generic personality statement. Text over 3 sentences / 55 words is cut.`;
@@ -135,7 +133,7 @@ ELEMENT AXIS (ME → THEM): ${elemAxis}`;
 2. No yes/no verdicts. No numerical probabilities or scores.
 3. Forbidden words: weakness, exploit, leverage against, manipulate, vulnerable to.
 4. No medical, legal, or financial advice.
-5. This may be a follow-up. Read CONVERSATION HISTORY and build on it; don't repeat earlier answers.
+5. This is an ongoing conversation. Build on earlier turns; don't repeat earlier answers.
 6. Answer the actual question directly. Do NOT recite archetype names or chart labels back; use them only as private reasoning.
 7. LANGUAGE: detect the question's language, write all free text in it (no mixing). In English address the user as "you". In Korean follow the KOREAN VOICE block below (no 당신). JSON keys stay in English.`;
 
@@ -145,14 +143,23 @@ ${chartBlock ? `SAJU CONTEXT:\n${chartBlock}\n\n` : ''}DAILY PILLARS — NEXT 14
 ${pillarsText}
 Use the daily pillars ONLY when the question is about timing or when to take action.
 
-${historyText}${mode === 'person' ? PERSON_RULES : SELF_RULES}
+${mode === 'person' ? PERSON_RULES : SELF_RULES}
 
 ${localeVoiceBlock()}
 
-Respond ONLY with valid JSON (no markdown fences, no extra keys):
-${outputSpec}
+${outputSpec}`;
+}
 
-QUESTION: ${question}`;
+// ── Chat turns ──────────────────────────────────────────────────────────────────
+
+function buildAskTurns(
+  history: Array<{ role: 'user' | 'assistant'; text: string }>,
+  question: string,
+): ChatTurn[] {
+  const turns: ChatTurn[] = history.map(h => ({ role: h.role === 'user' ? 'user' as const : 'model' as const, text: h.text }));
+  if (turns.length > 0 && turns[0].role === 'model') turns.shift(); // Gemini는 user로 시작
+  turns.push({ role: 'user', text: question });
+  return turns;
 }
 
 // ── Answer normalizer (validate shape + convert timing objects to string) ────────
@@ -168,7 +175,9 @@ function normalizeAnswer(
     return typeof r.text === 'string' ? { text: r.text } : null;
   }
 
-  // person mode — exactly 3 parts with label:string + text:string
+  // person mode — either a short {text} follow-up, or exactly 3 parts with label:string + text:string
+  if (typeof r.text === 'string' && !Array.isArray(r.parts)) return { text: r.text };
+
   if (!Array.isArray(r.parts) || r.parts.length !== 3) return null;
   for (const p of r.parts) {
     const item = p as Record<string, unknown>;
@@ -214,6 +223,7 @@ const RequestSchema = z.object({
     text: z.string(),
   })).max(10),
   question: z.string().min(1).max(500),
+  todayLocal: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 }).refine(
   data => !(data.mode === 'person' && !data.them),
   { message: '"them" is required when mode is "person"', path: ['them'] },
@@ -248,23 +258,24 @@ export async function POST(request: Request) {
   const meChart   = calculateSaju(meInput);
   const themChart = themInput ? calculateSaju(themInput) : null;
 
-  // Daily pillars — server's today
-  const today = new Date().toISOString().split('T')[0];
+  // Daily pillars — client-local today when provided (avoids UTC date drift), else server's today
+  const today = parsed.data.todayLocal ?? new Date().toISOString().split('T')[0];
   const dailyPillars = getDailyPillars(today, 14);
 
-  const prompt = buildAskPrompt(
+  const system = buildAskSystem(
     mode, meChart, themChart,
     briefing as Record<string, unknown> | undefined,
-    dailyPillars, history, question,
+    dailyPillars,
     parsed.data.me.name, themInput?.name,
   );
+  const turns = buildAskTurns(history, question);
 
   const llm = createLlmProvider();
 
   // First attempt
   let rawAnswer: string;
   try {
-    rawAnswer = await withTimeout(llm.generateJson(prompt, 4096, 1024), LLM_TIMEOUT);
+    rawAnswer = await withTimeout(llm.generateJsonChat(system, turns, { maxTokens: 4096, thinkingBudget: 1024, temperature: 0.7 }), LLM_TIMEOUT);
   } catch (err) {
     console.error('[ask] LLM call failed:', err instanceof Error ? err.message : err);
     return Response.json({ error: "Attune couldn't finish that thought — ask again." }, { status: 502 });
@@ -286,11 +297,15 @@ export async function POST(request: Request) {
     if (!answer) warnings.push('⚠ SCHEMA VIOLATION — Response did not match required JSON shape. Return exactly the specified schema.');
     if (violations.length > 0) warnings.push(`⚠ BANNED PHRASES — Found: ${violations.map(v => `"${v}"`).join(', ')}. Regenerate without these phrases.`);
 
-    const retryPrompt = prompt + '\n\n' + warnings.join('\n\n');
+    const retryTurns: ChatTurn[] = [
+      ...turns,
+      { role: 'model', text: rawAnswer },
+      { role: 'user', text: warnings.join('\n\n') },
+    ];
 
     let retryRaw: string;
     try {
-      retryRaw = await withTimeout(llm.generateJson(retryPrompt, 4096, 1024), LLM_TIMEOUT);
+      retryRaw = await withTimeout(llm.generateJsonChat(system, retryTurns, { maxTokens: 4096, thinkingBudget: 1024, temperature: 0.7 }), LLM_TIMEOUT);
     } catch (err) {
       console.error('[ask] Retry LLM call failed:', err instanceof Error ? err.message : err);
       return Response.json({ error: "Attune couldn't finish that thought — ask again." }, { status: 502 });

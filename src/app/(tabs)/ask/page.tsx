@@ -197,6 +197,7 @@ export default function AskPage() {
         me:       { date: myProfile.date, time: myProfile.time, name: myProfile.name },
         history,
         question: text,
+        todayLocal: localDateStr(),
       };
 
       if (mode === 'person' && chip) {
