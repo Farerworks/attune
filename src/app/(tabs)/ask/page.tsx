@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { getProfile, getReadings, ELEMENT_COLORS } from '@/lib/store';
-import { getQuotaLeft, incrementQuotaUsed, DAILY_QUOTA_MAX } from '@/lib/askQuota';
+import { getQuotaLeft, incrementQuotaUsed, DAILY_QUOTA_MAX, loadMemory, appendMemory } from '@/lib/askQuota';
 import type { BriefingData } from '@/lib/store';
 import type { TenStem } from '@/lib/saju';
 import { GlyphAvatar } from '@/components/ArchetypeGlyph';
@@ -205,6 +205,8 @@ export default function AskPage() {
         const themName = chip.label && chip.label !== 'Unknown' ? chip.label : undefined;
         body.them = { date: chip.personDate, time: chip.personTime, ...(themName ? { name: themName } : {}) };
         if (chip.briefing) body.briefing = chip.briefing;
+        const mem = loadMemory(selected);
+        if (mem.length > 0) body.memory = mem;
       }
 
       const res  = await fetch('/api/ask', {
@@ -214,7 +216,7 @@ export default function AskPage() {
       });
 
       const data = await res.json() as {
-        answer?: { text?: string; parts?: Array<{ label: string; text: string }>; timing?: string };
+        answer?: { text?: string; parts?: Array<{ label: string; text: string }>; timing?: string; followUp?: string; memory?: string[] };
         error?: string;
       };
 
@@ -222,6 +224,10 @@ export default function AskPage() {
 
       const newLeft = incrementQuotaUsed();
       setLeft(newLeft);
+
+      if (mode === 'person' && Array.isArray(data.answer?.memory)) {
+        appendMemory(selected, data.answer.memory as string[]);
+      }
 
       const assistantMsg: AssistantMsg = {
         id: crypto.randomUUID(),

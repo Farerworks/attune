@@ -3,6 +3,8 @@
 export const DAILY_QUOTA_MAX  = 5;
 export const LS_THREADS_KEY   = 'attune.ask.threads';
 export const LS_QUOTA_KEY     = 'attune.ask.quota';
+export const LS_MEMORY_KEY    = 'attune.ask.memory';
+const MEMORY_CAP = 10;
 
 export interface QuotaStore {
   date: string; // YYYY-MM-DD
@@ -64,5 +66,33 @@ export function clearAskData(): void {
   try {
     localStorage.removeItem(LS_QUOTA_KEY);
     localStorage.removeItem(LS_THREADS_KEY);
+    localStorage.removeItem(LS_MEMORY_KEY);
+  } catch {}
+}
+
+// ── Relationship memory (per-person facts, person mode only) ─────────────────
+
+export function loadMemory(chipId: string): string[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(LS_MEMORY_KEY);
+    const all = raw ? (JSON.parse(raw) as Record<string, string[]>) : {};
+    return Array.isArray(all[chipId]) ? all[chipId] : [];
+  } catch { return []; }
+}
+
+export function appendMemory(chipId: string, facts: string[]): void {
+  if (typeof window === 'undefined' || facts.length === 0) return;
+  try {
+    const raw = localStorage.getItem(LS_MEMORY_KEY);
+    const all = raw ? (JSON.parse(raw) as Record<string, string[]>) : {};
+    const cur = Array.isArray(all[chipId]) ? all[chipId] : [];
+    const merged = [...cur];
+    for (const f of facts) {
+      const t = f.trim();
+      if (t && !merged.includes(t)) merged.push(t);
+    }
+    all[chipId] = merged.slice(-MEMORY_CAP); // 오래된 것부터 밀어냄
+    localStorage.setItem(LS_MEMORY_KEY, JSON.stringify(all));
   } catch {}
 }

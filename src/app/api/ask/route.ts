@@ -49,6 +49,7 @@ function buildAskSystem(
   dailyPillars: DailyPillar[],
   meName?: string,
   themName?: string,
+  memory?: string[],
 ): string {
   // Chart context
   let chartBlock = '';
@@ -90,6 +91,11 @@ Note: their birth time is unknown — 6 of 8 pillars available. Avoid overconfid
   Clash: ${clash}`;
         }
       }
+
+      if (memory && memory.length > 0) {
+        chartBlock += `\n\nRELATIONSHIP NOTES — facts learned in earlier conversations (background context; use naturally, never recite back as a list):
+${memory.map(f => `- ${f}`).join('\n')}`;
+      }
     }
   }
 
@@ -115,10 +121,11 @@ Respond ONLY with valid JSON (no markdown fences, no extra keys). Choose ONE sha
     { "label": "<chosen label>", "text": "2–3 sentences. HARD LIMIT: max 3 sentences, max 55 words." }
   ],
   "timing": "ONLY if the question is about timing. MUST be a single plain-text string — NEVER an object or array. Name 2–3 favorable dates (YYYY-MM-DD, day-of-week, reason) and 1–2 to avoid. Omit this key entirely if not a timing question.",
-  "followUp": "OPTIONAL. One short line (12 words max): either a gentle check-back inviting the user to report how it went, or ONE question that would sharpen your next answer. Same language as the answer. Omit this key entirely when it would feel forced."
+  "followUp": "OPTIONAL. One short line (12 words max): either a gentle check-back inviting the user to report how it went, or ONE question that would sharpen your next answer. Same language as the answer. Omit this key entirely when it would feel forced.",
+  "memory": ["OPTIONAL array of 0–2 short strings — NEW facts learned in THIS exchange worth remembering about the other person or the situation (events, dates, decisions, circumstances). Facts the user stated only — never feelings you inferred, never your own advice, never anything already in RELATIONSHIP NOTES. Same language as the conversation. Omit the key when nothing new."]
 }
 2) If the latest message is a follow-up, clarification, or short reaction to your previous answer:
-{ "text": "Under 100 words. Conversational and direct, same coaching voice. Answer the follow-up specifically — do not restate your previous answer.", "followUp": "OPTIONAL. Same rule as above." }`
+{ "text": "Under 100 words. Conversational and direct, same coaching voice. Answer the follow-up specifically — do not restate your previous answer.", "followUp": "OPTIONAL. Same rule as above.", "memory": ["OPTIONAL. Same rule as above."] }`
     : `Respond ONLY with valid JSON (no markdown fences, no extra keys):
 { "text": "Under 120 words. Warm, practical coach tone. Describe tendencies, not predictions.", "followUp": "OPTIONAL. One short line (12 words max): either a gentle check-back inviting the user to report how it went, or ONE question that would sharpen your next answer. Same language as the answer. Omit this key entirely when it would feel forced." }`;
 
@@ -190,7 +197,17 @@ function normalizeAnswer(
   }
 
   // person mode — either a short {text} follow-up, or exactly 3 parts with label:string + text:string
-  if (typeof r.text === 'string' && !Array.isArray(r.parts)) return { text: r.text, ...(typeof r.followUp === 'string' && r.followUp ? { followUp: r.followUp } : {}) };
+  const mem = Array.isArray(r.memory)
+    ? (r.memory as unknown[]).filter((x): x is string => typeof x === 'string' && x.trim() !== '').slice(0, 2)
+    : [];
+
+  if (typeof r.text === 'string' && !Array.isArray(r.parts)) {
+    return {
+      text: r.text,
+      ...(typeof r.followUp === 'string' && r.followUp ? { followUp: r.followUp } : {}),
+      ...(mem.length > 0 ? { memory: mem } : {}),
+    };
+  }
 
   if (!Array.isArray(r.parts) || r.parts.length !== 3) return null;
   for (const p of r.parts) {
@@ -218,6 +235,7 @@ function normalizeAnswer(
     parts: r.parts,
     ...(timing !== undefined ? { timing } : {}),
     ...(typeof r.followUp === 'string' && r.followUp ? { followUp: r.followUp } : {}),
+    ...(mem.length > 0 ? { memory: mem } : {}),
   };
 }
 
@@ -242,6 +260,7 @@ const RequestSchema = z.object({
   })).max(10),
   question: z.string().min(1).max(500),
   todayLocal: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  memory: z.array(z.string().max(200)).max(10).optional(),
 }).refine(
   data => !(data.mode === 'person' && !data.them),
   { message: '"them" is required when mode is "person"', path: ['them'] },
@@ -285,6 +304,7 @@ export async function POST(request: Request) {
     briefing as Record<string, unknown> | undefined,
     dailyPillars,
     parsed.data.me.name, themInput?.name,
+    mode === 'person' ? parsed.data.memory : undefined,
   );
   const turns = buildAskTurns(history, question);
 
