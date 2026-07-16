@@ -21,11 +21,13 @@ interface RevealData {
   elements: Record<string, number>;
   revealLine: string;
   dayBranch: string;
+  stem: string;
 }
 
 export default function RevealPage() {
   const router = useRouter();
   const [data, setData] = useState<RevealData | null>(null);
+  const korean = typeof navigator !== 'undefined' && navigator.language.startsWith('ko');
 
   useEffect(() => {
     const p = getProfile();
@@ -42,6 +44,7 @@ export default function RevealPage() {
             elements: c.elements as Record<string, number>,
             revealLine: pickVariant(REVEAL, `reveal|${p.date ?? localDateStr()}`),
             dayBranch: c.pillars.day.branch,
+            stem: c.dayMaster.stem,
           });
         } catch { /* stay on loading skeleton */ }
       });
@@ -70,6 +73,8 @@ export default function RevealPage() {
           element={data.element}
           elements={data.elements as { wood: number; fire: number; earth: number; metal: number; water: number }}
           dayBranch={data.dayBranch}
+          stem={data.stem}
+          korean={korean}
         />
       ) : (
         <div style={{

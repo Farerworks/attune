@@ -8,7 +8,7 @@ import type { TenStem } from '@/lib/saju';
 import { GlyphAvatar } from '@/components/ArchetypeGlyph';
 import { MyCardModal } from '@/components/MyCardModal';
 import type { TodayNote } from '@/lib/today';
-import { DAY_NOTES, ELEMENT_INSIGHT } from '@/lib/interpretGuide';
+import { ELEMENT_INSIGHT } from '@/lib/interpretGuide';
 import { formatDate } from '@/lib/format';
 import { ElementChart } from '@/components/ElementChart';
 import { SpectrumBar } from '@/components/SpectrumBar';
@@ -27,6 +27,10 @@ interface ChartData {
   communication: string;
   stress: string;
   dayBranch: string;
+  displayName: string;
+  displayTagline: string;
+  dayNoteEmoji?: string;
+  dayNoteText?: string;
 }
 
 interface MySpectrums {
@@ -54,10 +58,23 @@ export default function YouPage() {
     setProfile(p);
 
     Promise.all([import('@/lib/saju'), import('@/lib/interpretGuide'), import('@/lib/today')])
-      .then(([{ calculateSaju }, { getArchetype }, { getTodayNote, localDateStr }]) => {
+      .then(([{ calculateSaju }, { getArchetype, ARCHETYPE_LOCALE, DAY_NOTE_LOCALE }, { getTodayNote, localDateStr, pickVariant }]) => {
         try {
           const c   = calculateSaju({ date: p.date, time: p.time });
           const arc = getArchetype(c.dayMaster.stem);
+
+          const korean = typeof navigator !== 'undefined' && navigator.language.startsWith('ko');
+          const dateStr = localDateStr();
+          const L = ARCHETYPE_LOCALE[c.dayMaster.stem];
+          const displayName = korean && L ? L.name_ko : arc.name;
+          const displayTagline = L
+            ? pickVariant(korean ? L.tagline_ko : L.tagline_en, `${dateStr}|tag|${c.dayMaster.stem}`)
+            : arc.tagline;
+          const dayLocale = DAY_NOTE_LOCALE[c.pillars.day.branch];
+          const dayNoteText = dayLocale
+            ? pickVariant(korean ? dayLocale.ko : dayLocale.en, `${dateStr}|day|${c.pillars.day.branch}`)
+            : undefined;
+
           setChart({
             stem:         c.dayMaster.stem,
             element:      c.dayMaster.element,
@@ -71,6 +88,10 @@ export default function YouPage() {
             communication: arc.communication,
             stress:        arc.stress,
             dayBranch:    c.pillars.day.branch,
+            displayName,
+            displayTagline,
+            dayNoteEmoji: dayLocale?.emoji,
+            dayNoteText,
           });
           setTodayNote(getTodayNote(c.dayMaster.element, 'me', localDateStr()));
         } catch (e) {
@@ -154,21 +175,21 @@ export default function YouPage() {
                     fontFamily: "var(--font-fraunces,Georgia,serif)",
                     fontSize: 23, fontStyle: 'italic', color: 'var(--c-ink)', marginTop: 4, lineHeight: 1.2,
                   }}>
-                    {chart.name}
+                    {chart.displayName}
                   </div>
                   <div style={{
                     fontFamily: "var(--font-inter,system-ui)",
                     fontSize: 15, fontStyle: 'italic',
                     color: 'var(--c-muted)', marginTop: 2,
                   }}>
-                    {chart.tagline}
+                    {chart.displayTagline}
                   </div>
-                  {DAY_NOTES[chart.dayBranch] && (
+                  {chart.dayNoteText && (
                     <div style={{
                       fontFamily: "var(--font-inter,system-ui)",
                       fontSize: 12.5, color: 'var(--c-muted)', marginTop: 4,
                     }}>
-                      {DAY_NOTES[chart.dayBranch]}
+                      <span style={{ marginRight: 4 }}>{chart.dayNoteEmoji}</span>{chart.dayNoteText}
                     </div>
                   )}
                 </div>

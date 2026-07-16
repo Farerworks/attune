@@ -4,12 +4,13 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useReadings, ELEMENT_COLORS } from '@/lib/store';
 import { TabTopBar } from '@/components/TabTopBar';
-import { getArchetype } from '@/lib/interpretGuide';
+import { getArchetype, ARCHETYPE_LOCALE } from '@/lib/interpretGuide';
 import type { TenStem, Element } from '@/lib/saju';
 import { GlyphAvatar } from '@/components/ArchetypeGlyph';
 import { formatDate } from '@/lib/format';
 import type { TodayNote } from '@/lib/today';
 
+const isKo = (s?: string) => !!s && /[가-힣]/.test(s);
 
 export default function PeoplePage() {
   const [readings] = useReadings();
@@ -189,7 +190,9 @@ export default function PeoplePage() {
             const element  = reading.themChart?.dayMaster?.element?.toLowerCase();
             const stem     = reading.themChart?.dayMaster?.stem;
             const colors   = element ? ELEMENT_COLORS[element] : undefined;
-            const archName = stem ? getArchetype(stem as TenStem).name : null;
+            const korean   = isKo(reading.briefing?.headline || reading.situation);
+            const L        = stem ? ARCHETYPE_LOCALE[stem] : undefined;
+            const archName = stem ? (korean && L ? L.name_ko : getArchetype(stem as TenStem).name) : null;
             const todayNote = todayNotes[reading.id];
             return (
               <li key={reading.id} style={{ animationDelay: `${Math.min(i, 8) * 45}ms` }}>

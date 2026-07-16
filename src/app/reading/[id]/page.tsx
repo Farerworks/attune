@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getReading, ELEMENT_COLORS, type Reading, type PlaybookItem } from '@/lib/store';
 import { getQuotaLeft } from '@/lib/askQuota';
-import { getArchetype } from '@/lib/interpretGuide';
+import { getArchetype, ARCHETYPE_LOCALE } from '@/lib/interpretGuide';
 import type { TenStem } from '@/lib/saju';
 import { formatDate } from '@/lib/format';
 import { ElementChart } from '@/components/ElementChart';
@@ -29,6 +29,8 @@ function elementColor(element?: string) {
   const el = element?.toLowerCase();
   return ELEMENT_COLORS[el ?? ''] ?? { fg: '#948B7C', bg: 'var(--c-surface-alt)' };
 }
+
+const isKo = (s?: string) => !!s && /[가-힣]/.test(s);
 
 function ItalicLast({ text }: { text: string }) {
   const i = text.lastIndexOf(' ');
@@ -214,6 +216,7 @@ export default function ReadingPage({ params }: { params: Promise<{ id: string }
   const myArchStem     = reading.myChart?.dayMaster?.stem;
   const myArchetype    = myArchStem ? getArchetype(myArchStem as TenStem) : null;
   const canShare       = !!(b?.dynamic && reading.themChart && theirArchetype);
+  const korean         = isKo(reading.briefing?.headline || reading.situation);
 
   // Datasets for ElementChart
   const theirDataset = reading.themChart
@@ -315,6 +318,8 @@ export default function ReadingPage({ params }: { params: Promise<{ id: string }
               element={theirArch.element}
               elements={reading.themChart.elements}
               dayBranch={reading.themChart.pillars.day.branch}
+              stem={theirArch.stem}
+              korean={korean}
             />
           </div>
         ) : theirArchetype && theirArch ? (
@@ -331,7 +336,7 @@ export default function ReadingPage({ params }: { params: Promise<{ id: string }
               fontSize: 22, fontStyle: 'italic', margin: 0,
               color: theirC.fg,
             }}>
-              {theirArchetype.name}
+              {korean && theirArch.stem && ARCHETYPE_LOCALE[theirArch.stem] ? ARCHETYPE_LOCALE[theirArch.stem].name_ko : theirArchetype.name}
             </p>
           </div>
         ) : null}

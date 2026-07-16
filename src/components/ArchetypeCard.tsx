@@ -2,7 +2,8 @@
 
 import { ELEMENT_COLORS } from '@/lib/store';
 import type { Archetype } from '@/lib/interpretGuide';
-import { DAY_NOTES } from '@/lib/interpretGuide';
+import { ARCHETYPE_LOCALE, DAY_NOTE_LOCALE } from '@/lib/interpretGuide';
+import { pickVariant, localDateStr } from '@/lib/today';
 
 const EL_ORDER = ['wood', 'fire', 'earth', 'metal', 'water'];
 const ANGLES = EL_ORDER.map((_, i) => -Math.PI / 2 + (2 * Math.PI * i) / 5);
@@ -14,6 +15,8 @@ interface Props {
   element: string;
   elements: { wood: number; fire: number; earth: number; metal: number; water: number };
   dayBranch?: string;
+  stem?: string;
+  korean?: boolean;
 }
 
 function fmtMMDD(dateStr: string): string {
@@ -60,10 +63,23 @@ function MiniRadar({ elements, color }: { elements: Props['elements']; color: st
   );
 }
 
-export function ArchetypeCard({ name, date, archetype, element, elements, dayBranch }: Props) {
+export function ArchetypeCard({ name, date, archetype, element, elements, dayBranch, stem, korean }: Props) {
   const el = element.toLowerCase();
   const colors = ELEMENT_COLORS[el] ?? { fg: '#948B7C', bg: 'var(--c-surface-alt)' };
   const labelText = name ? `${name.toUpperCase()} · ${fmtMMDD(date)}` : fmtMMDD(date);
+
+  const dateStr = localDateStr();
+  const L = stem ? ARCHETYPE_LOCALE[stem] : undefined;
+  const displayName = (korean && L) ? L.name_ko : archetype.name;
+  const displayTagline = (L && stem)
+    ? pickVariant(korean ? L.tagline_ko : L.tagline_en, `${dateStr}|tag|${stem}`)
+    : archetype.tagline;
+  const displayKeywords = (korean && L) ? L.kw_ko : archetype.keywords;
+
+  const dayLocale = dayBranch ? DAY_NOTE_LOCALE[dayBranch] : undefined;
+  const dayNoteText = (dayLocale && dayBranch)
+    ? pickVariant(korean ? dayLocale.ko : dayLocale.en, `${dateStr}|day|${dayBranch}`)
+    : undefined;
 
   return (
     <div style={{
@@ -102,25 +118,25 @@ export function ArchetypeCard({ name, date, archetype, element, elements, dayBra
           fontSize: 42, fontStyle: 'italic', fontWeight: 500,
           color: 'var(--c-ink)', margin: 0, lineHeight: 1.1,
         }}>
-          {archetype.name}
+          {displayName}
         </p>
         <p style={{
           fontFamily: "var(--font-inter,system-ui)",
           fontSize: 14, color: 'var(--c-ink-body)',
           margin: 0, lineHeight: 1.4,
         }}>
-          {archetype.tagline}
+          {displayTagline}
         </p>
-        {dayBranch && DAY_NOTES[dayBranch] && (
+        {dayLocale && dayNoteText && (
           <p style={{
             fontFamily: "var(--font-inter,system-ui)",
             fontSize: 12.5, color: 'var(--c-muted)', margin: 0,
           }}>
-            {DAY_NOTES[dayBranch]}
+            <span style={{ marginRight: 4 }}>{dayLocale.emoji}</span>{dayNoteText}
           </p>
         )}
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
-          {archetype.keywords.map(kw => (
+          {displayKeywords.map(kw => (
             <span key={kw} style={{
               fontFamily: "var(--font-inter,system-ui)",
               fontSize: 11, fontWeight: 500,

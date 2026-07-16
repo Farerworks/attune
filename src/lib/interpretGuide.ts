@@ -207,6 +207,82 @@ export const DAY_NOTES: Record<string, string> = {
   Pig:     "Pig day — an open door and a full table.",
 };
 
+// ── Korean locale — archetype names/taglines ──────────────────────────────────
+
+export const ARCHETYPE_LOCALE: Record<string, { name_ko: string; kw_ko: [string,string]; tagline_en: [string,string,string]; tagline_ko: [string,string,string] }> = {
+  'Yang Wood': { name_ko:'첫 새벽', kw_ko:['먼저 움직임','늘 나아감'],
+    tagline_en:['Already moving before the plan is done.','Starts first, figures it out on the way.',"Can't sit still when there's ground to break."],
+    tagline_ko:['계획이 서기도 전에 벌써 움직여요.','일단 시작하고, 가면서 답을 찾아요.','새로 낼 길이 보이면 가만 못 있어요.'] },
+  'Yin Wood': { name_ko:'담쟁이', kw_ko:['빠른 적응','길을 찾음'],
+    tagline_en:['Finds a way around every wall.','Bends where others break.','Quietly gets there, wall or no wall.'],
+    tagline_ko:['벽마다 돌아가는 길을 기어이 찾아내요.','남들 부러질 자리에서 유연하게 휘어요.','막혀도 조용히 결국 다다라요.'] },
+  'Yang Fire': { name_ko:'주인공', kw_ko:['큰 에너지','자리를 데움'],
+    tagline_en:['The room warms up when they walk in.','Pulls the whole room into their orbit.','Runs warm, and everyone feels it.'],
+    tagline_ko:['그 사람이 들어오면 자리가 환해져요.','어느새 사람들을 자기 쪽으로 끌어와요.','온기가 넘쳐서 옆 사람까지 데워요.'] },
+  'Yin Fire': { name_ko:'은근한 불', kw_ko:['조용한 깊이','정확한 말'],
+    tagline_en:['Says little. Lands exactly.','Quiet on the surface, deep underneath.','Waits, then says the one thing that counts.'],
+    tagline_ko:['말은 적어도, 한마디가 정확히 꽂혀요.','겉은 잔잔해도 속이 깊어요.','묵묵히 있다가 핵심만 딱 짚어요.'] },
+  'Yang Earth': { name_ko:'큰 산', kw_ko:['흔들림 없음','잔말 없는 깊이'],
+    tagline_en:["Doesn't move. Doesn't need to.",'The one everyone leans on.','Stays put while the weather passes.'],
+    tagline_ko:['굳이 안 움직여요. 그럴 필요가 없거든요.','다들 기대는 그 한 사람이에요.','비바람 지나갈 때까지 그 자리에 있어요.'] },
+  'Yin Earth': { name_ko:'정원사', kw_ko:['사람을 키움','조용한 실속'],
+    tagline_en:['Grows people without them noticing.','Helps quietly, takes no credit.','Tends to others before themselves.'],
+    tagline_ko:['티 안 나게 사람을 키워요.','조용히 돕고, 생색은 안 내요.','자기보다 남을 먼저 챙겨요.'] },
+  'Yang Metal': { name_ko:'곧은 사람', kw_ko:['에두르지 않음','말한 대로'],
+    tagline_en:['Means every word, every time.','No hedging, no games.',"Says it straight, even when it's hard."],
+    tagline_ko:['말한 건 언제나 그대로예요.','에두르지 않고, 돌려 말하지 않아요.','불편한 말도 곧게 해요.'] },
+  'Yin Metal': { name_ko:'예리한 날', kw_ko:['다 알아챔','높은 기준'],
+    tagline_en:['Notices everything. Forgets nothing.','Reads the tone before the words.','High standards, sharp eye.'],
+    tagline_ko:['다 알아채고, 하나도 안 잊어요.','말보다 분위기를 먼저 읽어요.','기준이 높고, 눈이 예리해요.'] },
+  'Yang Water': { name_ko:'넓은 바다', kw_ko:['큰 그림','한계 없음'],
+    tagline_en:['Too big for small plans.','Thinks in horizons, not steps.','Hates a ceiling, loves a wide open.'],
+    tagline_ko:['작은 그림엔 담기지 않아요.','한 걸음이 아니라 지평선을 봐요.','천장은 답답해하고, 탁 트인 걸 좋아해요.'] },
+  'Yin Water': { name_ko:'잔잔한 물', kw_ko:['잔잔함','고요한 표면'],
+    tagline_en:['Reads the room before entering it.','Calm on top, current underneath.','Watches first, moves once it\'s safe.'],
+    tagline_ko:['들어서기 전에 분위기부터 읽어요.','겉은 고요해도 속엔 흐름이 있어요.','먼저 지켜보고, 편해지면 움직여요.'] },
+};
+
+// ── Korean locale — day-animal notes ──────────────────────────────────────────
+
+export const DAY_NOTE_LOCALE: Record<string, { emoji: string; en: [string,string,string]; ko: [string,string,string] }> = {
+  Rat: { emoji:'🐭',
+    en:['A rat\'s quick read — catches on fast, moves faster.','A rat\'s instinct — senses the room, sidesteps trouble.','A rat\'s reflexes — grabs the moment before it passes.'],
+    ko:['쥐의 기민함 — 상황을 빨리 읽고, 몸도 가볍게 움직여요.','쥐의 눈치 — 분위기 파악이 빠르고 손해 볼 자리를 피해요.','쥐의 순발력 — 순간의 틈을 빠르게 잡아채요.'] },
+  Ox: { emoji:'🐮',
+    en:['An ox\'s quiet strength — solid inside, hard to budge.','An ox\'s steadiness — sets a course and holds it.','An ox\'s patience — never rushed, always moving.'],
+    ko:['소의 뚝심 — 속이 단단해서 좀처럼 안 흔들려요.','소의 우직함 — 한번 정하면 묵묵히 끝까지 가요.','소의 인내 — 서두르지 않고 제 속도로 밀고 가요.'] },
+  Tiger: { emoji:'🐯',
+    en:['A tiger\'s nerve — acts first, explains later.','A tiger\'s drive — charges in without flinching.','A tiger\'s boldness — bigger the stakes, calmer the nerve.'],
+    ko:['호랑이의 배짱 — 재고 따지기 전에 먼저 나서요.','호랑이의 기세 — 밀어붙일 땐 거침이 없어요.','호랑이의 대범함 — 큰 판일수록 겁을 안 내요.'] },
+  Rabbit: { emoji:'🐰',
+    en:['A rabbit\'s soft caution — warm, but steps carefully.','A rabbit\'s care — catches the smallest shift in mood.','A rabbit\'s ease — smooths the edges, puts people at rest.'],
+    ko:['토끼의 조심성 — 다정하게 다가가되, 한 발씩 신중하게.','토끼의 섬세함 — 작은 기색까지 살뜰히 살펴요.','토끼의 부드러움 — 모난 데 없이 사람을 편하게 해요.'] },
+  Dragon: { emoji:'🐲',
+    en:['A dragon\'s presence — shifts the mood of any room.','A dragon\'s pull — eyes turn without them trying.','A dragon\'s scale — thinks bigger than the room.'],
+    ko:['용의 존재감 — 어디에 있든 분위기를 끌고 가요.','용의 카리스마 — 가만있어도 시선이 모여요.','용의 스케일 — 생각도 판도 남들보다 크게 잡아요.'] },
+  Snake: { emoji:'🐍',
+    en:['A snake\'s read — says little, sees plenty.','A snake\'s insight — reads what\'s under the surface.','A snake\'s patience — waits for the right moment, never forces it.'],
+    ko:['뱀의 촉 — 말은 아껴도 웬만한 건 다 꿰고 있어요.','뱀의 통찰 — 겉만 보고도 속을 짚어내요.','뱀의 신중함 — 서두르지 않고 때를 기다려요.'] },
+  Horse: { emoji:'🐴',
+    en:['A horse\'s restlessness — alive on the open road, restless standing still.','A horse\'s freedom — hates a leash, always moving forward.','A horse\'s momentum — once it runs, it doesn\'t stop easily.'],
+    ko:['말의 들썩임 — 탁 트인 길에서 살아나고, 멈춰 있는 걸 못 견뎌요.','말의 자유로움 — 얽매이는 걸 싫어하고 늘 나아가요.','말의 추진력 — 한번 달리면 좀처럼 안 멈춰요.'] },
+  Goat: { emoji:'🐑',
+    en:['A goat\'s warmth — holds the coziest corner of the room.','A goat\'s softness — makes room for the difficult ones.','A goat\'s gentleness — easy to be around, easy to trust.'],
+    ko:['양의 온기 — 어느 자리든 가장 포근한 구석을 지켜요.','양의 포용 — 모난 사람도 넉넉히 품어줘요.','양의 다정함 — 곁에 있으면 마음이 놓여요.'] },
+  Monkey: { emoji:'🐵',
+    en:['A monkey\'s cleverness — always finds another way in.','A monkey\'s wit — sharpest when things get tricky.','A monkey\'s flexibility — bends to whatever the moment needs.'],
+    ko:['원숭이의 재치 — 막히면 늘 다른 길을 찾아내요.','원숭이의 기지 — 곤란한 순간에 오히려 빛나요.','원숭이의 융통성 — 상황에 맞춰 유연하게 굴러가요.'] },
+  Rooster: { emoji:'🐔',
+    en:['A rooster\'s sharp eye — catches the one thing out of place.','A rooster\'s precision — won\'t let the small stuff slide.','A rooster\'s polish — keeps it sharp, inside and out.'],
+    ko:['닭의 눈썰미 — 어긋난 것 하나를 귀신같이 잡아내요.','닭의 꼼꼼함 — 사소한 것도 그냥 못 넘어가요.','닭의 자기관리 — 안팎으로 반듯하게 챙겨요.'] },
+  Dog: { emoji:'🐶',
+    en:['A dog\'s loyalty — stays long after it stops making sense.','A dog\'s devotion — trusts all the way once it\'s given.','A dog\'s heart — gives it fully, holds nothing back.'],
+    ko:['개의 의리 — 손해를 봐도 끝까지 곁을 지켜요.','개의 충직함 — 한번 믿으면 끝까지 믿어요.','개의 진심 — 재지 않고 마음을 다 줘요.'] },
+  Pig: { emoji:'🐷',
+    en:['A pig\'s generosity — door always open, table always full.','A pig\'s ease — doesn\'t sweat the small stuff.','A pig\'s warmth — loves to give, gives a lot.'],
+    ko:['돼지의 넉넉함 — 문도 마음도 늘 활짝 열어둬요.','돼지의 여유 — 웬만한 건 크게 개의치 않아요.','돼지의 정 — 챙겨주는 걸 좋아하고 인심이 후해요.'] },
+};
+
 // ── Element insight (You tab) ─────────────────────────────────────────────────
 
 export const ELEMENT_INSIGHT: Record<string, string> = {
