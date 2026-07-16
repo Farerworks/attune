@@ -7,6 +7,7 @@ export interface TodayNote {
   tone: TodayTone;
   line: string;
   todayElement: Element;
+  branch: string; // 오늘 일진의 지지 (DAY_NOTE_LOCALE 키와 동일)
 }
 
 // Mirrors interpretGuide.ts tables — do not modify saju logic here
@@ -89,29 +90,58 @@ export const THEM_NAMED: Record<Relation, string[]> = {
 // 3-variant pools for self (You tab)
 export const ME: Record<Relation, string[]> = {
   same: [
-    "You're in your element today.",
-    'Today speaks your language.',
-    'Home turf today. Trust your instincts.',
+    'The day runs on your frequency. Move like you mean it.',
+    'Today matches your energy — momentum comes easy.',
+    'A same-element day. Trust your first instinct.',
   ],
   today_nurtures: [
-    'Tailwind day. Start the thing.',
-    "Today's feeding you. Spend it.",
-    'Green lights today — move.',
+    'The day has your back. Ask, start, lean in.',
+    'Tailwind day — support finds you if you let it.',
+    'Energy flows toward you today. Receive it.',
   ],
   person_nurtures: [
-    'Giving-out day. Guard your energy.',
-    "You're the generous one today. Save a slice for yourself.",
-    "Don't overpour today.",
+    'Your energy wants out today — talk, make, show.',
+    'An expression day. Say the thing, start the thing.',
+    "Output day — you'll feel better after you've made something.",
   ],
   today_controls: [
-    'Friction day. Move slower.',
-    'Today pushes back. Push less.',
-    'Sharp edges today. Take the long way.',
+    'The day pushes back a little. Go steady, not fast.',
+    'A discipline day — structure beats spontaneity.',
+    "Friction is the theme. Double-check, don't force.",
   ],
   person_controls: [
-    'You set the pace today.',
-    'Yours to steer today.',
-    'Today waits on you. Call it.',
+    'Today yields if you push first. Take the lead.',
+    'A get-things-done day — the to-do list is yours.',
+    "Momentum favors the one who starts. That's you.",
+  ],
+};
+
+// Korean pool — same variant indices as ME (seed keeps them aligned)
+export const ME_KO: Record<Relation, string[]> = {
+  same: [
+    '오늘은 내 기운과 같은 결이에요. 평소 속도 그대로 밀고 가요.',
+    '기운이 나랑 닮은 날 — 시작이 가볍게 붙어요.',
+    '첫 감이 잘 맞는 날이에요. 재지 말고 움직여요.',
+  ],
+  today_nurtures: [
+    '기운이 나를 밀어주는 날이에요. 부탁도 시작도 잘 붙어요.',
+    '순풍이 부는 날 — 오늘은 기대도 괜찮아요.',
+    '받는 날이에요. 도움도 기회도 마다하지 말아요.',
+  ],
+  person_nurtures: [
+    '기운이 밖으로 나가고 싶어 하는 날 — 말하고, 만들고, 보여줘요.',
+    '표현이 잘 풀리는 날이에요. 미뤄둔 말을 꺼내봐요.',
+    '뭐라도 만들어야 개운한 날이에요.',
+  ],
+  today_controls: [
+    '살짝 맞바람이 부는 날이에요. 빠르게 말고 단단하게 가요.',
+    '격식이 이기는 날 — 즉흥보다 순서대로.',
+    '억지로 밀면 삐끗해요. 한 번 더 확인하고 가요.',
+  ],
+  person_controls: [
+    '먼저 움직이면 풀리는 날이에요. 주도권을 잡아요.',
+    '해치우기 좋은 날 — 밀린 일부터 잡아요.',
+    '시작하는 사람이 이기는 날인데, 오늘은 그게 나예요.',
   ],
 };
 
@@ -134,6 +164,7 @@ export function getTodayNote(
   mode: 'them' | 'me',
   date?: string,
   name?: string,
+  korean?: boolean,
 ): TodayNote {
   const dateStr = date ?? localDateStr();
   const [pillar] = getDailyPillars(dateStr, 1);
@@ -142,11 +173,11 @@ export function getTodayNote(
   const tone = TONE[rel];
   let line: string;
   if (mode === 'me') {
-    line = pickVariant(ME[rel], `${dateStr}|me|${rel}`);
+    line = pickVariant((korean ? ME_KO : ME)[rel], `${dateStr}|me|${rel}`);
   } else if (name && name.trim()) {
     line = pickVariant(THEM_NAMED[rel], `${dateStr}|them|${rel}|${name}`).split('{name}').join(name);
   } else {
     line = THEM_NONAME[rel];
   }
-  return { tone, line, todayElement: t };
+  return { tone, line, todayElement: t, branch: pillar.branch };
 }

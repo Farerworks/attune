@@ -8,7 +8,7 @@ import type { TenStem } from '@/lib/saju';
 import { GlyphAvatar } from '@/components/ArchetypeGlyph';
 import { MyCardModal } from '@/components/MyCardModal';
 import type { TodayNote } from '@/lib/today';
-import { ELEMENT_INSIGHT } from '@/lib/interpretGuide';
+import { ELEMENT_INSIGHT, DAY_NOTE_LOCALE } from '@/lib/interpretGuide';
 import { formatDate } from '@/lib/format';
 import { ElementChart } from '@/components/ElementChart';
 import { SpectrumBar } from '@/components/SpectrumBar';
@@ -51,6 +51,7 @@ export default function YouPage() {
   const [strong,      setStrong]      = useState(0);
   const [daysIn,      setDaysIn]      = useState(1);
   const [showMyCard,  setShowMyCard]  = useState(false);
+  const korean = typeof navigator !== 'undefined' && navigator.language.startsWith('ko');
 
   useEffect(() => {
     const p = getProfile();
@@ -93,7 +94,7 @@ export default function YouPage() {
             dayNoteEmoji: dayLocale?.emoji,
             dayNoteText,
           });
-          setTodayNote(getTodayNote(c.dayMaster.element, 'me', localDateStr()));
+          setTodayNote(getTodayNote(c.dayMaster.element, 'me', localDateStr(), undefined, korean));
         } catch (e) {
           setError(e instanceof Error ? e.message : 'Could not calculate chart');
         }
@@ -123,6 +124,14 @@ export default function YouPage() {
     ? (['wood', 'fire', 'earth', 'metal', 'water'] as const).reduce((a, b) =>
         (chart.elements[b] ?? 0) > (chart.elements[a] ?? 0) ? b : a)
     : null;
+
+  const todayEmoji = todayNote ? DAY_NOTE_LOCALE[todayNote.branch]?.emoji : undefined;
+  const todayDateLabel = (() => {
+    const now = new Date();
+    if (korean) return `${now.getMonth() + 1}월 ${now.getDate()}일`;
+    const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+    return `${months[now.getMonth()]} ${now.getDate()}`;
+  })();
 
   return (
     <>
@@ -213,6 +222,35 @@ export default function YouPage() {
               </div>
             </div>
 
+            {/* ── Today card ───────────────────────────────────────────────── */}
+            {todayNote && (
+              <div className="card" style={{ padding: '16px 18px', animationDelay: '30ms' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                  <div style={{
+                    width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+                    background: todayNote.tone === 'good'
+                      ? '#C4502E'
+                      : (ELEMENT_COLORS[todayNote.todayElement]?.fg ?? '#948B7C'),
+                  }} />
+                  <span style={{
+                    fontFamily: "var(--font-space-mono,'Courier New')",
+                    fontSize: 10, letterSpacing: '0.14em',
+                    color: 'var(--c-muted)', textTransform: 'uppercase',
+                  }}>
+                    TODAY · {todayDateLabel}
+                  </span>
+                  {todayEmoji && <span style={{ fontSize: 13 }}>{todayEmoji}</span>}
+                </div>
+                <p style={{
+                  margin: 0,
+                  fontFamily: 'var(--font-fraunces,Georgia,serif)',
+                  fontSize: 17.5, lineHeight: 1.4, color: 'var(--c-ink)',
+                }}>
+                  {todayNote.line}
+                </p>
+              </div>
+            )}
+
             {/* ── Share my card ────────────────────────────────────────────── */}
             <button
               type="button"
@@ -227,27 +265,6 @@ export default function YouPage() {
             >
               Share my card ↗️
             </button>
-
-            {/* ── Today note ───────────────────────────────────────────────── */}
-            {todayNote && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, animationDelay: '45ms' }}>
-                <div style={{
-                  width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
-                  background: todayNote.tone === 'good'
-                    ? '#C4502E'
-                    : (ELEMENT_COLORS[todayNote.todayElement]?.fg ?? '#948B7C'),
-                }} />
-                <span style={{
-                  fontFamily: "var(--font-space-mono,'Courier New')",
-                  fontSize: 9, letterSpacing: '0.12em',
-                  color: 'var(--c-muted)', textTransform: 'uppercase', flexShrink: 0,
-                }}>TODAY</span>
-                <span style={{
-                  fontFamily: "var(--font-inter,system-ui)",
-                  fontSize: 12.5, color: 'var(--c-ink-body)', lineHeight: 1.4,
-                }}>{todayNote.line}</span>
-              </div>
-            )}
 
             {/* ── Element insight ──────────────────────────────────────────── */}
             {domEl && ELEMENT_INSIGHT[domEl] && (
