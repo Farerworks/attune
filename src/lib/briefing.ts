@@ -42,6 +42,7 @@ export const BriefingSchema = z.object({
       why:  z.string(),
     })
   ).min(3).max(5),
+  starters: z.array(z.string().min(1)).length(3).optional(),
 });
 
 export type Briefing = z.infer<typeof BriefingSchema>;
@@ -152,11 +153,16 @@ Respond with ONLY a valid JSON object matching the schema below. No explanation 
   "playbook": [
     { "type": "do",   "tip": "<imperative, 10 words or fewer>", "why": "<1 sentence>" },
     { "type": "dont", "tip": "<imperative, 10 words or fewer>", "why": "<1 sentence>" }
+  ],
+  "starters": [
+    "<question 1>",
+    "<question 2>",
+    "<question 3>"
   ]
 }
 
 LANGUAGE
-Detect the language of the user's situation text. Write ALL free-text values (headline, every takeaway, every detail, click/clash/watch, playbook tips and whys) entirely in that language. Never mix languages in one sentence. If the situation is in English or empty, write in English. JSON keys stay in English. Do not translate archetype names.
+Detect the language of the user's situation text. Write ALL free-text values (headline, every takeaway, every detail, click/clash/watch, playbook tips and whys, starters) entirely in that language. Never mix languages in one sentence. If the situation is in English or empty, write in English. JSON keys stay in English. Do not translate archetype names.
 
 CONTENT RULES
 1. All insights must derive only from the saju data above. Do not invent information.
@@ -169,6 +175,7 @@ CONTENT RULES
 8. No medical, legal, or investment advice.
 9. Tone: emotionally intelligent, practical, zero mystical framing.
 10. Every insight must be written as a coupling of YOU and THEM — address the reader as 'you', refer to the other person by name or pronoun. Prefer 'She warms up when you text first' over 'She tends to warm up slowly'. Generic single-person statements are a failure.
+11. starters: exactly 3 questions the USER would naturally ask Attune about THIS person in THIS situation — first person, specific (use the name and the situation's key event when given), 8–14 words each. One about how they'll likely react, one about what to say or do, one about timing. Questions are addressed to Attune, never to the other person.
 
 ${localeVoiceBlock()}
 
@@ -195,6 +202,7 @@ export function containsBannedPhrases(briefing: Briefing): string[] {
     briefing.dynamic.watch.takeaway,
     briefing.dynamic.watch.detail,
     ...briefing.playbook.flatMap(p => [p.tip, p.why]),
+    ...(briefing.starters ?? []),
   ];
 
   const combined = texts.join(' ').toLowerCase();

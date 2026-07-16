@@ -69,6 +69,7 @@ export interface BriefingData {
     watch: { takeaway: string; detail: string };
   };
   playbook: PlaybookItem[];
+  starters?: string[];
 }
 
 export interface Reading {

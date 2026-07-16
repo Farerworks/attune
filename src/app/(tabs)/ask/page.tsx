@@ -260,6 +260,12 @@ export default function AskPage() {
     : '#948B7C';
   const hasPersonChips = chips.some(c => c.id !== 'me' && c.id !== 'general');
   const hasAnyThread   = Object.values(threads).some(t => t.length > 0);
+  const starterPrompts =
+    currentChip && selected !== 'me' && selected !== 'general'
+    && Array.isArray(currentChip.briefing?.starters)
+    && currentChip.briefing!.starters!.length === 3
+      ? currentChip.briefing!.starters!
+      : QUICK_PROMPTS;
 
   // Show date divider if last message is from a previous day (>24h ago)
   const lastMsg = currentThread[currentThread.length - 1];
@@ -391,7 +397,7 @@ export default function AskPage() {
           <>
             {/* Quick prompts */}
             <div style={{ display: 'flex', gap: 8, marginBottom: 10, overflowX: 'auto', scrollbarWidth: 'none' }}>
-              {QUICK_PROMPTS.map(q => (
+              {starterPrompts.map(q => (
                 <button
                   key={q}
                   type="button"
