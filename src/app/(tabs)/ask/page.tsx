@@ -135,9 +135,6 @@ export default function AskPage() {
         });
       }
 
-      // General chip
-      chipList.push({ id: 'general', label: 'General', initial: '✳' });
-
       setChips(chipList);
 
       // Persistent state
@@ -333,7 +330,7 @@ export default function AskPage() {
             <div key={chip.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, flexShrink: 0 }}>
               <ChipButton chip={chip} active={selected === chip.id} onClick={() => setSelected(chip.id)} />
               {!hasAnyThread && chip.id === 'me' && (
-                <span style={{ fontFamily: "var(--font-space-mono,'Courier New')", fontSize: 8.5, letterSpacing: '0.1em', color: 'var(--c-muted)', textTransform: 'uppercase' }}>YOUR READ</span>
+                <span style={{ fontFamily: "var(--font-space-mono,'Courier New')", fontSize: 8.5, letterSpacing: '0.1em', color: 'var(--c-muted)', textTransform: 'uppercase' }}>YOU · TIMING · ANYTHING</span>
               )}
             </div>
           ))}
@@ -354,15 +351,6 @@ export default function AskPage() {
               )}
             </div>
           )}
-          {/* General chip */}
-          {chips.filter(c => c.id === 'general').map(chip => (
-            <div key={chip.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, flexShrink: 0 }}>
-              <ChipButton chip={chip} active={selected === chip.id} onClick={() => setSelected(chip.id)} />
-              {!hasAnyThread && (
-                <span style={{ fontFamily: "var(--font-space-mono,'Courier New')", fontSize: 8.5, letterSpacing: '0.1em', color: 'var(--c-muted)', textTransform: 'uppercase' }}>You · timing · anything</span>
-              )}
-            </div>
-          ))}
         </div>
       </TabTopBar>
 
