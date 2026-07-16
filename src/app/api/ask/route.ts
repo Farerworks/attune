@@ -114,12 +114,13 @@ Respond ONLY with valid JSON (no markdown fences, no extra keys). Choose ONE sha
     { "label": "<chosen label>", "text": "2–3 sentences. HARD LIMIT: max 3 sentences, max 55 words." },
     { "label": "<chosen label>", "text": "2–3 sentences. HARD LIMIT: max 3 sentences, max 55 words." }
   ],
-  "timing": "ONLY if the question is about timing. MUST be a single plain-text string — NEVER an object or array. Name 2–3 favorable dates (YYYY-MM-DD, day-of-week, reason) and 1–2 to avoid. Omit this key entirely if not a timing question."
+  "timing": "ONLY if the question is about timing. MUST be a single plain-text string — NEVER an object or array. Name 2–3 favorable dates (YYYY-MM-DD, day-of-week, reason) and 1–2 to avoid. Omit this key entirely if not a timing question.",
+  "followUp": "OPTIONAL. One short line (12 words max): either a gentle check-back inviting the user to report how it went, or ONE question that would sharpen your next answer. Same language as the answer. Omit this key entirely when it would feel forced."
 }
 2) If the latest message is a follow-up, clarification, or short reaction to your previous answer:
-{ "text": "Under 100 words. Conversational and direct, same coaching voice. Answer the follow-up specifically — do not restate your previous answer." }`
+{ "text": "Under 100 words. Conversational and direct, same coaching voice. Answer the follow-up specifically — do not restate your previous answer.", "followUp": "OPTIONAL. Same rule as above." }`
     : `Respond ONLY with valid JSON (no markdown fences, no extra keys):
-{ "text": "Under 120 words. Warm, practical coach tone. Describe tendencies, not predictions." }`;
+{ "text": "Under 120 words. Warm, practical coach tone. Describe tendencies, not predictions.", "followUp": "OPTIONAL. One short line (12 words max): either a gentle check-back inviting the user to report how it went, or ONE question that would sharpen your next answer. Same language as the answer. Omit this key entirely when it would feel forced." }`;
 
   const persona = mode === 'person'
     ? 'You are Attune, a Four Pillars relationship coach. Your job is to help the user understand the other person and navigate this specific relationship. Read the other person\'s likely feelings, motives, and reactions from their saju chart and the conversation so far, then give the user specific, practical guidance. Always frame your read as understanding and connection — never as a way to control, pressure, or outmaneuver them.'
@@ -158,6 +159,8 @@ ${mode === 'person' ? PERSON_RULES : SELF_RULES}
 
 ${localeVoiceBlock()}
 
+FOLLOW-UP RULE: at most ONE followUp per answer. Never re-ask what the user already told you. Never stack questions. In Korean, no 당신 — e.g. "해보고 어땠는지 알려줘요" / "혹시 지현이 먼저 연락한 적도 있어요?". Skip it entirely on heavy or emotional moments where a question would feel pushy.
+
 ${outputSpec}`;
 }
 
@@ -183,11 +186,11 @@ function normalizeAnswer(
   const r = raw as Record<string, unknown>;
 
   if (mode === 'me' || mode === 'general') {
-    return typeof r.text === 'string' ? { text: r.text } : null;
+    return typeof r.text === 'string' ? { text: r.text, ...(typeof r.followUp === 'string' && r.followUp ? { followUp: r.followUp } : {}) } : null;
   }
 
   // person mode — either a short {text} follow-up, or exactly 3 parts with label:string + text:string
-  if (typeof r.text === 'string' && !Array.isArray(r.parts)) return { text: r.text };
+  if (typeof r.text === 'string' && !Array.isArray(r.parts)) return { text: r.text, ...(typeof r.followUp === 'string' && r.followUp ? { followUp: r.followUp } : {}) };
 
   if (!Array.isArray(r.parts) || r.parts.length !== 3) return null;
   for (const p of r.parts) {
@@ -211,7 +214,11 @@ function normalizeAnswer(
     }
   }
 
-  return { parts: r.parts, ...(timing !== undefined ? { timing } : {}) };
+  return {
+    parts: r.parts,
+    ...(timing !== undefined ? { timing } : {}),
+    ...(typeof r.followUp === 'string' && r.followUp ? { followUp: r.followUp } : {}),
+  };
 }
 
 // ── Request schema ─────────────────────────────────────────────────────────────

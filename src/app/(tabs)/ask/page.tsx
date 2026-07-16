@@ -37,6 +37,7 @@ interface AssistantMsg {
   text?: string;
   parts?: Array<{ label: string; text: string }>;
   timing?: string;
+  followUp?: string;
   createdAt?: string;
 }
 
@@ -681,6 +682,16 @@ function MessageBubble({ msg }: { msg: Msg; chipColor: string }) {
             color: 'var(--c-ink)', lineHeight: 1.55,
           }}>
             {typeof m.text === 'string' ? m.text : ''}
+          </p>
+        )}
+        {typeof m.followUp === 'string' && m.followUp && (
+          <p style={{
+            margin: 0,
+            fontFamily: 'var(--font-fraunces,Georgia,serif)',
+            fontStyle: 'italic', fontSize: 14,
+            color: 'var(--c-muted)', lineHeight: 1.5,
+          }}>
+            {m.followUp}
           </p>
         )}
       </div>
