@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import type { Reading } from '@/lib/store';
 import type { Archetype } from '@/lib/interpretGuide';
+import { getProfile } from '@/lib/store';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -166,6 +167,8 @@ function drawShareCard(
 
   // 3. Foreground text
   const b = reading.briefing;
+  const myName = getProfile()?.name?.trim() || '';
+  const theirName = reading.name?.trim() || '';
 
   ctx.textBaseline = 'alphabetic';
   ctx.textAlign = 'left';
@@ -179,25 +182,33 @@ function drawShareCard(
 
   // My archetype name
   if (myArchetype) {
-    const myFontSize = fitFontSize(ctx, myArchetype.name, W - 2 * PAD, 108, 56);
-    ctx.font = `500 ${myFontSize}px Fraunces`;
+    const line = myName ? `${myName}, ` : '';
+    const full = line + myArchetype.name;
+    const size = fitFontSize(ctx, full, W - 2 * PAD, 100, 52);
+    ctx.font = `500 ${size}px Fraunces`;
+    let x = PAD;
+    if (myName) { ctx.fillStyle = '#9A8F7C'; ctx.fillText(line, x, 360); x += ctx.measureText(line).width; }
     ctx.fillStyle = '#F5F1E8';
-    ctx.fillText(myArchetype.name, PAD, 360);
+    ctx.fillText(myArchetype.name, x, 360);
     ctx.shadowBlur = 0;
   }
 
   // "×"
   ctx.shadowBlur = 0;
-  ctx.font = 'italic 90px Fraunces';
+  ctx.font = '500 120px Fraunces';
   ctx.fillStyle = '#D96A45';
-  ctx.fillText('×', PAD, 472);
+  ctx.fillText('×', PAD, 480);
 
   // Their archetype name
   if (theirArchetype) {
-    const theirFontSize = fitFontSize(ctx, theirArchetype.name, W - 2 * PAD, 108, 56);
-    ctx.font = `500 ${theirFontSize}px Fraunces`;
+    const line = theirName ? `${theirName}, ` : '';
+    const full = line + theirArchetype.name;
+    const size = fitFontSize(ctx, full, W - 2 * PAD, 100, 52);
+    ctx.font = `500 ${size}px Fraunces`;
+    let x = PAD;
+    if (theirName) { ctx.fillStyle = '#9A8F7C'; ctx.fillText(line, x, 582); x += ctx.measureText(line).width; }
     ctx.fillStyle = '#F5F1E8';
-    ctx.fillText(theirArchetype.name, PAD, 582);
+    ctx.fillText(theirArchetype.name, x, 582);
     ctx.shadowBlur = 0;
   }
 
