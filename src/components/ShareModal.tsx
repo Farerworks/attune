@@ -103,7 +103,7 @@ function drawRadarLayer(
       if (j === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
     });
     ctx.closePath();
-    ctx.strokeStyle = idx === 0 ? 'rgba(245,241,232,0.08)' : 'rgba(245,241,232,0.12)';
+    ctx.strokeStyle = idx === 0 ? 'rgba(245,241,232,0.16)' : 'rgba(245,241,232,0.24)';
     ctx.lineWidth = 2;
     ctx.stroke();
   });
@@ -181,12 +181,12 @@ function drawShareCard(
         { elements: reading.themChart.elements, color: DARK_TONES[theirEl] ?? '#AEB4B8' },
       ];
       const normMax = Math.max(...blobs.flatMap(b => EL_ORDER.map(k => b.elements[k] ?? 0)), 3);
-      const allPts = blobs.flatMap(b => computeBlobPoints(b.elements, 540, 1050, 575, normMax));
+      const allPts = blobs.flatMap(b => computeBlobPoints(b.elements, 540, 1050, 440, normMax));
       const mx = allPts.reduce((s, p) => s + p.x, 0) / allPts.length;
       const my = allPts.reduce((s, p) => s + p.y, 0) / allPts.length;
       const clamp = (v: number) => Math.max(-80, Math.min(80, v));
       const dx = clamp(540 - mx), dy = clamp(1050 - my);
-      drawRadarLayer(bgCtx, 540 + dx, 1050 + dy, 575, blobs);
+      drawRadarLayer(bgCtx, 540 + dx, 1050 + dy, 440, blobs);
     }
     ctx.save();
     ctx.globalAlpha = 0.55;
