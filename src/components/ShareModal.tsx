@@ -114,9 +114,9 @@ function drawRadarLayer(
   ctx.fillStyle = 'rgba(154,143,124,0.95)';
   ctx.textBaseline = 'middle';
   EL_ORDER.forEach((k, i) => {
-    const lx = cx + (r + 58) * Math.cos(ANGLES[i]);
-    const ly = cy + (r + 58) * Math.sin(ANGLES[i]);
-    ctx.textAlign = Math.cos(ANGLES[i]) > 0.3 ? 'left' : Math.cos(ANGLES[i]) < -0.3 ? 'right' : 'center';
+    const lx = cx + r * 0.78 * Math.cos(ANGLES[i]);
+    const ly = cy + r * 0.78 * Math.sin(ANGLES[i]);
+    ctx.textAlign = 'center';
     ctx.fillText(k, lx, ly);
   });
   ctx.letterSpacing = '0px';
