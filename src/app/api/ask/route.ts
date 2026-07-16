@@ -145,7 +145,11 @@ Respond ONLY with valid JSON (no markdown fences, no extra keys). Choose ONE sha
 7. This is an ongoing conversation. Build on earlier turns instead of repeating them, and address what the user just asked.
 8. Answer the user's actual question directly and first. Do NOT recite archetype names or chart labels back to the reader; use the chart only as your private reasoning.
 9. Refer to the other person by their name when given. LANGUAGE: detect the question's language and write all free text in it, never mixing. In English, address the user as "you" and tie your read of the other person to what the user can do. In Korean, follow the KOREAN VOICE block below (omit 당신; use the other person's name). JSON keys and part labels stay in English.
-10. Each part must contain one concrete, specific scene tied to THIS relationship — not a generic personality statement. Text over 3 sentences / 55 words is cut.`;
+10. Each part must contain one concrete, specific scene tied to THIS relationship — not a generic personality statement. Text over 3 sentences / 55 words is cut.
+11. Do not repeat the same chart-based explanation you already gave in a recent answer. If the same trait becomes relevant again — or the user asks about it again — explain it freshly: rephrase and add one NEW detail instead of reusing earlier wording.
+12. Always speak TO the user in second person; never describe the user in third person alongside the other person. (Korean: addressing the user as <이름>님 is fine and warm — but never narrate the user like a bystander in an answer addressed to them.)
+13. Labels: pick ONE label set per answer and use all three from that set — never mix labels across the two sets.
+14. If the question asks about dates beyond the listed DAILY PILLARS window, use the {text} shape: say briefly that you can see about three months ahead, offer what you CAN (general element flow, or suggest asking again closer to the date). Never produce a 3-part report just to say you don't know.`;
 
   const SELF_RULES = `RULES (non-negotiable):
 1. Use hedged language — "tends to", "may", "~하는 편이에요". Never certainty; never "will".
@@ -154,11 +158,12 @@ Respond ONLY with valid JSON (no markdown fences, no extra keys). Choose ONE sha
 4. No medical, legal, or financial advice.
 5. This is an ongoing conversation. Build on earlier turns; don't repeat earlier answers.
 6. Answer the actual question directly. Do NOT recite archetype names or chart labels back; use them only as private reasoning.
-7. LANGUAGE: detect the question's language, write all free text in it (no mixing). In English address the user as "you". In Korean follow the KOREAN VOICE block below (no 당신). JSON keys stay in English.`;
+7. LANGUAGE: detect the question's language, write all free text in it (no mixing). In English address the user as "you". In Korean follow the KOREAN VOICE block below (no 당신). JSON keys stay in English.
+8. Do not repeat the same chart-based explanation you already gave in a recent answer; when it's relevant again, rephrase and add one new detail.`;
 
   return `${persona}
 
-${chartBlock ? `SAJU CONTEXT:\n${chartBlock}\n\nRead the WHOLE chart — all pillars and the element balance — not just the day master. Weave at most one or two specific chart details into an answer when they genuinely matter; never recite or dump the chart.\n\n` : ''}DAILY PILLARS — NEXT 14 DAYS (server-computed, do not modify):
+${chartBlock ? `SAJU CONTEXT:\n${chartBlock}\n\nRead the WHOLE chart — all pillars and the element balance — not just the day master. Weave at most one or two specific chart details into an answer when they genuinely matter; never recite or dump the chart.\n\n` : ''}DAILY PILLARS — NEXT 90 DAYS (server-computed, do not modify):
 ${pillarsText}
 Use the daily pillars ONLY when the question is about timing or when to take action.
 
@@ -297,7 +302,7 @@ export async function POST(request: Request) {
 
   // Daily pillars — client-local today when provided (avoids UTC date drift), else server's today
   const today = parsed.data.todayLocal ?? new Date().toISOString().split('T')[0];
-  const dailyPillars = getDailyPillars(today, 14);
+  const dailyPillars = getDailyPillars(today, 90);
 
   const system = buildAskSystem(
     mode, meChart, themChart,
