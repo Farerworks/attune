@@ -6,7 +6,7 @@ const OLLAMA_MODEL = 'gemma3';
 const OLLAMA_BASE_URL = 'http://localhost:11434';
 
 export interface LlmProvider {
-  generateJson(prompt: string, maxTokens?: number): Promise<string>;
+  generateJson(prompt: string, maxTokens?: number, thinkingBudget?: number): Promise<string>;
 }
 
 class GeminiProvider implements LlmProvider {
@@ -18,7 +18,7 @@ class GeminiProvider implements LlmProvider {
     this.apiKey = key;
   }
 
-  async generateJson(prompt: string, maxTokens = 2048): Promise<string> {
+  async generateJson(prompt: string, maxTokens = 2048, thinkingBudget = 0): Promise<string> {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${this.apiKey}`;
     const res = await fetch(url, {
       method: 'POST',
@@ -29,7 +29,7 @@ class GeminiProvider implements LlmProvider {
           temperature: 0.4,
           maxOutputTokens: maxTokens,
           responseMimeType: 'application/json',
-          thinkingConfig: { thinkingBudget: 0 },
+          thinkingConfig: { thinkingBudget },
         },
       }),
     });
@@ -55,7 +55,8 @@ class GeminiProvider implements LlmProvider {
 }
 
 class OllamaProvider implements LlmProvider {
-  async generateJson(prompt: string, maxTokens = 2048): Promise<string> {
+  async generateJson(prompt: string, maxTokens = 2048, thinkingBudget = 0): Promise<string> {
+    void thinkingBudget; // not supported by Ollama — signature parity only
     const res = await fetch(`${OLLAMA_BASE_URL}/api/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

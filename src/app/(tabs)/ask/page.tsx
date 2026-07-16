@@ -93,7 +93,7 @@ export default function AskPage() {
   const [left,      setLeft]      = useState(DAILY_QUOTA_MAX);
   const [loading,   setLoading]   = useState(false);
   const [input,     setInput]     = useState('');
-  const [myProfile, setMyProfile] = useState<{ date: string; time?: string } | null>(null);
+  const [myProfile, setMyProfile] = useState<{ date: string; time?: string; name?: string } | null>(null);
 
   // ── Init ──────────────────────────────────────────────────────────────────────
 
@@ -194,13 +194,14 @@ export default function AskPage() {
 
       const body: Record<string, unknown> = {
         mode,
-        me:       { date: myProfile.date, time: myProfile.time },
+        me:       { date: myProfile.date, time: myProfile.time, name: myProfile.name },
         history,
         question: text,
       };
 
       if (mode === 'person' && chip) {
-        body.them = { date: chip.personDate, time: chip.personTime };
+        const themName = chip.label && chip.label !== 'Unknown' ? chip.label : undefined;
+        body.them = { date: chip.personDate, time: chip.personTime, ...(themName ? { name: themName } : {}) };
         if (chip.briefing) body.briefing = chip.briefing;
       }
 

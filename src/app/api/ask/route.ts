@@ -48,12 +48,14 @@ function buildAskPrompt(
   dailyPillars: DailyPillar[],
   history: Array<{ role: 'user' | 'assistant'; text: string }>,
   question: string,
+  meName?: string,
+  themName?: string,
 ): string {
   // Chart context
   let chartBlock = '';
   if (mode !== 'general') {
     const myArch = getArchetype(meChart.dayMaster.stem);
-    chartBlock = `ME — ${meChart.dayMaster.stem} (${myArch.name}), ${meChart.dayMaster.element} ${meChart.dayMaster.polarity}
+    chartBlock = `ME — ${meName ? meName + ' · ' : ''}${meChart.dayMaster.stem} (${myArch.name}), ${meChart.dayMaster.element} ${meChart.dayMaster.polarity}
   Drive: ${myArch.coreDrive}
   Communication: ${myArch.communication}
   Under stress: ${myArch.stress}`;
@@ -61,7 +63,7 @@ function buildAskPrompt(
     if (mode === 'person' && themChart) {
       const themArch  = getArchetype(themChart.dayMaster.stem);
       const elemAxis  = getElementRelationship(meChart.dayMaster.stem, themChart.dayMaster.stem);
-      chartBlock += `\n\nTHEM — ${themChart.dayMaster.stem} (${themArch.name}), ${themChart.dayMaster.element} ${themChart.dayMaster.polarity}
+      chartBlock += `\n\nTHEM — ${themName ? themName + ' · ' : ''}${themChart.dayMaster.stem} (${themArch.name}), ${themChart.dayMaster.element} ${themChart.dayMaster.polarity}
   Drive: ${themArch.coreDrive}
   Communication: ${themArch.communication}
   Under stress: ${themArch.stress}
@@ -96,21 +98,46 @@ ELEMENT AXIS (ME → THEM): ${elemAxis}`;
 
   // Output schema per mode
   const outputSpec = mode === 'person'
-    ? `{
+    ? `Choose the 3 part labels to fit the question (labels in English, UPPERCASE):
+- If the user is deciding whether to DO something (should I…, is it a good idea…): LIKELY RECEPTION / WHAT COULD BACKFIRE / HOW TO IMPROVE YOUR ODDS.
+- If the user is trying to UNDERSTAND (why is…, what's going on…, how does he feel…): WHAT'S LIKELY GOING ON / WHY (FROM THE CHART) / WHAT YOU CAN DO.
+
+{
   "parts": [
-    { "label": "LIKELY RECEPTION", "text": "2–3 sentences, specific and actionable. HARD LIMIT: max 3 sentences, max 55 words." },
-    { "label": "WHAT COULD BACKFIRE", "text": "2–3 sentences. HARD LIMIT: max 3 sentences, max 55 words." },
-    { "label": "HOW TO IMPROVE YOUR ODDS", "text": "2–3 sentences. HARD LIMIT: max 3 sentences, max 55 words." }
+    { "label": "<chosen label>", "text": "2–3 sentences, specific and actionable. HARD LIMIT: max 3 sentences, max 55 words." },
+    { "label": "<chosen label>", "text": "2–3 sentences. HARD LIMIT: max 3 sentences, max 55 words." },
+    { "label": "<chosen label>", "text": "2–3 sentences. HARD LIMIT: max 3 sentences, max 55 words." }
   ],
   "timing": "ONLY if the question is about timing. MUST be a single plain-text string — NEVER an object or array. Name 2–3 favorable dates (YYYY-MM-DD, day-of-week, reason) and 1–2 to avoid. Omit this key entirely if not a timing question."
 }`
     : `{ "text": "Under 120 words. Warm, practical coach tone. Describe tendencies, not predictions." }`;
 
   const persona = mode === 'person'
-    ? 'You are Attune, a Four Pillars relationship coach. Give specific, practical guidance to help the user adapt their OWN behavior. Never judge or assess the other person.'
+    ? 'You are Attune, a Four Pillars relationship coach. Your job is to help the user understand the other person and navigate this specific relationship. Read the other person\'s likely feelings, motives, and reactions from their saju chart and the conversation so far, then give the user specific, practical guidance. Always frame your read as understanding and connection — never as a way to control, pressure, or outmaneuver them.'
     : mode === 'me'
     ? 'You are Attune, a Four Pillars self-awareness coach. Help the user understand their own behavioral tendencies through their saju chart. Warm, grounded, concise.'
     : 'You are Attune, a thoughtful life coach who uses Four Pillars of Destiny as one lens. Answer practically and concisely.';
+
+  const PERSON_RULES = `RULES (non-negotiable):
+1. Use hedged language — "likely", "tends to", "may", "~할 가능성이 있어요". Never state a reaction as certainty; never "will".
+2. No yes/no verdicts. No numerical probabilities or scores.
+3. You MAY describe the other person's likely feelings, motives, and reactions — that is the point. Ground every read in their chart or the conversation, and keep it hedged.
+4. Forbidden words: weakness, exploit, leverage against, manipulate, vulnerable to. Never frame guidance as controlling or pressuring the other person.
+5. Help the user understand the other person AND adjust their own approach. Offer moves the user can make; never tactics to manipulate or corner the other person.
+6. No medical, legal, or financial advice.
+7. This may be a follow-up. Read CONVERSATION HISTORY and answer in light of it — build on earlier turns, don't repeat them, address what the user just asked.
+8. Answer the user's actual question directly and first. Do NOT recite archetype names or chart labels back to the reader; use the chart only as your private reasoning.
+9. Refer to the other person by their name when given. LANGUAGE: detect the question's language and write all free text in it, never mixing. In English, address the user as "you" and tie your read of the other person to what the user can do. In Korean, follow the KOREAN VOICE block below (omit 당신; use the other person's name). JSON keys and part labels stay in English.
+10. Each part must contain one concrete, specific scene tied to THIS relationship — not a generic personality statement. Text over 3 sentences / 55 words is cut.`;
+
+  const SELF_RULES = `RULES (non-negotiable):
+1. Use hedged language — "tends to", "may", "~하는 편이에요". Never certainty; never "will".
+2. No yes/no verdicts. No numerical probabilities or scores.
+3. Forbidden words: weakness, exploit, leverage against, manipulate, vulnerable to.
+4. No medical, legal, or financial advice.
+5. This may be a follow-up. Read CONVERSATION HISTORY and build on it; don't repeat earlier answers.
+6. Answer the actual question directly. Do NOT recite archetype names or chart labels back; use them only as private reasoning.
+7. LANGUAGE: detect the question's language, write all free text in it (no mixing). In English address the user as "you". In Korean follow the KOREAN VOICE block below (no 당신). JSON keys stay in English.`;
 
   return `${persona}
 
@@ -118,16 +145,7 @@ ${chartBlock ? `SAJU CONTEXT:\n${chartBlock}\n\n` : ''}DAILY PILLARS — NEXT 14
 ${pillarsText}
 Use the daily pillars ONLY when the question is about timing or when to take action.
 
-${historyText}RULES (non-negotiable):
-1. Use "tends to" / "is likely to" / "may" — never "will" as a certainty marker
-2. No yes/no verdicts. No numerical probabilities or scores.
-3. Describe behavioral tendencies, not predictions of outcomes.
-4. Forbidden words: weakness, exploit, leverage against, manipulate, vulnerable to
-5. All guidance adjusts MY behavior, not theirs.
-6. No medical, legal, or financial advice.
-7. Parts text exceeding 3 sentences or 55 words will be cut off — stay within limits.
-8. Every answer must address the reader as 'you' and couple your observation with their behavior — e.g. 'She warms up when you text first', not 'She tends to warm up slowly'. Generic single-person statements without 'you' are a failure.
-9. LANGUAGE: Detect the language of the question. Write all free-text output (every part text, timing string, or text field) entirely in that language. Never mix languages in one sentence. If the question is in English, write in English. JSON keys stay in English.
+${historyText}${mode === 'person' ? PERSON_RULES : SELF_RULES}
 
 ${localeVoiceBlock()}
 
@@ -183,6 +201,7 @@ const RequestSchema = z.object({
   me: z.object({
     date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'date must be YYYY-MM-DD'),
     time: z.string().regex(/^\d{2}:\d{2}$/).optional(),
+    name: z.string().optional(),
   }),
   them: z.object({
     date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -237,6 +256,7 @@ export async function POST(request: Request) {
     mode, meChart, themChart,
     briefing as Record<string, unknown> | undefined,
     dailyPillars, history, question,
+    parsed.data.me.name, themInput?.name,
   );
 
   const llm = createLlmProvider();
@@ -244,7 +264,7 @@ export async function POST(request: Request) {
   // First attempt
   let rawAnswer: string;
   try {
-    rawAnswer = await withTimeout(llm.generateJson(prompt, 4096), LLM_TIMEOUT);
+    rawAnswer = await withTimeout(llm.generateJson(prompt, 4096, 1024), LLM_TIMEOUT);
   } catch (err) {
     console.error('[ask] LLM call failed:', err instanceof Error ? err.message : err);
     return Response.json({ error: "Attune couldn't finish that thought — ask again." }, { status: 502 });
@@ -270,7 +290,7 @@ export async function POST(request: Request) {
 
     let retryRaw: string;
     try {
-      retryRaw = await withTimeout(llm.generateJson(retryPrompt, 4096), LLM_TIMEOUT);
+      retryRaw = await withTimeout(llm.generateJson(retryPrompt, 4096, 1024), LLM_TIMEOUT);
     } catch (err) {
       console.error('[ask] Retry LLM call failed:', err instanceof Error ? err.message : err);
       return Response.json({ error: "Attune couldn't finish that thought — ask again." }, { status: 502 });
