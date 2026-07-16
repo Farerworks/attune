@@ -76,6 +76,17 @@ function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number)
   return lines;
 }
 
+function computeBlobPoints(
+  elements: Record<string, number>,
+  cx: number, cy: number, r: number, normMax: number,
+): Array<{ x: number; y: number }> {
+  return EL_ORDER.map((k, i) => {
+    const val = Math.max(0, elements[k] ?? 0);
+    const ratio = 0.12 + 0.88 * (val / normMax);
+    return { x: cx + r * ratio * Math.cos(ANGLES[i]), y: cy + r * ratio * Math.sin(ANGLES[i]) };
+  });
+}
+
 function drawRadarLayer(
   ctx: CanvasRenderingContext2D,
   cx: number, cy: number, r: number,
@@ -97,12 +108,23 @@ function drawRadarLayer(
     ctx.stroke();
   });
 
+  // Axis labels
+  ctx.font = '400 30px "Space Mono"';
+  ctx.letterSpacing = '4px';
+  ctx.fillStyle = 'rgba(154,143,124,0.95)';
+  ctx.textBaseline = 'middle';
+  EL_ORDER.forEach((k, i) => {
+    const lx = cx + (r + 58) * Math.cos(ANGLES[i]);
+    const ly = cy + (r + 58) * Math.sin(ANGLES[i]);
+    ctx.textAlign = Math.cos(ANGLES[i]) > 0.3 ? 'left' : Math.cos(ANGLES[i]) < -0.3 ? 'right' : 'center';
+    ctx.fillText(k, lx, ly);
+  });
+  ctx.letterSpacing = '0px';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+
   for (const { elements, color } of blobs) {
-    const pts = EL_ORDER.map((k, i) => {
-      const val = Math.max(0, elements[k] ?? 0);
-      const ratio = 0.12 + 0.88 * (val / normMax);
-      return { x: cx + r * ratio * Math.cos(ANGLES[i]), y: cy + r * ratio * Math.sin(ANGLES[i]) };
-    });
+    const pts = computeBlobPoints(elements, cx, cy, r, normMax);
 
     const n = pts.length;
     ctx.beginPath();
@@ -148,16 +170,23 @@ function drawShareCard(
   ctx.fillRect(0, 0, W, H);
 
   // 2. Background radar (offscreen → composite at 55%)
+  const theirEl = reading.themChart?.dayMaster?.element?.toLowerCase() ?? '';
   if (reading.myChart && reading.themChart) {
-    const theirEl = reading.themChart.dayMaster.element.toLowerCase();
     const bgCanvas = document.createElement('canvas');
     bgCanvas.width = W; bgCanvas.height = H;
     const bgCtx = bgCanvas.getContext('2d');
     if (bgCtx) {
-      drawRadarLayer(bgCtx, 540, 1050, 575, [
+      const blobs: Array<{ elements: Record<string, number>; color: string }> = [
         { elements: reading.myChart.elements, color: '#D96A45' },
         { elements: reading.themChart.elements, color: DARK_TONES[theirEl] ?? '#AEB4B8' },
-      ]);
+      ];
+      const normMax = Math.max(...blobs.flatMap(b => EL_ORDER.map(k => b.elements[k] ?? 0)), 3);
+      const allPts = blobs.flatMap(b => computeBlobPoints(b.elements, 540, 1050, 575, normMax));
+      const mx = allPts.reduce((s, p) => s + p.x, 0) / allPts.length;
+      const my = allPts.reduce((s, p) => s + p.y, 0) / allPts.length;
+      const clamp = (v: number) => Math.max(-80, Math.min(80, v));
+      const dx = clamp(540 - mx), dy = clamp(1050 - my);
+      drawRadarLayer(bgCtx, 540 + dx, 1050 + dy, 575, blobs);
     }
     ctx.save();
     ctx.globalAlpha = 0.55;
@@ -232,6 +261,27 @@ function drawShareCard(
     ctx.fillText(resonanceText, pillX + 26, pillY + pillH / 2);
     ctx.textBaseline = 'alphabetic';
     ctx.letterSpacing = '0px';
+  }
+
+  // Name legend (only when the radar block rendered)
+  if (reading.myChart && reading.themChart) {
+    const legend: Array<{ color: string; label: string }> = [
+      { color: '#D96A45', label: myName || myArchetype?.name || 'me' },
+      { color: DARK_TONES[theirEl] ?? '#AEB4B8', label: theirName || theirArchetype?.name || 'them' },
+    ];
+    ctx.font = '400 30px "Space Mono"';
+    ctx.letterSpacing = '2px';
+    ctx.textBaseline = 'middle';
+    let lx = PAD + 10;
+    for (const item of legend) {
+      ctx.beginPath(); ctx.arc(lx, 780, 10, 0, Math.PI * 2);
+      ctx.fillStyle = item.color; ctx.fill();
+      ctx.fillStyle = '#9A8F7C';
+      ctx.fillText(item.label, lx + 24, 780);
+      lx += 24 + ctx.measureText(item.label).width + 56;
+    }
+    ctx.letterSpacing = '0px';
+    ctx.textBaseline = 'alphabetic';
   }
 
   // Quote, rotated –1.5°
