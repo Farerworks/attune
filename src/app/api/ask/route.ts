@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { calculateSaju, getDailyPillars } from '@/lib/saju';
 import type { SajuChart, DailyPillar } from '@/lib/saju';
 import { getArchetype, getElementRelationship, localeVoiceBlock } from '@/lib/interpretGuide';
+import { formatChart } from '@/lib/briefing';
 import { createLlmProvider, type ChatTurn } from '@/lib/llm';
 import { checkRateLimit } from '@/lib/rateLimit';
 
@@ -53,7 +54,9 @@ function buildAskSystem(
   let chartBlock = '';
   if (mode !== 'general') {
     const myArch = getArchetype(meChart.dayMaster.stem);
-    chartBlock = `ME — ${meName ? meName + ' · ' : ''}${meChart.dayMaster.stem} (${myArch.name}), ${meChart.dayMaster.element} ${meChart.dayMaster.polarity}
+    chartBlock = `${formatChart(meChart, `ME${meName ? ` — ${meName}` : ''}`)}
+
+ME ARCHETYPE: ${myArch.name}
   Drive: ${myArch.coreDrive}
   Communication: ${myArch.communication}
   Under stress: ${myArch.stress}`;
@@ -61,12 +64,20 @@ function buildAskSystem(
     if (mode === 'person' && themChart) {
       const themArch  = getArchetype(themChart.dayMaster.stem);
       const elemAxis  = getElementRelationship(meChart.dayMaster.stem, themChart.dayMaster.stem);
-      chartBlock += `\n\nTHEM — ${themName ? themName + ' · ' : ''}${themChart.dayMaster.stem} (${themArch.name}), ${themChart.dayMaster.element} ${themChart.dayMaster.polarity}
+      chartBlock += `
+
+${formatChart(themChart, `THEM${themName ? ` — ${themName}` : ''}`)}
+
+THEM ARCHETYPE: ${themArch.name}
   Drive: ${themArch.coreDrive}
   Communication: ${themArch.communication}
   Under stress: ${themArch.stress}
 
 ELEMENT AXIS (ME → THEM): ${elemAxis}`;
+      if (themChart.pillarsKnown === 6) {
+        chartBlock += `
+Note: their birth time is unknown — 6 of 8 pillars available. Avoid overconfident assertions.`;
+      }
 
       if (briefing) {
         const dyn = briefing.dynamic as Record<string, unknown> | undefined;
@@ -139,7 +150,7 @@ Respond ONLY with valid JSON (no markdown fences, no extra keys). Choose ONE sha
 
   return `${persona}
 
-${chartBlock ? `SAJU CONTEXT:\n${chartBlock}\n\n` : ''}DAILY PILLARS — NEXT 14 DAYS (server-computed, do not modify):
+${chartBlock ? `SAJU CONTEXT:\n${chartBlock}\n\nRead the WHOLE chart — all pillars and the element balance — not just the day master. Weave at most one or two specific chart details into an answer when they genuinely matter; never recite or dump the chart.\n\n` : ''}DAILY PILLARS — NEXT 14 DAYS (server-computed, do not modify):
 ${pillarsText}
 Use the daily pillars ONLY when the question is about timing or when to take action.
 

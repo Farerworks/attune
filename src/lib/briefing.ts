@@ -48,7 +48,7 @@ export type Briefing = z.infer<typeof BriefingSchema>;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function formatChart(chart: SajuChart, label: string): string {
+export function formatChart(chart: SajuChart, label: string): string {
   const p = chart.pillars;
   const el = chart.elements;
 
