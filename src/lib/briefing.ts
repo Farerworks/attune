@@ -175,7 +175,7 @@ CONTENT RULES
 8. No medical, legal, or investment advice.
 9. Tone: emotionally intelligent, practical, zero mystical framing.
 10. Every insight must be written as a coupling of YOU and THEM — address the reader as 'you', refer to the other person by name or pronoun. Prefer 'She warms up when you text first' over 'She tends to warm up slowly'. Generic single-person statements are a failure.
-11. starters: exactly 3 questions the USER would naturally ask Attune about THIS person in THIS situation — first person, specific (use the name and the situation's key event when given), 8–14 words each. One about how they'll likely react, one about what to say or do, one about timing. Questions are addressed to Attune, never to the other person.
+11. starters: exactly 3 questions the USER would naturally ask Attune about THIS person in THIS situation — first person, specific (use the name and the situation's key event when given). Each must fit a small tappable chip: Korean 25 characters or fewer, English 8 words or fewer — trim politeness, keep the core ask (e.g. "영진이 선물 좋아할까?", not "영진이가 제 선물에 대해 어떻게 반응할까요?"). One about how they'll likely react, one about what to say or do, one about timing. Questions are addressed to Attune, never to the other person.
 
 ${localeVoiceBlock()}
 
