@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { clearAllData } from '@/lib/store';
 import { ChevronIcon } from '@/components/icons/ChevronIcon';
 import { TabTopBar } from '@/components/TabTopBar';
+import { getSyncSession, pushBackup, pullBackup, deleteBackup, applySnapshot, LS_LAST_BACKUP, type SyncSession } from '@/lib/sync';
 
 // beforeinstallprompt is non-standard — define locally
 type BeforeInstallPromptEvent = Event & {
@@ -168,11 +169,43 @@ function Row({ label, href, danger, onClick }: RowProps) {
   );
 }
 
+function BackupRow({ label, description, onClick }: { label: string; description?: string | null; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      className="pressable"
+      onClick={onClick}
+      style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        width: '100%', padding: '16px 20px',
+        background: 'var(--c-card)', border: 'none',
+        borderBottom: '1px solid var(--c-hairline)',
+        cursor: 'pointer', textAlign: 'left',
+      }}
+    >
+      <span>
+        <span style={{ display: 'block', fontFamily: 'var(--font-inter)', fontSize: 15, color: 'var(--c-ink)' }}>
+          {label}
+        </span>
+        {description && (
+          <span style={{ display: 'block', fontFamily: 'var(--font-inter)', fontSize: 12, color: 'var(--c-muted)', marginTop: 2 }}>
+            {description}
+          </span>
+        )}
+      </span>
+      <ChevronIcon width={18} height={18} style={{ color: 'var(--c-muted)', flexShrink: 0 }} />
+    </button>
+  );
+}
+
 export default function SettingsPage() {
   const router = useRouter();
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showInstallSheet, setShowInstallSheet] = useState(false);
   const [showAboutSheet, setShowAboutSheet] = useState(false);
+  const [syncSession, setSyncSession] = useState<SyncSession | null>(null);
+  const [backupDesc, setBackupDesc] = useState<string | null>(null);
+  const [restoreMsg, setRestoreMsg] = useState<string | null>(null);
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -181,6 +214,14 @@ export default function SettingsPage() {
     };
     window.addEventListener('beforeinstallprompt', handler);
     return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  useEffect(() => {
+    getSyncSession().then(setSyncSession);
+    try {
+      const stored = localStorage.getItem(LS_LAST_BACKUP);
+      if (stored) setBackupDesc(`Last backup: ${new Date(stored).toLocaleString()}`);
+    } catch {}
   }, []);
 
   async function handleAddToHome() {
@@ -201,10 +242,41 @@ export default function SettingsPage() {
     }
   }
 
-  function handleClearData() {
+  async function handleClearData() {
     if (window.confirm('Clear all readings and your birth info? This cannot be undone.')) {
+      if (syncSession) { await deleteBackup(); }
       clearAllData();
       router.push('/');
+    }
+  }
+
+  function handleSignIn() {
+    window.location.href = '/api/auth/signin?callbackUrl=/settings';
+  }
+
+  async function handleBackupNow() {
+    const res = await pushBackup();
+    if (res.ok) {
+      setBackupDesc(`Last backup: ${new Date(res.updatedAt).toLocaleString()}`);
+    } else {
+      setBackupDesc(res.status === 503 ? "Backup isn't available right now." : 'Backup failed — try again.');
+    }
+  }
+
+  async function handleRestore() {
+    const res = await pullBackup();
+    if (res === null) {
+      setRestoreMsg('No backup found.');
+      return;
+    }
+    if (!res.ok) {
+      setRestoreMsg('Backup failed — try again.');
+      return;
+    }
+    const dateStr = new Date(res.updatedAt).toLocaleDateString();
+    if (window.confirm(`Replace the data on this phone with your backup from ${dateStr}?`)) {
+      applySnapshot(res.payload);
+      window.location.href = '/you';
     }
   }
 
@@ -227,7 +299,47 @@ export default function SettingsPage() {
         <Row label="Share Attune" onClick={handleShare} />
         <Row label="Send feedback" href="mailto:farerworks@gmail.com?subject=Attune%20feedback" />
         <Row label="About Attune" onClick={() => setShowAboutSheet(true)} />
-        <Row label="Clear all data" danger onClick={handleClearData} />
+
+        {/* Backup section */}
+        {syncSession ? (
+          <>
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '16px 20px', background: 'var(--c-card)',
+              borderBottom: '1px solid var(--c-hairline)',
+            }}>
+              <span style={{
+                fontFamily: 'var(--font-inter)', fontSize: 15, color: 'var(--c-ink)',
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              }}>
+                {syncSession.user?.email ?? 'Signed in'}
+              </span>
+              <a
+                href="/api/auth/signout?callbackUrl=/settings"
+                className="pressable"
+                style={{
+                  fontFamily: 'var(--font-inter)', fontSize: 13, color: 'var(--c-muted)',
+                  border: '1px solid var(--c-hairline)', borderRadius: 999,
+                  padding: '4px 12px', textDecoration: 'none', flexShrink: 0, marginLeft: 12,
+                }}
+              >
+                Sign out
+              </a>
+            </div>
+            <BackupRow label="Back up now" description={backupDesc} onClick={() => void handleBackupNow()} />
+            <BackupRow label="Restore from backup" description={restoreMsg} onClick={() => void handleRestore()} />
+          </>
+        ) : (
+          <BackupRow label="Back up with Google" description="Keep your readings if you switch phones." onClick={handleSignIn} />
+        )}
+        <p style={{
+          fontFamily: 'var(--font-inter)', fontSize: 12, color: 'var(--c-muted)',
+          padding: '10px 20px 0', margin: 0,
+        }}>
+          Backup is optional. Your data stays on this phone unless you turn it on.
+        </p>
+
+        <Row label="Clear all data" danger onClick={() => void handleClearData()} />
       </div>
     </div>
     </>
