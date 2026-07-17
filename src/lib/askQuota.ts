@@ -1,6 +1,6 @@
 // ── Ask quota & thread-storage constants ──────────────────────────────────────
 
-export const DAILY_QUOTA_MAX  = 5;
+export const DAILY_QUOTA_MAX  = 50;
 export const LS_THREADS_KEY   = 'attune.ask.threads';
 export const LS_QUOTA_KEY     = 'attune.ask.quota';
 export const LS_MEMORY_KEY    = 'attune.ask.memory';

@@ -69,9 +69,9 @@ function saveThreads(threads: Threads): void {
 // ── Exhausted variants ────────────────────────────────────────────────────────
 
 const EXHAUSTED = [
-  "That's all for today. Five more tomorrow.",
+  "That's all for today. Fresh questions tomorrow.",
   "You've used today's questions. Back at midnight.",
-  "That's your five for today. More tomorrow.",
+  "Done for today. Come back tomorrow.",
 ];
 
 // ── Quick prompts ─────────────────────────────────────────────────────────────

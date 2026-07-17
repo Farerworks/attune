@@ -9,7 +9,7 @@ import { checkRateLimit } from '@/lib/rateLimit';
 export const maxDuration = 60;
 
 const LLM_TIMEOUT = 55_000;
-const RATE_LIMIT  = 10;
+const RATE_LIMIT  = 30;
 const RATE_WINDOW = 60 * 60 * 1000;
 
 const BANNED = ['weakness', 'exploit', 'leverage against', 'manipulate', 'vulnerable to', '약점', '조종', '공략'];
