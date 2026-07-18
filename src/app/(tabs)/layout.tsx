@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { TabBar } from '@/components/TabBar';
+import { AutoBackup } from '@/components/AutoBackup';
 
 export default function TabsLayout({ children }: { children: ReactNode }) {
   return (
@@ -8,6 +9,7 @@ export default function TabsLayout({ children }: { children: ReactNode }) {
         {children}
       </main>
       <TabBar />
+      <AutoBackup />
     </>
   );
 }
