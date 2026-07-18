@@ -135,10 +135,11 @@ interface RowProps {
   label: string;
   href?: string;
   danger?: boolean;
+  chevron?: boolean;
   onClick?: () => void;
 }
 
-function Row({ label, href, danger, onClick }: RowProps) {
+function Row({ label, href, danger, chevron, onClick }: RowProps) {
   const style: CSSProperties = {
     display: 'flex',
     alignItems: 'center',
@@ -165,6 +166,7 @@ function Row({ label, href, danger, onClick }: RowProps) {
   return (
     <button type="button" className="pressable" style={{ ...style, width: '100%', border: 'none' as const, textAlign: 'left' as const }} onClick={onClick}>
       <span>{label}</span>
+      {chevron && <ChevronIcon width={18} height={18} style={{ color: 'var(--c-muted)' }} />}
     </button>
   );
 }
@@ -298,7 +300,7 @@ export default function SettingsPage() {
         <Row label="Add to Home Screen" onClick={handleAddToHome} />
         <Row label="Share Attune" onClick={handleShare} />
         <Row label="Send feedback" href="mailto:farerworks@gmail.com?subject=Attune%20feedback" />
-        <Row label="About Attune" onClick={() => setShowAboutSheet(true)} />
+        <Row label="About Attune" chevron onClick={() => setShowAboutSheet(true)} />
 
         {/* Backup section */}
         {syncSession ? (

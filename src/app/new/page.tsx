@@ -182,7 +182,7 @@ export default function NewPage() {
             fontFamily: "var(--font-fraunces,Georgia,serif)",
             fontSize: 30, lineHeight: 1.2, letterSpacing: '-0.01em', color: 'var(--c-ink)', marginBottom: 32,
           }}>
-            Now, them.
+            Their turn.
           </h1>
 
           {/* Name */}
@@ -281,8 +281,11 @@ export default function NewPage() {
           <button
             type="submit"
             disabled={loading || !date || !relationship}
-            className="btn-primary pressable"
-            style={{ width: '100%' }}
+            className={loading || !date || !relationship ? 'btn-primary' : 'btn-primary pressable'}
+            style={{
+              width: '100%',
+              ...(loading || !date || !relationship ? { background: 'var(--c-hairline)', color: 'var(--c-muted)', cursor: 'default', opacity: 1 } : {}),
+            }}
           >
             Get my briefing
           </button>

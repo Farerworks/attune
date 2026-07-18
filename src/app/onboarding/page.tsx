@@ -202,8 +202,11 @@ export default function OnboardingPage() {
         <button
           type="submit"
           disabled={!date}
-          className="btn-primary pressable"
-          style={{ width: '100%' }}
+          className={!date ? 'btn-primary' : 'btn-primary pressable'}
+          style={{
+            width: '100%',
+            ...(!date ? { background: 'var(--c-hairline)', color: 'var(--c-muted)', cursor: 'default', opacity: 1 } : {}),
+          }}
         >
           Continue →
         </button>
