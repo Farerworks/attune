@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { getProfile, setProfile } from '@/lib/store';
 import { SmartBackLink } from '@/components/InAppNav';
+import { RestoreFromBackup } from '@/components/RestoreFromBackup';
 
 const GENDER_OPTIONS = ['She/Her', 'He/Him', 'They/Them'];
 
@@ -14,6 +15,7 @@ export default function OnboardingPage() {
   const [date, setDate]       = useState('');
   const [time, setTime]       = useState('');
   const [gender, setGender]   = useState('');
+  const [showRestore, setShowRestore] = useState(false);
 
   useEffect(() => {
     const profile = getProfile();
@@ -23,6 +25,8 @@ export default function OnboardingPage() {
       setDate(profile.date);
       setTime(profile.time ?? '');
       setGender(profile.gender ?? '');
+    } else {
+      setShowRestore(true);
     }
   }, []);
 
@@ -204,6 +208,8 @@ export default function OnboardingPage() {
           Continue →
         </button>
       </form>
+
+      {showRestore && <RestoreFromBackup />}
     </div>
   );
 }
