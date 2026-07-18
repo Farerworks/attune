@@ -6,6 +6,8 @@ import { addReading, getProfile, type BriefingData, type ChartSummary } from '@/
 import { CastingRitual } from '@/components/CastingRitual';
 import { ConditionalTabBar } from '@/components/InAppNav';
 import { friendlyError } from '@/lib/errorCopy';
+import { DateInput } from '@/components/DateInput';
+import { TimeInput } from '@/components/TimeInput';
 
 const RELATIONSHIP_CHIPS = [
   'Crush',
@@ -205,13 +207,7 @@ export default function NewPage() {
             <label htmlFor="their-dob" className="t-label" style={{ display: 'block', marginBottom: 8 }}>
               Their date of birth <span style={{ color: 'var(--c-vermilion)' }}>*</span>
             </label>
-            <input
-              id="their-dob"
-              type="date"
-              className="field-input"
-              value={date}
-              onChange={e => setDate(e.target.value)}
-            />
+            <DateInput id="their-dob" value={date} onChange={setDate} />
           </div>
 
           {/* Their birth time */}
@@ -219,13 +215,7 @@ export default function NewPage() {
             <label htmlFor="their-time" className="t-label" style={{ display: 'block', marginBottom: 8 }}>
               Their birth time <span style={{ color: 'var(--c-muted)', fontWeight: 400 }}>(optional)</span>
             </label>
-            <input
-              id="their-time"
-              type="time"
-              className="field-input"
-              value={time}
-              onChange={e => setTime(e.target.value)}
-            />
+            <TimeInput id="their-time" value={time} onChange={setTime} />
           </div>
 
           {/* Relationship chips */}

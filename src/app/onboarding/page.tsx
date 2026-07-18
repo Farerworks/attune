@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { getProfile, setProfile } from '@/lib/store';
 import { SmartBackLink } from '@/components/InAppNav';
 import { RestoreFromBackup } from '@/components/RestoreFromBackup';
+import { DateInput } from '@/components/DateInput';
+import { TimeInput } from '@/components/TimeInput';
 
 const GENDER_OPTIONS = ['She/Her', 'He/Him', 'They/Them'];
 
@@ -123,14 +125,7 @@ export default function OnboardingPage() {
           >
             Date of birth <span style={{ color: 'var(--c-vermilion)' }}>*</span>
           </label>
-          <input
-            id="dob"
-            type="date"
-            required
-            className="field-input"
-            value={date}
-            onChange={e => setDate(e.target.value)}
-          />
+          <DateInput id="dob" value={date} onChange={setDate} />
         </div>
 
         {/* Birth time */}
@@ -149,13 +144,7 @@ export default function OnboardingPage() {
           >
             Birth time <span style={{ color: 'var(--c-muted)', fontWeight: 400 }}>(optional)</span>
           </label>
-          <input
-            id="btime"
-            type="time"
-            className="field-input"
-            value={time}
-            onChange={e => setTime(e.target.value)}
-          />
+          <TimeInput id="btime" value={time} onChange={setTime} />
         </div>
         <p
           style={{
