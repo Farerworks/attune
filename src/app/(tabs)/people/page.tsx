@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useReadings, ELEMENT_COLORS } from '@/lib/store';
+import { useReadings, getProfile, ELEMENT_COLORS } from '@/lib/store';
 import { TabTopBar } from '@/components/TabTopBar';
 import { getArchetype, ARCHETYPE_LOCALE } from '@/lib/interpretGuide';
 import type { TenStem, Element } from '@/lib/saju';
 import { GlyphAvatar } from '@/components/ArchetypeGlyph';
+import { TodayCard } from '@/components/TodayCard';
 import { formatDate } from '@/lib/format';
 import type { TodayNote } from '@/lib/today';
 
@@ -15,9 +16,10 @@ const isKo = (s?: string) => !!s && /[가-힣]/.test(s);
 export default function PeoplePage() {
   const [readings] = useReadings();
   const [greeting,   setGreeting]   = useState("Who's on your mind?");
-  const [todayEl,    setTodayEl]    = useState<Element | null>(null);
-  const [todayLabel, setTodayLabel] = useState('');
   const [todayNotes, setTodayNotes] = useState<Record<string, TodayNote>>({});
+  const [myTodayNote,      setMyTodayNote]      = useState<TodayNote | null>(null);
+  const [myTodayEmoji,     setMyTodayEmoji]     = useState<string | undefined>(undefined);
+  const [myTodayDateLabel, setMyTodayDateLabel] = useState('');
 
   useEffect(() => {
     const h = new Date().getHours();
@@ -30,23 +32,32 @@ export default function PeoplePage() {
     );
   }, []);
 
+  // My today card — computed regardless of readings count (shown even in empty state)
+  useEffect(() => {
+    const profile = getProfile();
+    if (!profile) return;
+    Promise.all([import('@/lib/saju'), import('@/lib/today')])
+      .then(([{ calculateSaju }, { getMyTodayCard }]) => {
+        try {
+          const c = calculateSaju({ date: profile.date, time: profile.time });
+          const korean = typeof navigator !== 'undefined' && navigator.language.startsWith('ko');
+          const myToday = getMyTodayCard(c.dayMaster.element, korean);
+          setMyTodayNote(myToday.note);
+          setMyTodayEmoji(myToday.emoji);
+          setMyTodayDateLabel(myToday.dateLabel);
+        } catch { /* chart calc failed — card simply won't show */ }
+      });
+  }, []);
+
   useEffect(() => {
     if (readings.length === 0) return;
     import('@/lib/today').then(({ getTodayNote, localDateStr }) => {
       const ds = localDateStr();
-      const label = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toUpperCase();
       const notes: Record<string, TodayNote> = {};
-      let el: Element | null = null;
       for (const r of readings) {
         const rEl = r.themChart?.dayMaster?.element?.toLowerCase() as Element | undefined;
-        if (rEl) {
-          const note = getTodayNote(rEl, 'them', ds, r.name);
-          notes[r.id] = note;
-          if (!el) el = note.todayElement;
-        }
+        if (rEl) notes[r.id] = getTodayNote(rEl, 'them', ds, r.name);
       }
-      setTodayEl(el);
-      setTodayLabel(label);
       setTodayNotes(notes);
     });
   }, [readings]);
@@ -59,6 +70,12 @@ export default function PeoplePage() {
         <header style={{ padding: '20px 20px 12px', borderBottom: '1px solid var(--c-hairline)' }}>
           <h1 className="t-h2">{greeting}</h1>
         </header>
+      )}
+
+      {myTodayNote && (
+        <div style={{ padding: '16px 20px 0' }}>
+          <TodayCard note={myTodayNote} dateLabel={myTodayDateLabel} emoji={myTodayEmoji} />
+        </div>
       )}
 
       {readings.length === 0 ? (
@@ -163,27 +180,6 @@ export default function PeoplePage() {
         </div>
       ) : (
         <>
-          {/* Today element anchor — appears above list when today element is known */}
-          {todayEl && (
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 8,
-              padding: '10px 20px',
-              borderBottom: '1px solid var(--c-hairline)',
-            }}>
-              <div style={{
-                width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
-                background: ELEMENT_COLORS[todayEl]?.fg ?? '#948B7C',
-              }} />
-              <span style={{
-                fontFamily: "var(--font-space-mono,'Courier New')",
-                fontSize: 10, letterSpacing: '0.08em', color: 'var(--c-muted)',
-                textTransform: 'uppercase',
-              }}>
-                {todayLabel} · TODAY&apos;S ELEMENT: {todayEl.toUpperCase()}
-              </span>
-            </div>
-          )}
-
           {/* Reading list */}
           <ul className="stagger" style={{ listStyle: 'none', margin: 0, padding: '8px 0' }}>
           {readings.map((reading, i) => {

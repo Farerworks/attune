@@ -7,8 +7,9 @@ import { getProfile, getReadings, ELEMENT_COLORS } from '@/lib/store';
 import type { TenStem } from '@/lib/saju';
 import { GlyphAvatar } from '@/components/ArchetypeGlyph';
 import { MyCardModal } from '@/components/MyCardModal';
+import { TodayCard } from '@/components/TodayCard';
 import type { TodayNote } from '@/lib/today';
-import { ELEMENT_INSIGHT, DAY_NOTE_LOCALE } from '@/lib/interpretGuide';
+import { ELEMENT_INSIGHT } from '@/lib/interpretGuide';
 import { formatDate } from '@/lib/format';
 import { ElementChart } from '@/components/ElementChart';
 import { SpectrumBar } from '@/components/SpectrumBar';
@@ -47,6 +48,8 @@ export default function YouPage() {
   const [error,       setError]       = useState<string | null>(null);
   const [mySpectrums, setMySpectrums] = useState<MySpectrums | null>(null);
   const [todayNote,   setTodayNote]   = useState<TodayNote | null>(null);
+  const [todayEmoji,     setTodayEmoji]     = useState<string | undefined>(undefined);
+  const [todayDateLabel, setTodayDateLabel] = useState('');
   const [reads,       setReads]       = useState(0);
   const [strong,      setStrong]      = useState(0);
   const [daysIn,      setDaysIn]      = useState(1);
@@ -59,7 +62,7 @@ export default function YouPage() {
     setProfile(p);
 
     Promise.all([import('@/lib/saju'), import('@/lib/interpretGuide'), import('@/lib/today')])
-      .then(([{ calculateSaju }, { getArchetype, ARCHETYPE_LOCALE, DAY_NOTE_LOCALE }, { getTodayNote, localDateStr, pickVariant }]) => {
+      .then(([{ calculateSaju }, { getArchetype, ARCHETYPE_LOCALE, DAY_NOTE_LOCALE }, { getMyTodayCard, localDateStr, pickVariant }]) => {
         try {
           const c   = calculateSaju({ date: p.date, time: p.time });
           const arc = getArchetype(c.dayMaster.stem);
@@ -94,7 +97,10 @@ export default function YouPage() {
             dayNoteEmoji: dayLocale?.emoji,
             dayNoteText,
           });
-          setTodayNote(getTodayNote(c.dayMaster.element, 'me', localDateStr(), undefined, korean));
+          const myToday = getMyTodayCard(c.dayMaster.element, korean, localDateStr());
+          setTodayNote(myToday.note);
+          setTodayEmoji(myToday.emoji);
+          setTodayDateLabel(myToday.dateLabel);
         } catch (e) {
           setError(e instanceof Error ? e.message : 'Could not calculate chart');
         }
@@ -124,14 +130,6 @@ export default function YouPage() {
     ? (['wood', 'fire', 'earth', 'metal', 'water'] as const).reduce((a, b) =>
         (chart.elements[b] ?? 0) > (chart.elements[a] ?? 0) ? b : a)
     : null;
-
-  const todayEmoji = todayNote ? DAY_NOTE_LOCALE[todayNote.branch]?.emoji : undefined;
-  const todayDateLabel = (() => {
-    const now = new Date();
-    if (korean) return `${now.getMonth() + 1}월 ${now.getDate()}일`;
-    const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
-    return `${months[now.getMonth()]} ${now.getDate()}`;
-  })();
 
   return (
     <>
@@ -224,31 +222,7 @@ export default function YouPage() {
 
             {/* ── Today card ───────────────────────────────────────────────── */}
             {todayNote && (
-              <div className="card" style={{ padding: '16px 18px', animationDelay: '30ms' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                  <div style={{
-                    width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
-                    background: todayNote.tone === 'good'
-                      ? '#C4502E'
-                      : (ELEMENT_COLORS[todayNote.todayElement]?.fg ?? '#948B7C'),
-                  }} />
-                  <span style={{
-                    fontFamily: "var(--font-space-mono,'Courier New')",
-                    fontSize: 10, letterSpacing: '0.14em',
-                    color: 'var(--c-muted)', textTransform: 'uppercase',
-                  }}>
-                    TODAY · {todayDateLabel}
-                  </span>
-                  {todayEmoji && <span style={{ fontSize: 13 }}>{todayEmoji}</span>}
-                </div>
-                <p style={{
-                  margin: 0,
-                  fontFamily: 'var(--font-fraunces,Georgia,serif)',
-                  fontSize: 17.5, lineHeight: 1.4, color: 'var(--c-ink)',
-                }}>
-                  {todayNote.line}
-                </p>
-              </div>
+              <TodayCard note={todayNote} dateLabel={todayDateLabel} emoji={todayEmoji} animationDelay="30ms" />
             )}
 
             {/* ── Share my card ────────────────────────────────────────────── */}

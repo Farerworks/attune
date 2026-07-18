@@ -1,5 +1,6 @@
 import type { Element } from './saju';
 import { getDailyPillars } from './saju';
+import { DAY_NOTE_LOCALE } from './interpretGuide';
 
 export type TodayTone = 'good' | 'soft' | 'neutral';
 
@@ -180,4 +181,30 @@ export function getTodayNote(
     line = THEM_NONAME[rel];
   }
   return { tone, line, todayElement: t, branch: pillar.branch };
+}
+
+// ── Shared "my today card" data (You tab + People tab) ─────────────────────────
+
+/** Formats today's date for the Today card label — shared so both tabs match. */
+export function todayDateLabel(korean: boolean, d?: Date): string {
+  const now = d ?? new Date();
+  if (korean) return `${now.getMonth() + 1}월 ${now.getDate()}일`;
+  const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+  return `${months[now.getMonth()]} ${now.getDate()}`;
+}
+
+export interface MyTodayCardData {
+  note: TodayNote;
+  emoji?: string;
+  dateLabel: string;
+}
+
+/** Computes the self ('me') Today card data — used by both You tab and People tab. */
+export function getMyTodayCard(element: Element, korean: boolean, date?: string): MyTodayCardData {
+  const note = getTodayNote(element, 'me', date, undefined, korean);
+  return {
+    note,
+    emoji: DAY_NOTE_LOCALE[note.branch]?.emoji,
+    dateLabel: todayDateLabel(korean),
+  };
 }
