@@ -9,6 +9,7 @@ import type { TenStem } from '@/lib/saju';
 import { GlyphAvatar } from '@/components/ArchetypeGlyph';
 import { TabTopBar } from '@/components/TabTopBar';
 import { pickVariant, localDateStr } from '@/lib/today';
+import { friendlyError } from '@/lib/errorCopy';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -65,6 +66,9 @@ function saveThreads(threads: Threads): void {
   }
   try { localStorage.setItem(LS_THREADS, JSON.stringify(capped)); } catch {}
 }
+
+/** Marks an error whose message is already a friendly, user-facing string */
+class DisplayError extends Error {}
 
 // ── Exhausted variants ────────────────────────────────────────────────────────
 
@@ -215,9 +219,13 @@ export default function AskPage() {
       const data = await res.json() as {
         answer?: { text?: string; parts?: Array<{ label: string; text: string }>; timing?: string; followUp?: string; memory?: string[] };
         error?: string;
+        retryAfterMinutes?: number;
       };
 
-      if (!res.ok) throw new Error(data.error ?? 'Something went wrong — try again.');
+      if (!res.ok) {
+        console.error('[ask] request failed:', data.error);
+        throw new DisplayError(friendlyError(res.status, data.retryAfterMinutes));
+      }
 
       const newLeft = incrementQuotaUsed();
       setLeft(newLeft);
@@ -244,7 +252,7 @@ export default function AskPage() {
         id:   crypto.randomUUID(),
         role: 'assistant',
         mode: selected === 'me' ? 'me' : selected === 'general' ? 'general' : 'person',
-        text: err instanceof Error ? err.message : 'Something went wrong — try again.',
+        text: err instanceof DisplayError ? err.message : friendlyError(null),
       };
       const final        = [...withUser, errorMsg];
       const finalThreads = { ...newThreads, [selected]: final };

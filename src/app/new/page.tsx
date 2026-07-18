@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { addReading, getProfile, type BriefingData, type ChartSummary } from '@/lib/store';
 import { CastingRitual } from '@/components/CastingRitual';
 import { ConditionalTabBar } from '@/components/InAppNav';
+import { friendlyError } from '@/lib/errorCopy';
 
 const RELATIONSHIP_CHIPS = [
   'Crush',
@@ -26,6 +27,9 @@ function cleanTime(t: string | undefined): string | undefined {
   if (!t) return undefined;
   return /^\d{2}:\d{2}$/.test(t) ? t : undefined;
 }
+
+/** Marks an error whose message is already a friendly, user-facing string */
+class DisplayError extends Error {}
 
 export default function NewPage() {
   const router = useRouter();
@@ -90,11 +94,14 @@ export default function NewPage() {
 
       const ct = res.headers.get('content-type') ?? '';
       if (!ct.includes('application/json')) {
-        throw new Error('Something went wrong — try again in a moment');
+        throw new DisplayError(friendlyError(res.status));
       }
 
       const data: ApiResponse = await res.json();
-      if (!res.ok) throw new Error(data.error ?? 'Something went wrong — try again in a moment');
+      if (!res.ok) {
+        console.error('[new] briefing request failed:', data.error);
+        throw new DisplayError(friendlyError(res.status, (data as { retryAfterMinutes?: number }).retryAfterMinutes));
+      }
 
       const id = crypto.randomUUID();
       addReading({
@@ -116,7 +123,7 @@ export default function NewPage() {
     } catch (err) {
       setRitualActive(false);
       setRitualReady(false);
-      setError(err instanceof Error ? err.message : 'Something went wrong');
+      setError(err instanceof DisplayError ? err.message : friendlyError(null));
       setLoading(false);
     }
   }
