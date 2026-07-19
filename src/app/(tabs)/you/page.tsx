@@ -3,11 +3,13 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { getProfile, getReadings, ELEMENT_COLORS } from '@/lib/store';
+import { getProfile, getReadings, getDaysIn, ELEMENT_COLORS } from '@/lib/store';
+import type { ChartSummary } from '@/lib/store';
 import type { TenStem } from '@/lib/saju';
 import { GlyphAvatar } from '@/components/ArchetypeGlyph';
 import { MyCardModal } from '@/components/MyCardModal';
 import { TodayCard } from '@/components/TodayCard';
+import { EightCharactersCard } from '@/components/EightCharactersCard';
 import { SettingsIcon } from '@/components/icons/SettingsIcon';
 import type { TodayNote } from '@/lib/today';
 import { ELEMENT_INSIGHT } from '@/lib/interpretGuide';
@@ -33,6 +35,7 @@ interface ChartData {
   displayTagline: string;
   dayNoteEmoji?: string;
   dayNoteText?: string;
+  pillars: ChartSummary['pillars'];
 }
 
 interface MySpectrums {
@@ -97,6 +100,7 @@ export default function YouPage() {
             displayTagline,
             dayNoteEmoji: dayLocale?.emoji,
             dayNoteText,
+            pillars: c.pillars,
           });
           const myToday = getMyTodayCard(c.dayMaster.element, korean, localDateStr());
           setTodayNote(myToday.note);
@@ -119,10 +123,7 @@ export default function YouPage() {
         // Collection stats
         setReads(readings.length);
         setStrong(readings.filter(r => r.briefing?.dynamic?.resonance === 'strong-current').length);
-        const stamps = [p.createdAt, ...readings.map(r => r.createdAt)]
-          .filter(Boolean)
-          .map(s => new Date(s as string).getTime());
-        setDaysIn(stamps.length ? Math.floor((Date.now() - Math.min(...stamps)) / 86400000) + 1 : 1);
+        setDaysIn(getDaysIn());
       })
       .catch(e => setError(String(e)));
   }, [router]);
@@ -226,6 +227,9 @@ export default function YouPage() {
                 {reads} READS · {daysIn} DAYS IN · {strong} STRONG CURRENTS
               </div>
             </div>
+
+            {/* ── Eight characters ─────────────────────────────────────────── */}
+            <EightCharactersCard pillars={chart.pillars} pillarsKnown={chart.pillarsKnown as 6 | 8} />
 
             {/* ── Today card ───────────────────────────────────────────────── */}
             {todayNote && (

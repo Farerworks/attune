@@ -135,6 +135,16 @@ export function getReading(id: string): Reading | null {
   return getReadings().find(r => r.id === id) ?? null;
 }
 
+/** Days since the earliest of profile.createdAt or any reading's createdAt (min 1). Shared by You tab + Home. */
+export function getDaysIn(): number {
+  const profile = getProfile();
+  const readings = getReadings();
+  const stamps = [profile?.createdAt, ...readings.map(r => r.createdAt)]
+    .filter(Boolean)
+    .map(s => new Date(s as string).getTime());
+  return stamps.length ? Math.floor((Date.now() - Math.min(...stamps)) / 86400000) + 1 : 1;
+}
+
 export function deleteReading(id: string): void {
   safeSet(READINGS_KEY, getReadings().filter(r => r.id !== id));
 }

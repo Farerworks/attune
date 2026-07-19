@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useReadings, getProfile, ELEMENT_COLORS } from '@/lib/store';
+import { useReadings, getProfile, getDaysIn, ELEMENT_COLORS } from '@/lib/store';
 import { TabTopBar } from '@/components/TabTopBar';
 import { TodayCard } from '@/components/TodayCard';
 import { DoIcon } from '@/components/icons/DoIcon';
@@ -46,6 +46,7 @@ export default function HomePage() {
   const [flowDays, setFlowDays] = useState<FlowDay[]>([]);
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [reachOut, setReachOut] = useState<ReachOutPerson[]>([]);
+  const [dayCount, setDayCount] = useState<number | null>(null);
 
   useEffect(() => {
     const h = new Date().getHours();
@@ -56,6 +57,13 @@ export default function HomePage() {
         ? "Who's on your mind this morning?"
         : "Who's on your mind?"
     );
+  }, []);
+
+  // DAY N — hidden without a known start date (profile.createdAt)
+  useEffect(() => {
+    const profile = getProfile();
+    if (!profile?.createdAt) return;
+    setDayCount(getDaysIn());
   }, []);
 
   // My today card + Do/Don't + 14-day flow — same chart, computed once
@@ -128,6 +136,16 @@ export default function HomePage() {
       <header style={{ padding: '20px 20px 12px', borderBottom: '1px solid var(--c-hairline)' }}>
         <h1 className="t-h2">{greeting}</h1>
       </header>
+
+      {dayCount !== null && (
+        <p style={{
+          margin: 0, padding: '14px 20px 0',
+          fontFamily: 'var(--font-space-mono)', fontSize: 9.5, letterSpacing: '0.14em',
+          textTransform: 'uppercase', color: 'var(--c-muted)',
+        }}>
+          DAY {dayCount} WITH ATTUNE
+        </p>
+      )}
 
       {myTodayNote && (
         <div style={{ padding: '16px 20px 0' }}>
