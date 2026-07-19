@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { isLeapYear, daysInMonth, isValidDate, parseDateValue, formatDateValue } from './DateInput';
+import {
+  isLeapYear, daysInMonth, isValidDate, parseDateValue, formatDateValue,
+  padSegment, applyMonthInstantConfirm, applyDayInstantConfirm,
+} from './DateInput';
 
 describe('isLeapYear', () => {
   it('2024 is a leap year', () => {
@@ -81,5 +84,44 @@ describe('formatDateValue', () => {
   });
   it('returns empty string for an invalid date (Feb 30)', () => {
     expect(formatDateValue('02', '30', '2023')).toBe('');
+  });
+});
+
+describe('padSegment (blur-time normalization)', () => {
+  it('pads a single digit with a leading zero', () => {
+    expect(padSegment('2')).toBe('02');
+  });
+  it('leaves a complete 2-digit value alone', () => {
+    expect(padSegment('12')).toBe('12');
+  });
+  it('leaves an empty value alone', () => {
+    expect(padSegment('')).toBe('');
+  });
+});
+
+describe('applyMonthInstantConfirm', () => {
+  it('instantly confirms a first digit 2-9 (no valid month can extend it)', () => {
+    expect(applyMonthInstantConfirm('3')).toBe('03');
+    expect(applyMonthInstantConfirm('9')).toBe('09');
+  });
+  it('waits on a first digit of 1 (10, 11, 12 are all valid)', () => {
+    expect(applyMonthInstantConfirm('1')).toBe('1');
+  });
+  it('waits on a first digit of 0 (01-09 still possible)', () => {
+    expect(applyMonthInstantConfirm('0')).toBe('0');
+  });
+  it('leaves an already-complete 2-digit value alone', () => {
+    expect(applyMonthInstantConfirm('12')).toBe('12');
+  });
+});
+
+describe('applyDayInstantConfirm', () => {
+  it('instantly confirms a first digit 4-9 (04-09, no 40+ day exists)', () => {
+    expect(applyDayInstantConfirm('5')).toBe('05');
+  });
+  it('waits on first digits 1, 2, or 3 (10-31 all still possible)', () => {
+    expect(applyDayInstantConfirm('1')).toBe('1');
+    expect(applyDayInstantConfirm('2')).toBe('2');
+    expect(applyDayInstantConfirm('3')).toBe('3');
   });
 });

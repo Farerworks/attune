@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { SegmentInput, SEGMENT_PLACEHOLDER_STYLE } from './DateInput';
+import { SegmentInput, SEGMENT_PLACEHOLDER_STYLE, padSegment } from './DateInput';
 
 type Ampm = 'AM' | 'PM' | '';
 
@@ -37,6 +37,16 @@ function hourComplete(digits: string): boolean {
   return false;
 }
 
+// ── Single-digit normalization (mirrors DateInput's month/day rules) ──────────
+
+export function applyHourInstantConfirm(digits: string): string {
+  return digits.length === 1 && digits >= '2' && digits <= '9' ? `0${digits}` : digits;
+}
+
+export function applyMinuteInstantConfirm(digits: string): string {
+  return digits.length === 1 && digits >= '6' && digits <= '9' ? `0${digits}` : digits;
+}
+
 // ── TimeInput ─────────────────────────────────────────────────────────────────
 
 interface TimeInputProps {
@@ -67,20 +77,44 @@ export function TimeInput({ id, value, onChange }: TimeInputProps) {
   }, [value, hour, minute, ampm]);
 
   function handleHourChange(raw: string) {
-    const digits = raw.replace(/\D/g, '').slice(0, 2);
+    const digits = applyHourInstantConfirm(raw.replace(/\D/g, '').slice(0, 2));
     setHour(digits);
     if (hourComplete(digits)) minuteRef.current?.focus();
     onChange(formatTimeValue(digits, minute, ampm));
   }
 
   function handleMinuteChange(raw: string) {
-    const digits = raw.replace(/\D/g, '').slice(0, 2);
+    const digits = applyMinuteInstantConfirm(raw.replace(/\D/g, '').slice(0, 2));
     setMinute(digits);
     onChange(formatTimeValue(hour, digits, ampm));
   }
 
   function handleMinuteKeyDown(e: KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'Backspace' && minute === '') hourRef.current?.focus();
+  }
+
+  // Read the live DOM value, not the closure's state — a blur triggered
+  // synchronously by our own auto-advance focus() call (e.g. after typing
+  // hour's 2nd digit) fires before React re-renders, so `hour`/`minute` in
+  // this closure would still be one keystroke stale.
+  function handleHourBlur() {
+    setFocused(f => (f === 'hour' ? null : f));
+    const liveHour = hourRef.current?.value ?? hour;
+    if (liveHour.length === 1) {
+      const padded = padSegment(liveHour);
+      setHour(padded);
+      onChange(formatTimeValue(padded, minuteRef.current?.value ?? minute, ampm));
+    }
+  }
+
+  function handleMinuteBlur() {
+    setFocused(f => (f === 'minute' ? null : f));
+    const liveMinute = minuteRef.current?.value ?? minute;
+    if (liveMinute.length === 1) {
+      const padded = padSegment(liveMinute);
+      setMinute(padded);
+      onChange(formatTimeValue(hourRef.current?.value ?? hour, padded, ampm));
+    }
   }
 
   function handleAmpm(next: Ampm) {
@@ -108,7 +142,7 @@ export function TimeInput({ id, value, onChange }: TimeInputProps) {
           ariaLabel="Hour" inputRef={hourRef}
           onValueChange={handleHourChange}
           onFocus={() => setFocused('hour')}
-          onBlur={() => setFocused(f => (f === 'hour' ? null : f))}
+          onBlur={handleHourBlur}
           onKeyDown={() => {}}
         />
         <span style={{ color: 'var(--c-muted)', fontFamily: 'var(--font-inter)' }}>:</span>
@@ -117,7 +151,7 @@ export function TimeInput({ id, value, onChange }: TimeInputProps) {
           ariaLabel="Minute" inputRef={minuteRef}
           onValueChange={handleMinuteChange}
           onFocus={() => setFocused('minute')}
-          onBlur={() => setFocused(f => (f === 'minute' ? null : f))}
+          onBlur={handleMinuteBlur}
           onKeyDown={handleMinuteKeyDown}
         />
       </div>

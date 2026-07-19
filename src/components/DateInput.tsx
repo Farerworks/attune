@@ -40,6 +40,24 @@ export function formatDateValue(month: string, day: string, year: string): strin
   return `${year}-${month}-${day}`;
 }
 
+// ── Single-digit normalization ──────────────────────────────────────────────
+// A lone digit that can never be followed by a second digit and stay valid
+// (e.g. month "5" -> no valid 5X month) is padded + confirmed immediately.
+// Anything else just waits — normalized on blur instead (see padSegment).
+
+/** Generic blur-time fallback: "2" -> "02". Leaves complete/empty values alone. */
+export function padSegment(value: string): string {
+  return value.length === 1 ? `0${value}` : value;
+}
+
+export function applyMonthInstantConfirm(digits: string): string {
+  return digits.length === 1 && digits >= '2' && digits <= '9' ? `0${digits}` : digits;
+}
+
+export function applyDayInstantConfirm(digits: string): string {
+  return digits.length === 1 && digits >= '4' && digits <= '9' ? `0${digits}` : digits;
+}
+
 // ── Shared segment input (reused by TimeInput) ──────────────────────────────────
 
 export interface SegmentInputProps {
@@ -135,7 +153,10 @@ export function DateInput({ id, value, onChange }: DateInputProps) {
 
   function handleChange(seg: DateSeg, raw: string) {
     const maxLen = seg === 'year' ? 4 : 2;
-    const digits = raw.replace(/\D/g, '').slice(0, maxLen);
+    let digits = raw.replace(/\D/g, '').slice(0, maxLen);
+    if (seg === 'month') digits = applyMonthInstantConfirm(digits);
+    if (seg === 'day')   digits = applyDayInstantConfirm(digits);
+
     let m = month, d = day, y = year;
     if (seg === 'month') { m = digits; setMonth(digits); if (digits.length === maxLen) dayRef.current?.focus(); }
     if (seg === 'day')   { d = digits; setDay(digits);   if (digits.length === maxLen) yearRef.current?.focus(); }
@@ -147,6 +168,30 @@ export function DateInput({ id, value, onChange }: DateInputProps) {
     if (e.key !== 'Backspace') return;
     if (seg === 'day' && day === '') monthRef.current?.focus();
     if (seg === 'year' && year === '') dayRef.current?.focus();
+  }
+
+  function handleBlur(seg: DateSeg) {
+    setFocused(f => (f === seg ? null : f));
+    if (seg === 'year') return; // year stays unpadded — 4 digits or nothing
+
+    // Read the live DOM value, not the closure's state — a blur triggered
+    // synchronously by our own auto-advance focus() call (e.g. after typing
+    // month's 2nd digit) fires before React re-renders, so the `month`/`day`
+    // state variables in this closure would still be one keystroke stale.
+    const liveMonth = monthRef.current?.value ?? month;
+    const liveDay   = dayRef.current?.value ?? day;
+    const liveYear  = yearRef.current?.value ?? year;
+
+    if (seg === 'month' && liveMonth.length === 1) {
+      const padded = padSegment(liveMonth);
+      setMonth(padded);
+      onChange(formatDateValue(padded, liveDay, liveYear));
+    }
+    if (seg === 'day' && liveDay.length === 1) {
+      const padded = padSegment(liveDay);
+      setDay(padded);
+      onChange(formatDateValue(liveMonth, padded, liveYear));
+    }
   }
 
   const monthNum = month.length === 2 ? parseInt(month, 10) : NaN;
@@ -172,7 +217,7 @@ export function DateInput({ id, value, onChange }: DateInputProps) {
         ariaLabel="Month" inputRef={monthRef}
         onValueChange={v => handleChange('month', v)}
         onFocus={() => setFocused('month')}
-        onBlur={() => setFocused(f => (f === 'month' ? null : f))}
+        onBlur={() => handleBlur('month')}
         onKeyDown={e => handleKeyDown('month', e)}
       />
       <span style={{ color: 'var(--c-muted)', fontFamily: 'var(--font-inter)' }}>/</span>
@@ -181,7 +226,7 @@ export function DateInput({ id, value, onChange }: DateInputProps) {
         ariaLabel="Day" inputRef={dayRef}
         onValueChange={v => handleChange('day', v)}
         onFocus={() => setFocused('day')}
-        onBlur={() => setFocused(f => (f === 'day' ? null : f))}
+        onBlur={() => handleBlur('day')}
         onKeyDown={e => handleKeyDown('day', e)}
       />
       <span style={{ color: 'var(--c-muted)', fontFamily: 'var(--font-inter)' }}>/</span>
@@ -190,7 +235,7 @@ export function DateInput({ id, value, onChange }: DateInputProps) {
         ariaLabel="Year" inputRef={yearRef}
         onValueChange={v => handleChange('year', v)}
         onFocus={() => setFocused('year')}
-        onBlur={() => setFocused(f => (f === 'year' ? null : f))}
+        onBlur={() => handleBlur('year')}
         onKeyDown={e => handleKeyDown('year', e)}
       />
     </div>
