@@ -4,11 +4,9 @@ import { useEffect, useState } from 'react';
 import type { Reading } from '@/lib/store';
 import type { Archetype } from '@/lib/interpretGuide';
 import { getProfile } from '@/lib/store';
+import { EL_ORDER, computeBlobPoints, drawElementPentagon } from '@/lib/shareChart';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-
-const EL_ORDER = ['wood', 'fire', 'earth', 'metal', 'water'];
-const ANGLES = EL_ORDER.map((_, i) => -Math.PI / 2 + (2 * Math.PI * i) / 5);
 
 const DARK_TONES: Record<string, string> = {
   wood:  '#8FBF93',
@@ -76,84 +74,6 @@ function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number)
   return lines;
 }
 
-function computeBlobPoints(
-  elements: Record<string, number>,
-  cx: number, cy: number, r: number, normMax: number,
-): Array<{ x: number; y: number }> {
-  return EL_ORDER.map((k, i) => {
-    const val = Math.max(0, elements[k] ?? 0);
-    const ratio = 0.12 + 0.88 * (val / normMax);
-    return { x: cx + r * ratio * Math.cos(ANGLES[i]), y: cy + r * ratio * Math.sin(ANGLES[i]) };
-  });
-}
-
-function drawRadarLayer(
-  ctx: CanvasRenderingContext2D,
-  cx: number, cy: number, r: number,
-  blobs: Array<{ elements: Record<string, number>; color: string }>,
-) {
-  const normMax = Math.max(...blobs.flatMap(b => EL_ORDER.map(k => b.elements[k] ?? 0)), 3);
-
-  // Grid rings
-  [0.5, 1].forEach((ratio, idx) => {
-    ctx.beginPath();
-    ANGLES.forEach((a, j) => {
-      const x = cx + r * ratio * Math.cos(a);
-      const y = cy + r * ratio * Math.sin(a);
-      if (j === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-    });
-    ctx.closePath();
-    ctx.strokeStyle = idx === 0 ? 'rgba(245,241,232,0.16)' : 'rgba(245,241,232,0.24)';
-    ctx.lineWidth = 2;
-    ctx.stroke();
-  });
-
-  // Axis labels
-  ctx.font = '400 30px "Space Mono"';
-  ctx.letterSpacing = '4px';
-  ctx.fillStyle = 'rgba(154,143,124,0.95)';
-  ctx.textBaseline = 'middle';
-  EL_ORDER.forEach((k, i) => {
-    const lx = cx + r * 0.78 * Math.cos(ANGLES[i]);
-    const ly = cy + r * 0.78 * Math.sin(ANGLES[i]);
-    ctx.textAlign = 'center';
-    ctx.fillText(k, lx, ly);
-  });
-  ctx.letterSpacing = '0px';
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'alphabetic';
-
-  for (const { elements, color } of blobs) {
-    const pts = computeBlobPoints(elements, cx, cy, r, normMax);
-
-    const n = pts.length;
-    ctx.beginPath();
-    ctx.moveTo(pts[0].x, pts[0].y);
-    for (let i = 0; i < n; i++) {
-      const p0 = pts[(i - 1 + n) % n];
-      const p1 = pts[i];
-      const p2 = pts[(i + 1) % n];
-      const p3 = pts[(i + 2) % n];
-      ctx.bezierCurveTo(
-        p1.x + (p2.x - p0.x) / 6, p1.y + (p2.y - p0.y) / 6,
-        p2.x - (p3.x - p1.x) / 6, p2.y - (p3.y - p1.y) / 6,
-        p2.x, p2.y,
-      );
-    }
-    ctx.closePath();
-    ctx.shadowColor = color;
-    ctx.shadowBlur = 40;
-    ctx.fillStyle = color;
-    ctx.globalAlpha = 0.11;
-    ctx.fill();
-    ctx.globalAlpha = 1;
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 2.5;
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-  }
-}
-
 function drawShareCard(
   ctx: CanvasRenderingContext2D,
   reading: Reading,
@@ -186,7 +106,7 @@ function drawShareCard(
       const my = allPts.reduce((s, p) => s + p.y, 0) / allPts.length;
       const clamp = (v: number) => Math.max(-80, Math.min(80, v));
       const dx = clamp(540 - mx), dy = clamp(1050 - my);
-      drawRadarLayer(bgCtx, 540 + dx, 1050 + dy, 440, blobs);
+      drawElementPentagon(bgCtx, { cx: 540 + dx, cy: 1050 + dy, radius: 440, series: blobs });
     }
     ctx.save();
     ctx.globalAlpha = 0.55;

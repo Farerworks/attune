@@ -1,7 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ELEMENT_INSIGHT } from '@/lib/interpretGuide';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { ELEMENT_INSIGHT, getArchetype } from '@/lib/interpretGuide';
+import type { TenStem } from '@/lib/saju';
+import { ArchetypeGlyph } from './ArchetypeGlyph';
+import { drawElementPentagon } from '@/lib/shareChart';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -50,12 +54,52 @@ function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number)
   return lines;
 }
 
+/** 'wood'/'Yang' → 'Yang Wood', matching ArchetypeGlyph's TenStem keys. */
+function toStemKey(element: string, polarity: string): TenStem | null {
+  const el = element.charAt(0).toUpperCase() + element.slice(1).toLowerCase();
+  const pol = polarity.charAt(0).toUpperCase() + polarity.slice(1).toLowerCase();
+  const key = `${pol} ${el}`;
+  const valid: string[] = [
+    'Yang Wood', 'Yin Wood', 'Yang Fire', 'Yin Fire', 'Yang Earth',
+    'Yin Earth', 'Yang Metal', 'Yin Metal', 'Yang Water', 'Yin Water',
+  ];
+  return valid.includes(key) ? (key as TenStem) : null;
+}
+
+/** Serializes ArchetypeGlyph's SVG for the given stem into a loaded Image, via Blob URL. */
+async function loadGlyphImage(stem: TenStem, color: string, sizePx: number): Promise<HTMLImageElement | null> {
+  try {
+    const markup = renderToStaticMarkup(
+      <ArchetypeGlyph stem={stem} color={color} size={sizePx} strokeWidth={1} />,
+    );
+    const svg = markup.includes('xmlns=')
+      ? markup
+      : markup.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
+    const blob = new Blob([svg], { type: 'image/svg+xml' });
+    const url = URL.createObjectURL(blob);
+    try {
+      return await new Promise<HTMLImageElement>((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error('glyph image failed to load'));
+        img.src = url;
+      });
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  } catch {
+    return null;
+  }
+}
+
 function drawMyCard(
   ctx: CanvasRenderingContext2D,
   archetypeName: string,
   element: string,
   polarity: string,
   elements: Record<string, number>,
+  tagline: string,
+  glyphImg: HTMLImageElement | null,
 ) {
   const W = 1080, H = 1920, PAD = 96;
   const CW = W - 2 * PAD;
@@ -71,48 +115,84 @@ function drawMyCard(
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, W, H);
 
+  // 2. Large glyph watermark — drawn first so all text sits above it
+  if (glyphImg) {
+    const gSize = Math.round(W * 0.55);
+    ctx.save();
+    ctx.globalAlpha = 0.08;
+    ctx.drawImage(glyphImg, W - gSize + 70, 10, gSize, gSize);
+    ctx.restore();
+  }
+
   ctx.textBaseline = 'alphabetic';
   ctx.textAlign = 'left';
 
-  // 2. Wordmark
+  // 3. Wordmark
   ctx.font = '400 30px "Space Mono"';
   ctx.letterSpacing = '6px';
   ctx.fillStyle = '#9A8F7C';
   ctx.fillText('ATTUNE', PAD, 150);
   ctx.letterSpacing = '0px';
 
-  // 3~5. Center block (top-baseline, no overlap)
+  // 4~7. Center block (top-baseline, cursor-based so nothing overlaps)
   ctx.textBaseline = 'top';
 
-  const nameFontSize = fitFontSize(ctx, archetypeName, CW, 156, 92);
+  const nameFontSize = fitFontSize(ctx, archetypeName, CW, 116, 76);
   ctx.font = `500 ${nameFontSize}px Fraunces`;
   const nameLines = wrapText(ctx, archetypeName, CW);
   const nameLineHeight = nameFontSize * 1.06;
 
+  let cursor = 268;
+
   // kicker
-  const kickerTop = 720;
   ctx.font = '400 34px "Space Mono"';
   ctx.fillStyle = kickerColor;
-  ctx.fillText(`${element} · ${polarity}`.toUpperCase(), PAD, kickerTop);
+  ctx.fillText(`${element} · ${polarity}`.toUpperCase(), PAD, cursor);
+  cursor += 34 + 26;
 
   // name
-  const nameTop = kickerTop + 34 + 26;   // kicker glyph + gap
   ctx.font = `500 ${nameFontSize}px Fraunces`;
   ctx.fillStyle = '#F5F1E8';
-  nameLines.forEach((line, i) => ctx.fillText(line, PAD, nameTop + i * nameLineHeight));
+  nameLines.forEach((line, i) => ctx.fillText(line, PAD, cursor + i * nameLineHeight));
+  cursor += nameLines.length * nameLineHeight + 30;
 
-  // insight
+  // tagline
+  if (tagline) {
+    ctx.font = 'italic 46px Fraunces';
+    ctx.fillStyle = '#CFC5B4';
+    const taglineLines = wrapText(ctx, tagline, CW);
+    taglineLines.forEach((line, i) => ctx.fillText(line, PAD, cursor + i * 58));
+    cursor += taglineLines.length * 58 + 84;
+  }
+
+  // 5. Mini element pentagon — centered
+  const pentaRadius = 320;
+  const pentaCx = W / 2;
+  const pentaCy = cursor + pentaRadius;
+  drawElementPentagon(ctx, {
+    cx: pentaCx, cy: pentaCy, radius: pentaRadius,
+    series: [{ elements, color: '#D96A45' }],
+  });
+  cursor = pentaCy + pentaRadius + 90;
+
+  // 6. Dominant-element insight, under its own "DOMINANT CURRENT" label
   if (insight) {
-    const insightTop = nameTop + nameLines.length * nameLineHeight + 44;
-    ctx.font = '400 54px Fraunces';
+    ctx.font = '400 27px "Space Mono"';
+    ctx.letterSpacing = '4px';
+    ctx.fillStyle = '#9A8F7C';
+    ctx.fillText('DOMINANT CURRENT', PAD, cursor);
+    ctx.letterSpacing = '0px';
+    cursor += 27 + 30;
+
+    ctx.font = '400 52px Fraunces';
     ctx.fillStyle = '#EDE4D2';
     const insightLines = wrapText(ctx, insight, CW);
-    insightLines.forEach((line, i) => ctx.fillText(line, PAD, insightTop + i * 76));
+    insightLines.forEach((line, i) => ctx.fillText(line, PAD, cursor + i * 70));
   }
 
   ctx.textBaseline = 'alphabetic';   // 푸터 계산 원상복구
 
-  // 6. Footer
+  // 7. Footer
   const footerHairlineY = H - 150;
   ctx.strokeStyle = '#332C22';
   ctx.lineWidth = 1;
@@ -157,12 +237,20 @@ export function MyCardModal({ archetypeName, element, polarity, elements, onClos
       await document.fonts.ready;
       try {
         await Promise.all([
-          document.fonts.load('500 156px Fraunces'),
-          document.fonts.load('400 54px Fraunces'),
+          document.fonts.load('500 116px Fraunces'),
+          document.fonts.load('italic 46px Fraunces'),
+          document.fonts.load('400 52px Fraunces'),
           document.fonts.load('400 30px "Space Mono"'),
           document.fonts.load('400 34px "Space Mono"'),
+          document.fonts.load('400 27px "Space Mono"'),
         ]);
       } catch { /* fonts fall back gracefully */ }
+
+      if (cancelled) return;
+
+      const stem = toStemKey(element, polarity);
+      const glyphImg = stem ? await loadGlyphImage(stem, '#F5F1E8', 640).catch(() => null) : null;
+      const tagline = stem ? getArchetype(stem).tagline : '';
 
       if (cancelled) return;
 
@@ -172,7 +260,7 @@ export function MyCardModal({ archetypeName, element, polarity, elements, onClos
       const ctx = canvas.getContext('2d');
       if (!ctx) { setRendering(false); return; }
 
-      drawMyCard(ctx, archetypeName, element, polarity, elements);
+      drawMyCard(ctx, archetypeName, element, polarity, elements, tagline, glyphImg);
 
       if (!cancelled) {
         setDataUrl(canvas.toDataURL('image/png'));
