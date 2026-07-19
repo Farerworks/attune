@@ -7,10 +7,13 @@ import { TabTopBar } from '@/components/TabTopBar';
 import { TodayCard } from '@/components/TodayCard';
 import { DoIcon } from '@/components/icons/DoIcon';
 import { DontIcon } from '@/components/icons/DontIcon';
+import { ChevronIcon } from '@/components/icons/ChevronIcon';
+import { GlyphAvatar } from '@/components/ArchetypeGlyph';
+import { getArchetype, ARCHETYPE_LOCALE } from '@/lib/interpretGuide';
 import { pickVariant, ME, ME_KO, todayDateLabel } from '@/lib/today';
 import type { TodayNote } from '@/lib/today';
 import type { DailyDoDont, FlowDay } from '@/lib/homeCopy';
-import type { Element } from '@/lib/saju';
+import type { Element, TenStem } from '@/lib/saju';
 
 const SECTION_LABEL_STYLE = {
   fontFamily: 'var(--font-space-mono)',
@@ -19,6 +22,18 @@ const SECTION_LABEL_STYLE = {
   textTransform: 'uppercase' as const,
   color: 'var(--c-muted)',
 };
+
+// Mirrors People page's per-reading language heuristic (isKo) — same rule, own copy.
+const isKo = (s?: string) => !!s && /[가-힣]/.test(s);
+
+interface ReachOutPerson {
+  id: string;
+  createdAt: string;
+  displayName: string;
+  stem?: TenStem;
+  element?: string;
+  line: string;
+}
 
 export default function HomePage() {
   const [readings] = useReadings();
@@ -30,6 +45,7 @@ export default function HomePage() {
   const [doDont,   setDoDont]   = useState<DailyDoDont | null>(null);
   const [flowDays, setFlowDays] = useState<FlowDay[]>([]);
   const [selectedIdx, setSelectedIdx] = useState(0);
+  const [reachOut, setReachOut] = useState<ReachOutPerson[]>([]);
 
   useEffect(() => {
     const h = new Date().getHours();
@@ -64,6 +80,37 @@ export default function HomePage() {
         } catch { /* chart calc failed — cards simply won't show */ }
       });
   }, []);
+
+  // Reach-out-today — same THEM-note computation as People, good-tone only, top 2 by recency
+  useEffect(() => {
+    if (readings.length === 0) { setReachOut([]); return; }
+    import('@/lib/today').then(({ getTodayNote, localDateStr }) => {
+      const ds = localDateStr();
+      const candidates: ReachOutPerson[] = [];
+      for (const r of readings) {
+        const rEl = r.themChart?.dayMaster?.element?.toLowerCase() as Element | undefined;
+        if (!rEl) continue;
+        const note = getTodayNote(rEl, 'them', ds, r.name);
+        if (note.tone !== 'good') continue;
+
+        const stem = r.themChart?.dayMaster?.stem as TenStem | undefined;
+        const nameIsKorean = isKo(r.briefing?.headline || r.situation);
+        const L = stem ? ARCHETYPE_LOCALE[stem] : undefined;
+        const archName = stem ? (nameIsKorean && L ? L.name_ko : getArchetype(stem).name) : null;
+
+        candidates.push({
+          id: r.id,
+          createdAt: r.createdAt,
+          displayName: r.name ?? archName ?? 'Unknown',
+          stem,
+          element: rEl,
+          line: note.line,
+        });
+      }
+      candidates.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setReachOut(candidates.slice(0, 2));
+    });
+  }, [readings]);
 
   const hasReadings = readings.length > 0;
   const selectedDay = flowDays[selectedIdx];
@@ -220,7 +267,51 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* "Today's people" + letter — next BRIEF (copy in progress) */}
+      {/* ── Reach out today ──────────────────────────────────────────────── */}
+      {reachOut.length > 0 && (
+        <div style={{ padding: '0 20px 24px' }}>
+          <p style={{ ...SECTION_LABEL_STYLE, marginBottom: 14 }}>REACH OUT TODAY</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {reachOut.map(person => (
+              <Link
+                key={person.id}
+                href={`/reading/${person.id}`}
+                className="card pressable"
+                style={{
+                  display: 'flex', alignItems: 'flex-start', gap: 12,
+                  padding: '14px 16px', textDecoration: 'none',
+                }}
+              >
+                {person.stem && person.element ? (
+                  <GlyphAvatar stem={person.stem} element={person.element} size={44} />
+                ) : (
+                  <div style={{
+                    width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
+                    background: 'var(--c-surface-alt)', color: 'var(--c-muted)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>?</div>
+                )}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                    <span style={{ fontFamily: 'var(--font-inter)', fontSize: 15, fontWeight: 600, color: 'var(--c-ink)' }}>
+                      {person.displayName}
+                    </span>
+                    <ChevronIcon width={16} height={16} style={{ color: 'var(--c-muted)', flexShrink: 0 }} />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--c-vermilion)', flexShrink: 0 }} />
+                    <span style={{ fontFamily: 'var(--font-inter)', fontSize: 13, color: 'var(--c-ink-body)', lineHeight: 1.5 }}>
+                      {person.line}
+                    </span>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* letter — next BRIEF (copy in progress) */}
     </div>
   );
 }
