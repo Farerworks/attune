@@ -10,6 +10,7 @@ import { GlyphAvatar } from '@/components/ArchetypeGlyph';
 import { TabTopBar } from '@/components/TabTopBar';
 import { pickVariant, localDateStr } from '@/lib/today';
 import { friendlyError } from '@/lib/errorCopy';
+import { getQuickPrompts } from '@/lib/askPrompts';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -76,14 +77,6 @@ const EXHAUSTED = [
   "That's all for today. Fresh questions tomorrow.",
   "You've used today's questions. Back at midnight.",
   "Done for today. Come back tomorrow.",
-];
-
-// ── Quick prompts ─────────────────────────────────────────────────────────────
-
-const QUICK_PROMPTS = [
-  'How will they react if I say…',
-  'Will they say yes to…',
-  'When should I bring it up?',
 ];
 
 // ── Main page ─────────────────────────────────────────────────────────────────
@@ -272,12 +265,13 @@ export default function AskPage() {
     : '#948B7C';
   const hasPersonChips = chips.some(c => c.id !== 'me' && c.id !== 'general');
   const hasAnyThread   = Object.values(threads).some(t => t.length > 0);
+  const korean          = typeof navigator !== 'undefined' && navigator.language.startsWith('ko');
   const starterPrompts =
     currentChip && selected !== 'me' && selected !== 'general'
     && Array.isArray(currentChip.briefing?.starters)
     && currentChip.briefing!.starters!.length === 3
       ? currentChip.briefing!.starters!
-      : QUICK_PROMPTS;
+      : getQuickPrompts(selected === 'general' ? 'general' : 'person', korean);
 
   // Show date divider if last message is from a previous day (>24h ago)
   const lastMsg = currentThread[currentThread.length - 1];
