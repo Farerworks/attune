@@ -132,9 +132,14 @@ export default function NewPage() {
 
   function handleRitualDone() {
     const id = readingIdRef.current;
+    if (id) {
+      // Keep the overlay up — it disappears when the route unmounts this page,
+      // avoiding a flash of the form before the report renders.
+      router.push(`/reading/${id}`);
+      return;
+    }
     setRitualActive(false);
     setLoading(false);
-    if (id) router.push(`/reading/${id}`);
   }
 
   return (
