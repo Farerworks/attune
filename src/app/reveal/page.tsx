@@ -115,7 +115,7 @@ export default function RevealPage() {
 
       {/* Skip link */}
       <p style={{ textAlign: 'center', margin: 0 }}>
-        <Link href="/people" style={{
+        <Link href="/home" style={{
           fontFamily: "var(--font-inter,system-ui)",
           fontSize: 13, color: 'var(--c-muted)',
           textDecoration: 'none',

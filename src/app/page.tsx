@@ -74,7 +74,7 @@ export default function LandingPage() {
 
   useEffect(() => {
     if (getProfile()) {
-      router.replace('/people');
+      router.replace('/home');
     }
   }, [router]);
 

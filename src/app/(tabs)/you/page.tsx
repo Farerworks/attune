@@ -8,6 +8,7 @@ import type { TenStem } from '@/lib/saju';
 import { GlyphAvatar } from '@/components/ArchetypeGlyph';
 import { MyCardModal } from '@/components/MyCardModal';
 import { TodayCard } from '@/components/TodayCard';
+import { SettingsIcon } from '@/components/icons/SettingsIcon';
 import type { TodayNote } from '@/lib/today';
 import { ELEMENT_INSIGHT } from '@/lib/interpretGuide';
 import { formatDate } from '@/lib/format';
@@ -145,8 +146,14 @@ export default function YouPage() {
     <div style={{ minHeight: '100%', background: 'var(--c-paper)' }}>
       <TabTopBar />
       {/* Header */}
-      <header style={{ padding: '20px 20px 12px', borderBottom: '1px solid var(--c-hairline)' }}>
+      <header style={{
+        padding: '20px 20px 12px', borderBottom: '1px solid var(--c-hairline)',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      }}>
         <h1 className="t-h2">You</h1>
+        <Link href="/settings" aria-label="Settings" style={{ color: 'var(--c-muted)', display: 'flex' }}>
+          <SettingsIcon />
+        </Link>
       </header>
 
       <div className="stagger" style={{ padding: '24px 20px', display: 'flex', flexDirection: 'column', gap: 20 }}>

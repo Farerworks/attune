@@ -3,11 +3,11 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { HomeIcon } from './icons/HomeIcon';
 import { PeopleIcon } from './icons/PeopleIcon';
 import { AskIcon } from './icons/AskIcon';
 import { PlusIcon } from './icons/PlusIcon';
 import { YouIcon } from './icons/YouIcon';
-import { SettingsIcon } from './icons/SettingsIcon';
 
 interface TabItem {
   href: string;
@@ -16,6 +16,11 @@ interface TabItem {
 }
 
 const TABS: TabItem[] = [
+  {
+    href: '/home',
+    label: 'Home',
+    icon: (f) => <HomeIcon filled={f} width={24} height={24} />,
+  },
   {
     href: '/people',
     label: 'People',
@@ -30,11 +35,6 @@ const TABS: TabItem[] = [
     href: '/you',
     label: 'You',
     icon: (f) => <YouIcon filled={f} width={24} height={24} />,
-  },
-  {
-    href: '/settings',
-    label: 'Settings',
-    icon: (f) => <SettingsIcon filled={f} width={24} height={24} />,
   },
 ];
 
