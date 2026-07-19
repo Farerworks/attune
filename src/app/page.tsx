@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { getProfile } from '@/lib/store';
+import { ScrollReveal } from '@/components/ScrollReveal';
 
 const SECTION_LABEL_STYLE = {
   fontFamily: 'var(--font-space-mono)',
@@ -133,94 +134,100 @@ export default function LandingPage() {
         </section>
 
         {/* ③ phone mockup card — static decorative, no real data */}
-        <div style={{
-          width: 260, margin: '38px auto 8px', borderRadius: 28, padding: '26px 20px 22px',
-          background: 'radial-gradient(130% 90% at 50% 0, #17130E, #100E0B)',
-          boxShadow: '0 24px 60px rgba(26,24,21,.25)',
-        }}>
-          <p style={{
-            fontFamily: 'var(--font-space-mono)', fontSize: 8, letterSpacing: '0.16em',
-            textTransform: 'uppercase', color: '#9A8F7C', margin: 0,
+        <ScrollReveal>
+          <div className="mockup-float" style={{
+            width: 260, margin: '38px auto 8px', borderRadius: 28, padding: '26px 20px 22px',
+            background: 'radial-gradient(130% 90% at 50% 0, #17130E, #100E0B)',
+            boxShadow: '0 24px 60px rgba(26,24,21,.25)',
           }}>
-            your read
-          </p>
-          <p style={{
-            fontFamily: 'var(--font-fraunces)', fontSize: 24, color: '#F5F1E8', margin: 0, marginTop: 8,
-          }}>
-            The Still Water
-          </p>
-          <p style={{
-            fontFamily: 'var(--font-fraunces)', fontStyle: 'italic', fontSize: 13,
-            color: '#CFC5B4', margin: 0, marginTop: 6,
-          }}>
-            Reads the room before entering it.
-          </p>
-          <div style={{ marginTop: 16, borderTop: '1px solid rgba(245,241,232,.1)', paddingTop: 12 }}>
             <p style={{
-              fontFamily: 'var(--font-space-mono)', fontSize: 8, letterSpacing: '0.14em',
-              color: '#D96A45', margin: 0,
+              fontFamily: 'var(--font-space-mono)', fontSize: 8, letterSpacing: '0.16em',
+              textTransform: 'uppercase', color: '#9A8F7C', margin: 0,
             }}>
-              TODAY
+              your read
             </p>
             <p style={{
-              fontFamily: 'var(--font-inter)', fontSize: 11, color: '#B7AE9E',
-              lineHeight: 1.5, margin: 0, marginTop: 4,
+              fontFamily: 'var(--font-fraunces)', fontSize: 24, color: '#F5F1E8', margin: 0, marginTop: 8,
             }}>
-              Tailwind day — support finds you if you let it.
+              The Still Water
             </p>
+            <p style={{
+              fontFamily: 'var(--font-fraunces)', fontStyle: 'italic', fontSize: 13,
+              color: '#CFC5B4', margin: 0, marginTop: 6,
+            }}>
+              Reads the room before entering it.
+            </p>
+            <div style={{ marginTop: 16, borderTop: '1px solid rgba(245,241,232,.1)', paddingTop: 12 }}>
+              <p style={{
+                fontFamily: 'var(--font-space-mono)', fontSize: 8, letterSpacing: '0.14em',
+                color: '#D96A45', margin: 0,
+              }}>
+                TODAY
+              </p>
+              <p style={{
+                fontFamily: 'var(--font-inter)', fontSize: 11, color: '#B7AE9E',
+                lineHeight: 1.5, margin: 0, marginTop: 4,
+              }}>
+                Tailwind day — support finds you if you let it.
+              </p>
+            </div>
           </div>
-        </div>
+        </ScrollReveal>
 
         {/* ④ How it works */}
-        <section style={{ padding: '40px 0 6px' }}>
-          <p style={SECTION_LABEL_STYLE}>How it works</p>
-          {HOW_STEPS.map((step, i) => (
-            <div key={step.title} style={{ display: 'flex', gap: 14, marginBottom: 20 }}>
-              <span style={{
-                fontFamily: 'var(--font-fraunces)', fontStyle: 'italic', fontSize: 22,
-                color: 'var(--c-vermilion)', width: 26, flexShrink: 0,
-              }}>
-                {i + 1}
-              </span>
-              <div>
-                <h3 style={{
-                  fontFamily: 'var(--font-fraunces)', fontWeight: 500, fontSize: 18,
-                  color: 'var(--c-ink)', margin: '0 0 6px',
+        <ScrollReveal>
+          <section style={{ padding: '40px 0 6px' }}>
+            <p style={SECTION_LABEL_STYLE}>How it works</p>
+            {HOW_STEPS.map((step, i) => (
+              <div key={step.title} style={{ display: 'flex', gap: 14, marginBottom: 20 }}>
+                <span style={{
+                  fontFamily: 'var(--font-fraunces)', fontStyle: 'italic', fontSize: 22,
+                  color: 'var(--c-vermilion)', width: 26, flexShrink: 0,
                 }}>
-                  {step.title}
-                </h3>
-                <p style={{
-                  fontFamily: 'var(--font-inter)', fontSize: 13.5, lineHeight: 1.55,
-                  color: 'var(--c-ink-body)', margin: 0,
-                }}>
-                  {step.body}
-                </p>
+                  {i + 1}
+                </span>
+                <div>
+                  <h3 style={{
+                    fontFamily: 'var(--font-fraunces)', fontWeight: 500, fontSize: 18,
+                    color: 'var(--c-ink)', margin: '0 0 6px',
+                  }}>
+                    {step.title}
+                  </h3>
+                  <p style={{
+                    fontFamily: 'var(--font-inter)', fontSize: 13.5, lineHeight: 1.55,
+                    color: 'var(--c-ink-body)', margin: 0,
+                  }}>
+                    {step.body}
+                  </p>
+                </div>
               </div>
-            </div>
-          ))}
-        </section>
+            ))}
+          </section>
+        </ScrollReveal>
 
         {/* ⑤ Why people open it every day */}
         <section style={{ padding: '40px 0 6px' }}>
           <p style={SECTION_LABEL_STYLE}>Why people open it every day</p>
-          {WHY_CARDS.map(card => (
-            <div key={card.title} style={{
-              background: 'var(--c-card)', border: '1px solid var(--c-hairline)',
-              borderRadius: 16, padding: 18, marginBottom: 12,
-            }}>
-              <h3 style={{
-                fontFamily: 'var(--font-fraunces)', fontWeight: 500, fontSize: 17,
-                color: 'var(--c-ink)', margin: '0 0 6px',
+          {WHY_CARDS.map((card, i) => (
+            <ScrollReveal key={card.title} delay={i * 60}>
+              <div style={{
+                background: 'var(--c-card)', border: '1px solid var(--c-hairline)',
+                borderRadius: 16, padding: 18, marginBottom: 12,
               }}>
-                {card.title}
-              </h3>
-              <p style={{
-                fontFamily: 'var(--font-inter)', fontSize: 13, lineHeight: 1.55,
-                color: 'var(--c-ink-body)', margin: 0,
-              }}>
-                {card.body}
-              </p>
-            </div>
+                <h3 style={{
+                  fontFamily: 'var(--font-fraunces)', fontWeight: 500, fontSize: 17,
+                  color: 'var(--c-ink)', margin: '0 0 6px',
+                }}>
+                  {card.title}
+                </h3>
+                <p style={{
+                  fontFamily: 'var(--font-inter)', fontSize: 13, lineHeight: 1.55,
+                  color: 'var(--c-ink-body)', margin: 0,
+                }}>
+                  {card.body}
+                </p>
+              </div>
+            </ScrollReveal>
           ))}
           <div style={{ textAlign: 'center', marginTop: 20 }}>
             <Link href="/saju" style={{
@@ -233,25 +240,29 @@ export default function LandingPage() {
         </section>
 
         {/* ⑥ Privacy box */}
-        <div style={{
-          margin: '36px 0 0', padding: 18, border: '1px dashed var(--c-hairline)',
-          borderRadius: 14, textAlign: 'center',
-        }}>
-          <p style={{
-            fontFamily: 'var(--font-inter)', fontSize: 12.5, color: 'var(--c-ink-body)',
-            lineHeight: 1.6, margin: 0,
+        <ScrollReveal>
+          <div style={{
+            margin: '36px 0 0', padding: 18, border: '1px dashed var(--c-hairline)',
+            borderRadius: 14, textAlign: 'center',
           }}>
-            <strong style={{ color: 'var(--c-ink)' }}>Your birth data stays on your phone.</strong> No sign-up needed. Back it up with Google only if you choose to. Delete everything in one tap.
-          </p>
-        </div>
+            <p style={{
+              fontFamily: 'var(--font-inter)', fontSize: 12.5, color: 'var(--c-ink-body)',
+              lineHeight: 1.6, margin: 0,
+            }}>
+              <strong style={{ color: 'var(--c-ink)' }}>Your birth data stays on your phone.</strong> No sign-up needed. Back it up with Google only if you choose to. Delete everything in one tap.
+            </p>
+          </div>
+        </ScrollReveal>
 
         {/* ⑦ Bottom CTA */}
-        <div style={{ margin: '36px 0 8px', textAlign: 'center' }}>
-          <Link href="/onboarding" className="pressable" style={CTA_STYLE}>
-            Get your reading
-          </Link>
-          <p style={CTA_SUBLABEL_STYLE}>attune-silk.vercel.app</p>
-        </div>
+        <ScrollReveal>
+          <div style={{ margin: '36px 0 8px', textAlign: 'center' }}>
+            <Link href="/onboarding" className="pressable" style={CTA_STYLE}>
+              Get your reading
+            </Link>
+            <p style={CTA_SUBLABEL_STYLE}>attune-silk.vercel.app</p>
+          </div>
+        </ScrollReveal>
 
         {/* ⑧ footer */}
         <footer style={{ padding: '34px 0 40px', textAlign: 'center' }}>
