@@ -1,5 +1,10 @@
+'use client';
+
+import { useState } from 'react';
 import { ELEMENT_COLORS } from '@/lib/store';
 import type { ChartSummary } from '@/lib/store';
+import { getIljuProfile } from '@/lib/iljuProfiles';
+import { IljuSheet } from './IljuSheet';
 
 const SECTION_LABEL_STYLE = {
   fontFamily: 'var(--font-space-mono)',
@@ -96,21 +101,53 @@ const COLUMNS = [
 ] as const;
 
 export function EightCharactersCard({ pillars, pillarsKnown }: Props) {
+  const [sheetOpen, setSheetOpen] = useState(false);
+
+  const dayPillar = pillars.day;
+  const dayStemInfo = STEM_INFO[dayPillar.stem];
+  const dayBranchInfo = BRANCH_INFO[dayPillar.branch];
+  const dayProfile = dayStemInfo && dayBranchInfo
+    ? getIljuProfile(dayStemInfo.hanja, dayBranchInfo.hanja)
+    : null;
+
   return (
     <div className="card" style={{ padding: '18px 16px' }}>
+      {sheetOpen && dayProfile && dayStemInfo && dayBranchInfo && (
+        <IljuSheet
+          profile={dayProfile}
+          stemHanja={dayStemInfo.hanja}
+          branchHanja={dayBranchInfo.hanja}
+          stemElement={dayStemInfo.element}
+          branchElement={dayBranchInfo.element}
+          onClose={() => setSheetOpen(false)}
+        />
+      )}
       <p style={{ ...SECTION_LABEL_STYLE, marginBottom: 14 }}>YOUR EIGHT CHARACTERS</p>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
         {COLUMNS.map(col => {
           const pillar = pillars[col.key];
           const hourUnknown = col.key === 'hour' && pillarsKnown === 6;
+          const isDay = col.key === 'day';
+          const dayTappable = isDay && dayProfile !== null;
 
           return (
-            <div key={col.key} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+            <div
+              key={col.key}
+              className={dayTappable ? 'pressable' : undefined}
+              role={dayTappable ? 'button' : undefined}
+              tabIndex={dayTappable ? 0 : undefined}
+              onClick={dayTappable ? () => setSheetOpen(true) : undefined}
+              onKeyDown={dayTappable ? (e) => { if (e.key === 'Enter' || e.key === ' ') setSheetOpen(true); } : undefined}
+              style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                cursor: dayTappable ? 'pointer' : undefined,
+              }}
+            >
               <span style={{
                 fontFamily: 'var(--font-space-mono)', fontSize: 9,
                 color: 'var(--c-muted)', textTransform: 'uppercase',
               }}>
-                {col.label}
+                {col.label}{dayTappable && <span style={{ color: 'var(--c-muted)' }}> ›</span>}
               </span>
               {hourUnknown && (
                 <span style={{ fontFamily: 'var(--font-space-mono)', fontSize: 7.5, color: 'var(--c-muted)' }}>
