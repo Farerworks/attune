@@ -1,6 +1,13 @@
 import { z } from 'zod';
-import type { SajuChart } from './saju';
+import type { SajuChart, TwelveBranch } from './saju';
 import { getArchetype, getElementRelationship, COPY_STYLE_RULES, localeVoiceBlock } from './interpretGuide';
+import { relationLens } from './tenGods';
+import { comparePillars, type SignalKind } from './branchRelations';
+import { detectSinsal, type SinsalInput } from './sinsal';
+import {
+  LENS_FRAGMENTS, SIGNAL_FRAGMENTS, MIXED_SIGNAL_FRAGMENT, SINSAL_FRAGMENTS, SINSAL_PRIORITY,
+  LENS_INSTRUCTION, SIGNALS_INSTRUCTION, SINSAL_INSTRUCTION,
+} from './promptFragments';
 
 // ── Zod schema ──────────────────────────────────────────────────────────────
 
@@ -71,6 +78,94 @@ ${hourLine}
 Element distribution (${chart.pillarsKnown} of 8 pillars known): ${counts}`;
 }
 
+// ── Backend insight blocks (BRIEF-070) ──────────────────────────────────────
+
+interface BranchSlot {
+  label: string;
+  branch: TwelveBranch;
+}
+
+function collectBranchSlots(chart: SajuChart): BranchSlot[] {
+  const slots: BranchSlot[] = [
+    { label: 'Year', branch: chart.pillars.year.branch },
+    { label: 'Month', branch: chart.pillars.month.branch },
+    { label: 'Day', branch: chart.pillars.day.branch },
+  ];
+  if (chart.pillars.hour) slots.push({ label: 'Hour', branch: chart.pillars.hour.branch });
+  return slots;
+}
+
+function labelFor(slots: BranchSlot[], branch: TwelveBranch): string {
+  return slots.find(s => s.branch === branch)?.label ?? branch;
+}
+
+function buildLensBlock(me: SajuChart, them: SajuChart): string {
+  const lens = relationLens(me.dayMaster.stem, them.dayMaster.stem);
+  return `=== RELATION LENS (backend insight) ===
+${LENS_INSTRUCTION}
+${LENS_FRAGMENTS[lens.group]}`;
+}
+
+function buildSignalsBlock(me: SajuChart, them: SajuChart): string | null {
+  const mySlots = collectBranchSlots(me);
+  const theirSlots = collectBranchSlots(them);
+  const signals = comparePillars(mySlots.map(s => s.branch), theirSlots.map(s => s.branch));
+  if (signals.length === 0) return null;
+
+  const pairEntries = new Map<string, { aLabel: string; bLabel: string; a: TwelveBranch; b: TwelveBranch; kinds: Set<SignalKind> }>();
+  for (const sig of signals) {
+    const key = `${sig.a}|${sig.b}`;
+    let entry = pairEntries.get(key);
+    if (!entry) {
+      entry = { aLabel: labelFor(mySlots, sig.a), bLabel: labelFor(theirSlots, sig.b), a: sig.a, b: sig.b, kinds: new Set() };
+      pairEntries.set(key, entry);
+    }
+    entry.kinds.add(sig.kind);
+  }
+
+  const pairLines = [...pairEntries.values()].map(p => {
+    const phrase = p.kinds.has('bond') ? 'natural pull' : 'friction point';
+    return `- my ${p.aLabel} (${p.a}) × their ${p.bLabel} (${p.b}): ${phrase}`;
+  });
+
+  const relationTypesDetected = new Set(signals.map(s => s.relation));
+  const fragmentTexts = new Set<string>();
+  for (const relation of relationTypesDetected) fragmentTexts.add(SIGNAL_FRAGMENTS[relation]);
+
+  const hasMixedPair = [...pairEntries.values()].some(p => p.kinds.size > 1);
+
+  const lines = [
+    '=== INTERACTION SIGNALS (backend insight) ===',
+    SIGNALS_INSTRUCTION,
+    ...pairLines,
+    ...fragmentTexts,
+  ];
+  if (hasMixedPair) lines.push(MIXED_SIGNAL_FRAGMENT);
+
+  return lines.join('\n');
+}
+
+function buildUndercurrentsBlock(them: SajuChart): string | null {
+  const sinsalInput: SinsalInput = {
+    dayStem: them.pillars.day.stem,
+    yearBranch: them.pillars.year.branch,
+    monthBranch: them.pillars.month.branch,
+    dayBranch: them.pillars.day.branch,
+    hourBranch: them.pillars.hour?.branch,
+  };
+  const detected = detectSinsal(sinsalInput);
+  if (detected.length === 0) return null;
+
+  const selected = SINSAL_PRIORITY.filter(s => detected.includes(s)).slice(0, 2);
+
+  const lines = [
+    '=== THEIR UNDERCURRENTS (backend insight) ===',
+    SINSAL_INSTRUCTION,
+    ...selected.map(s => `- ${SINSAL_FRAGMENTS[s]}`),
+  ];
+  return lines.join('\n');
+}
+
 // ── Public API ────────────────────────────────────────────────────────────────
 
 export function buildBriefingPrompt(
@@ -109,6 +204,12 @@ You may refer to them naturally as "${themArch.name}" once or twice in the repor
       ? '\nNote: their birth time is unknown — 6 of 8 pillars available. Avoid overconfident assertions.'
       : '';
 
+  const insightBlocks = [
+    buildLensBlock(me, them),
+    buildSignalsBlock(me, them),
+    buildUndercurrentsBlock(them),
+  ].filter((b): b is string => b !== null).join('\n\n');
+
   return `You are an emotionally intelligent relationship analyst. Using Four Pillars of Destiny (사주) data, you produce practical personality insights and interaction advice — written in the tone of a highly perceptive friend, not a mystical oracle.
 
 RELATIONSHIP CONTEXT
@@ -120,6 +221,8 @@ ${meChart}
 ${themChart}
 
 ${personalityContext}
+
+${insightBlocks}
 
 OUTPUT INSTRUCTIONS
 Respond with ONLY a valid JSON object matching the schema below. No explanation text, no markdown fences, no extra keys.
@@ -182,7 +285,12 @@ ${localeVoiceBlock()}
 ${COPY_STYLE_RULES}`;
 }
 
-const BANNED_PHRASES = ['weakness', 'exploit', 'leverage against', 'manipulate', '약점', '조종', '공략'];
+const BANNED_PHRASES = [
+  'weakness', 'exploit', 'leverage against', 'manipulate', '약점', '조종', '공략',
+  'The Mirror', 'The Spark', 'The Anchor', 'The Compass', 'The Root',
+  'The Tailwind', 'The Quill', 'The Spotlight', 'The Horizon', 'The Deep Forest',
+  'punishment',
+];
 
 export function containsBannedPhrases(briefing: Briefing): string[] {
   const texts = [
@@ -206,7 +314,7 @@ export function containsBannedPhrases(briefing: Briefing): string[] {
   ];
 
   const combined = texts.join(' ').toLowerCase();
-  return BANNED_PHRASES.filter(phrase => combined.includes(phrase));
+  return BANNED_PHRASES.filter(phrase => combined.includes(phrase.toLowerCase()));
 }
 
 export function parseBriefing(raw: string): Briefing {
