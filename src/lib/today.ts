@@ -27,7 +27,7 @@ export type Relation =
   | 'today_controls'    // t controls person (person feels pressed)
   | 'person_controls';  // person controls t (person steers)
 
-function getRelation(t: Element, p: Element): Relation {
+export function getRelation(t: Element, p: Element): Relation {
   if (t === p)             return 'same';
   if (NURTURES[t] === p)  return 'today_nurtures';
   if (NURTURES[p] === t)  return 'person_nurtures';
@@ -42,7 +42,7 @@ export function pickVariant(pool: string[], seed: string): string {
   return pool[h % pool.length];
 }
 
-const TONE: Record<Relation, TodayTone> = {
+export const TONE: Record<Relation, TodayTone> = {
   same:            'good',
   today_nurtures:  'good',
   person_nurtures: 'soft',

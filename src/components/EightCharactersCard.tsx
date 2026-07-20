@@ -125,17 +125,23 @@ export function EightCharactersCard({ pillars, pillarsKnown }: Props) {
                 </>
               ) : (
                 <>
-                  <CharacterChip
-                    label={pillar.stem}
-                    hanja={STEM_INFO[pillar.stem]?.hanja}
-                    element={STEM_INFO[pillar.stem]?.element}
-                    highlight={col.key === 'day'}
-                  />
-                  {col.key === 'day' && (
-                    <span style={{ fontFamily: 'var(--font-space-mono)', fontSize: 7, color: 'var(--c-vermilion)' }}>
-                      YOU
-                    </span>
-                  )}
+                  <div style={{ position: 'relative' }}>
+                    <CharacterChip
+                      label={pillar.stem}
+                      hanja={STEM_INFO[pillar.stem]?.hanja}
+                      element={STEM_INFO[pillar.stem]?.element}
+                      highlight={col.key === 'day'}
+                    />
+                    {col.key === 'day' && (
+                      <span style={{
+                        position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)',
+                        marginTop: 2, fontFamily: 'var(--font-space-mono)', fontSize: 7, color: 'var(--c-vermilion)',
+                        whiteSpace: 'nowrap',
+                      }}>
+                        YOU
+                      </span>
+                    )}
+                  </div>
                   <CharacterChip
                     label={pillar.branch}
                     hanja={BRANCH_INFO[pillar.branch]?.hanja}

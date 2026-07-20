@@ -1,34 +1,6 @@
 import type { Element } from './saju';
 import { getDailyPillars } from './saju';
-import { pickVariant, localDateStr, type Relation, type TodayTone } from './today';
-
-// ── Relation logic — mirrors today.ts's private getRelation/TONE ──────────────
-// (today.ts doesn't export these; duplicated here rather than widening that
-// file's public surface, per this BRIEF's 3-file limit. Same source values.)
-
-const NURTURES: Record<Element, Element> = {
-  wood: 'fire', fire: 'earth', earth: 'metal', metal: 'water', water: 'wood',
-};
-
-const CONTROLS: Record<Element, Element> = {
-  wood: 'earth', earth: 'water', water: 'fire', fire: 'metal', metal: 'wood',
-};
-
-function getRelation(t: Element, p: Element): Relation {
-  if (t === p)            return 'same';
-  if (NURTURES[t] === p)  return 'today_nurtures';
-  if (NURTURES[p] === t)  return 'person_nurtures';
-  if (CONTROLS[t] === p)  return 'today_controls';
-  return 'person_controls';
-}
-
-const TONE: Record<Relation, TodayTone> = {
-  same:            'good',
-  today_nurtures:  'good',
-  person_nurtures: 'soft',
-  today_controls:  'soft',
-  person_controls: 'neutral',
-};
+import { pickVariant, localDateStr, getRelation, TONE, type Relation, type TodayTone } from './today';
 
 // ── Do / Don't pools — verbatim from COPY-HOME.md, do not edit wording ────────
 

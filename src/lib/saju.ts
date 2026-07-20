@@ -114,6 +114,7 @@ export function calculateSaju(input: {
   }
 
   const ec = solar.getLunar().getEightChar();
+  ec.setSect(2); // 야자시 분리(23시대=당일 일주+자시). 라이브러리 기본값 의존 제거 — ENGINE-CHECK.md
 
   const yearPillar = parsePillar(ec.getYearGan(), ec.getYearZhi());
   const monthPillar = parsePillar(ec.getMonthGan(), ec.getMonthZhi());

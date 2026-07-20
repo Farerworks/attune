@@ -299,7 +299,7 @@ body {
 }
 
 .pressable {
-  transition: transform 160ms var(--ease-spring);
+  transition: transform 160ms var(--ease-spring), opacity 160ms var(--ease-spring);
 }
 
 .pressable:active {
