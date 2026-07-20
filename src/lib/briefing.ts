@@ -4,6 +4,7 @@ import { getArchetype, getElementRelationship, COPY_STYLE_RULES, localeVoiceBloc
 import { relationLens } from './tenGods';
 import { comparePillars, type SignalKind } from './branchRelations';
 import { detectSinsal, type SinsalInput } from './sinsal';
+import { getIljuProfile } from './iljuProfiles';
 import {
   LENS_FRAGMENTS, SIGNAL_FRAGMENTS, MIXED_SIGNAL_FRAGMENT, SINSAL_FRAGMENTS, SINSAL_PRIORITY,
   LENS_INSTRUCTION, SIGNALS_INSTRUCTION, SINSAL_INSTRUCTION,
@@ -145,6 +146,20 @@ function buildSignalsBlock(me: SajuChart, them: SajuChart): string | null {
   return lines.join('\n');
 }
 
+function buildDayProfileBlock(them: SajuChart): string | null {
+  const p = getIljuProfile(them.pillars.day.stemHanja, them.pillars.day.branchHanja);
+  if (!p) return null;
+
+  return `=== THEIR DAY PROFILE (backend insight) ===
+Sixty-day profile for their exact day pillar — richer than the day master alone. Weave this into 'Their profile' naturally; never quote sections wholesale, never use the field labels below in output.
+NAME: ${p.name} — ${p.subtitle}
+ESSENCE: ${p.essence}
+CORE: ${p.core}
+RELATING: ${p.relating}
+UNDER PRESSURE: ${p.underPressure}
+REACHING THEM: ${p.reachingThem}`;
+}
+
 function buildUndercurrentsBlock(them: SajuChart): string | null {
   const sinsalInput: SinsalInput = {
     dayStem: them.pillars.day.stem,
@@ -181,6 +196,10 @@ export function buildBriefingPrompt(
   const myArch   = getArchetype(me.dayMaster.stem);
   const themArch = getArchetype(them.dayMaster.stem);
   const elemAxis = getElementRelationship(me.dayMaster.stem, them.dayMaster.stem);
+  const theirDayProfile = getIljuProfile(them.pillars.day.stemHanja, them.pillars.day.branchHanja);
+  const referralSentence = theirDayProfile
+    ? `You may refer to them naturally as "${themArch.name}" — or, more specifically, "${theirDayProfile.name}" — once or twice in the report, only if it fits the writing. Never force it, and never use both names in the same report.`
+    : `You may refer to them naturally as "${themArch.name}" once or twice in the report — only if it fits the writing. Never force it.`;
 
   const personalityContext = `\
 === DAY MASTER CONTEXT (pre-computed — use as interpretive foundation) ===
@@ -197,7 +216,7 @@ THEIR DAY MASTER: ${them.dayMaster.stem} — ${themArch.name} (${themArch.hanja}
 
 ELEMENT AXIS: ${elemAxis}
 
-You may refer to them naturally as "${themArch.name}" once or twice in the report — only if it fits the writing. Never force it.`;
+${referralSentence}`;
 
   const cautionNote =
     them.pillarsKnown === 6
@@ -205,6 +224,7 @@ You may refer to them naturally as "${themArch.name}" once or twice in the repor
       : '';
 
   const insightBlocks = [
+    buildDayProfileBlock(them),
     buildLensBlock(me, them),
     buildSignalsBlock(me, them),
     buildUndercurrentsBlock(them),

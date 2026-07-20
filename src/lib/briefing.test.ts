@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { parseBriefing, containsBannedPhrases, buildBriefingPrompt, type Briefing } from './briefing';
 import type { SajuChart, Pillar, TenStem, TwelveBranch } from './saju';
 import { LENS_FRAGMENTS, SIGNAL_FRAGMENTS, MIXED_SIGNAL_FRAGMENT, SINSAL_FRAGMENTS } from './promptFragments';
+import { ILJU_PROFILES } from './iljuProfiles';
 
 // ── Chart fixture builder (BRIEF-070) ───────────────────────────────────────
 
@@ -264,6 +265,60 @@ describe('buildBriefingPrompt — THEIR UNDERCURRENTS block', () => {
     const section = extractSection(prompt, '=== THEIR UNDERCURRENTS');
     const bulletCount = section.split('\n').filter(line => line.startsWith('- ')).length;
     expect(bulletCount).toBe(2);
+  });
+});
+
+describe('buildBriefingPrompt — THEIR DAY PROFILE block', () => {
+  it('includes the block with the exact iljuProfiles essence text for their day pillar (甲子)', () => {
+    const me = makeChart({ dayStem: 'Yang Fire', year: 'Rat', month: 'Rat', day: 'Dragon' }); // 丙辰
+    const them = makeChart({ dayStem: 'Yang Wood', year: 'Rat', month: 'Rat', day: 'Rat' }); // 甲子
+    const prompt = buildBriefingPrompt(me, them, 'friend', 'test situation');
+
+    const expected = ILJU_PROFILES['甲子'];
+    expect(prompt).toContain('THEIR DAY PROFILE');
+    expect(prompt).toContain(expected.essence);
+  });
+
+  it('is included even when their birth time is unknown (6 pillars) — the day pillar always exists', () => {
+    const me = makeChart({ dayStem: 'Yang Fire', year: 'Rat', month: 'Rat', day: 'Dragon' }); // 丙辰
+    const them = makeChart({ dayStem: 'Yang Wood', year: 'Rat', month: 'Rat', day: 'Rat' }); // 甲子, no hour
+    const prompt = buildBriefingPrompt(me, them, 'friend', 'test situation');
+
+    expect(them.pillarsKnown).toBe(6);
+    expect(prompt).toContain('THEIR DAY PROFILE');
+    expect(prompt).toContain(ILJU_PROFILES['甲子'].essence);
+  });
+
+  it('does not leak the essence text of MY day pillar profile (me/them have different day pillars)', () => {
+    const me = makeChart({ dayStem: 'Yang Fire', year: 'Rat', month: 'Rat', day: 'Dragon' }); // 丙辰
+    const them = makeChart({ dayStem: 'Yang Wood', year: 'Rat', month: 'Rat', day: 'Rat' }); // 甲子
+    const prompt = buildBriefingPrompt(me, them, 'friend', 'test situation');
+
+    const myProfile = ILJU_PROFILES['丙辰'];
+    expect(prompt).not.toContain(myProfile.essence);
+  });
+
+  it('excludes gifts, KO fields, and traditionNote content even for a day pillar that has them (癸丑)', () => {
+    const me = makeChart({ dayStem: 'Yang Fire', year: 'Rat', month: 'Rat', day: 'Dragon' });
+    const them = makeChart({ dayStem: 'Yin Water', year: 'Ox', month: 'Ox', day: 'Ox' }); // 癸丑
+    const prompt = buildBriefingPrompt(me, them, 'friend', 'test situation');
+
+    const profile = ILJU_PROFILES['癸丑'];
+    expect(profile.traditionNote).toBeTruthy(); // sanity check on the fixture itself
+
+    for (const gift of profile.gifts) expect(prompt).not.toContain(gift);
+    expect(prompt).not.toContain(profile.essenceKo);
+    expect(prompt).not.toContain(profile.coreKo);
+    expect(prompt).not.toContain(profile.traditionNote as string);
+  });
+
+  it('the referral instruction includes the composite day-pillar name alongside the archetype name', () => {
+    const me = makeChart({ dayStem: 'Yang Fire', year: 'Rat', month: 'Rat', day: 'Dragon' });
+    const them = makeChart({ dayStem: 'Yang Wood', year: 'Rat', month: 'Rat', day: 'Rat' }); // 甲子
+    const prompt = buildBriefingPrompt(me, them, 'friend', 'test situation');
+
+    const profile = ILJU_PROFILES['甲子'];
+    expect(prompt).toContain(`or, more specifically, "${profile.name}"`);
   });
 });
 
