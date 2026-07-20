@@ -155,7 +155,7 @@ export default function OnboardingPage() {
             lineHeight: 1.4,
           }}
         >
-          Don&apos;t know it? No problem — we&apos;ll read 6 of 8 pillars.
+          Don&apos;t know the birth time? That&apos;s fine — we&apos;ll read what&apos;s there.
         </p>
 
         {/* Gender chips */}

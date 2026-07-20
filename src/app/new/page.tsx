@@ -216,12 +216,23 @@ export default function NewPage() {
           </div>
 
           {/* Their birth time */}
-          <div style={{ marginBottom: 28 }}>
+          <div style={{ marginBottom: 8 }}>
             <label htmlFor="their-time" className="t-label" style={{ display: 'block', marginBottom: 8 }}>
               Their birth time <span style={{ color: 'var(--c-muted)', fontWeight: 400 }}>(optional)</span>
             </label>
             <TimeInput id="their-time" value={time} onChange={setTime} />
           </div>
+          <p
+            style={{
+              fontFamily: 'var(--font-inter)',
+              fontSize: 12,
+              color: 'var(--c-muted)',
+              marginBottom: 28,
+              lineHeight: 1.4,
+            }}
+          >
+            Don&apos;t know the birth time? That&apos;s fine — we&apos;ll read what&apos;s there.
+          </p>
 
           {/* Relationship chips */}
           <div style={{ marginBottom: 28 }}>

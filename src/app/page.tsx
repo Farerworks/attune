@@ -127,6 +127,12 @@ export default function LandingPage() {
           }}>
             Attune reads two birth charts and tells you how they&apos;ll likely react, what could backfire, and when to bring it up. No sign-up. Takes 30 seconds.
           </p>
+          <p style={{
+            fontFamily: 'var(--font-inter)', fontSize: 14, lineHeight: 1.5,
+            color: 'var(--c-muted)', margin: '0 0 26px',
+          }}>
+            The math is exact. The reading is human.
+          </p>
           <Link href="/onboarding" className="pressable" style={CTA_STYLE}>
             Get your reading
           </Link>
