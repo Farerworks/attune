@@ -200,6 +200,8 @@ function BackupRow({ label, description, onClick }: { label: string; description
   );
 }
 
+const commitSha = (process.env.NEXT_PUBLIC_COMMIT_SHA ?? 'dev').slice(0, 7);
+
 export default function SettingsPage() {
   const router = useRouter();
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
@@ -342,6 +344,13 @@ export default function SettingsPage() {
         </p>
 
         <Row label="Clear all data" danger onClick={() => void handleClearData()} />
+
+        <p style={{
+          fontFamily: 'var(--font-space-mono)', fontSize: 10.5, letterSpacing: '0.08em',
+          color: 'var(--c-muted)', textAlign: 'center', padding: '24px 20px', margin: 0,
+        }}>
+          Attune · {commitSha}
+        </p>
       </div>
     </div>
     </>
