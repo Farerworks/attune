@@ -8,6 +8,7 @@ import type { BriefingData } from '@/lib/store';
 import type { TenStem } from '@/lib/saju';
 import { GlyphAvatar } from '@/components/ArchetypeGlyph';
 import { TabTopBar } from '@/components/TabTopBar';
+import { TabHeader } from '@/components/TabHeader';
 import { pickVariant, localDateStr } from '@/lib/today';
 import { friendlyError } from '@/lib/errorCopy';
 import { getQuickPrompts } from '@/lib/askPrompts';
@@ -318,13 +319,18 @@ export default function AskPage() {
   return (
     <div className="ask-full" style={{ background: 'var(--c-paper)', display: 'flex', flexDirection: 'column' }}>
 
-      {/* ── Sticky header ─────────────────────────────────────────────────────── */}
-      <TabTopBar right={
-        <span style={{ fontFamily: "var(--font-space-mono,'Courier New')", fontSize: 11, letterSpacing: '0.08em', color: 'var(--c-muted)' }}>
+      {/* ── Header ────────────────────────────────────────────────────────────── */}
+      <TabTopBar />
+      <TabHeader title="Ask" />
+
+      {/* ── Quota + chip row — moved out of the sticky header (BRIEF-077) ───────── */}
+      <div style={{ padding: '12px 20px 0' }}>
+        <p style={{
+          margin: '0 0 10px', textAlign: 'right',
+          fontFamily: "var(--font-space-mono,'Courier New')", fontSize: 11, letterSpacing: '0.08em', color: 'var(--c-muted)',
+        }}>
           {left} QUESTIONS LEFT TODAY
-        </span>
-      }>
-        {/* Chip row */}
+        </p>
         <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 12, scrollbarWidth: 'none', alignItems: 'flex-start' }}>
           <style>{`::-webkit-scrollbar{display:none}`}</style>
           {/* Me + Person chips */}
@@ -354,7 +360,7 @@ export default function AskPage() {
             </div>
           )}
         </div>
-      </TabTopBar>
+      </div>
 
       {/* ── Chat area ─────────────────────────────────────────────────────────── */}
       <div style={{ flex: 1, padding: '20px 16px 8px', display: 'flex', flexDirection: 'column', gap: 12 }}>

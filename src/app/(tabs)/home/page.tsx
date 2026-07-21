@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useReadings, getProfile, getDaysIn, ELEMENT_COLORS } from '@/lib/store';
 import { TabTopBar } from '@/components/TabTopBar';
+import { TabHeader } from '@/components/TabHeader';
 import { TodayCard } from '@/components/TodayCard';
 import { DoIcon } from '@/components/icons/DoIcon';
 import { DontIcon } from '@/components/icons/DontIcon';
@@ -133,9 +134,7 @@ export default function HomePage() {
     <div style={{ minHeight: '100%', background: 'var(--c-paper)' }}>
       <TabTopBar />
 
-      <header style={{ padding: '20px 20px 12px', borderBottom: '1px solid var(--c-hairline)' }}>
-        <h1 className="t-h2">{greeting}</h1>
-      </header>
+      <TabHeader title={greeting} />
 
       {dayCount !== null && (
         <p style={{

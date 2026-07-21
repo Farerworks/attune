@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useReadings, ELEMENT_COLORS } from '@/lib/store';
 import { TabTopBar } from '@/components/TabTopBar';
+import { TabHeader } from '@/components/TabHeader';
 import { getArchetype, ARCHETYPE_LOCALE } from '@/lib/interpretGuide';
 import type { TenStem, Element } from '@/lib/saju';
 import { GlyphAvatar } from '@/components/ArchetypeGlyph';
@@ -33,9 +34,7 @@ export default function PeoplePage() {
     <div style={{ minHeight: '100%', background: 'var(--c-paper)' }}>
       <TabTopBar />
 
-      <header style={{ padding: '20px 20px 12px', borderBottom: '1px solid var(--c-hairline)' }}>
-        <h1 className="t-h2">People</h1>
-      </header>
+      <TabHeader title="People" />
 
       {readings.length === 0 ? (
         /* Empty state */

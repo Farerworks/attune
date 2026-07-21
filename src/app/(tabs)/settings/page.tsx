@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { clearAllData } from '@/lib/store';
 import { ChevronIcon } from '@/components/icons/ChevronIcon';
 import { TabTopBar } from '@/components/TabTopBar';
+import { TabHeader } from '@/components/TabHeader';
 import { getSyncSession, pushBackup, pullBackup, deleteBackup, applySnapshot, LS_LAST_BACKUP, type SyncSession } from '@/lib/sync';
 
 // beforeinstallprompt is non-standard — define locally
@@ -291,9 +292,7 @@ export default function SettingsPage() {
     <div style={{ minHeight: '100%', background: 'var(--c-paper)' }}>
       <TabTopBar />
       {/* Header */}
-      <header style={{ padding: '20px 20px 12px' }}>
-        <h1 className="t-h2">Settings</h1>
-      </header>
+      <TabHeader title="Settings" showSettings={false} />
 
       {/* Section rows */}
       <div style={{ marginTop: 8 }}>

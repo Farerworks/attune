@@ -8,15 +8,13 @@ import type { ChartSummary } from '@/lib/store';
 import type { TenStem } from '@/lib/saju';
 import { GlyphAvatar } from '@/components/ArchetypeGlyph';
 import { MyCardModal } from '@/components/MyCardModal';
-import { TodayCard } from '@/components/TodayCard';
 import { EightCharactersCard } from '@/components/EightCharactersCard';
-import { SettingsIcon } from '@/components/icons/SettingsIcon';
-import type { TodayNote } from '@/lib/today';
 import { ELEMENT_INSIGHT } from '@/lib/interpretGuide';
 import { formatDate } from '@/lib/format';
 import { ElementChart } from '@/components/ElementChart';
 import { SpectrumBar } from '@/components/SpectrumBar';
 import { TabTopBar } from '@/components/TabTopBar';
+import { TabHeader } from '@/components/TabHeader';
 
 interface ChartData {
   stem:     string;
@@ -51,9 +49,6 @@ export default function YouPage() {
   const [profile,     setProfile]     = useState<{ date: string; time?: string; gender?: string; createdAt?: string } | null>(null);
   const [error,       setError]       = useState<string | null>(null);
   const [mySpectrums, setMySpectrums] = useState<MySpectrums | null>(null);
-  const [todayNote,   setTodayNote]   = useState<TodayNote | null>(null);
-  const [todayEmoji,     setTodayEmoji]     = useState<string | undefined>(undefined);
-  const [todayDateLabel, setTodayDateLabel] = useState('');
   const [reads,       setReads]       = useState(0);
   const [strong,      setStrong]      = useState(0);
   const [daysIn,      setDaysIn]      = useState(1);
@@ -66,7 +61,7 @@ export default function YouPage() {
     setProfile(p);
 
     Promise.all([import('@/lib/saju'), import('@/lib/interpretGuide'), import('@/lib/today')])
-      .then(([{ calculateSaju }, { getArchetype, ARCHETYPE_LOCALE, DAY_NOTE_LOCALE }, { getMyTodayCard, localDateStr, pickVariant }]) => {
+      .then(([{ calculateSaju }, { getArchetype, ARCHETYPE_LOCALE, DAY_NOTE_LOCALE }, { localDateStr, pickVariant }]) => {
         try {
           const c   = calculateSaju({ date: p.date, time: p.time });
           const arc = getArchetype(c.dayMaster.stem);
@@ -102,10 +97,6 @@ export default function YouPage() {
             dayNoteText,
             pillars: c.pillars,
           });
-          const myToday = getMyTodayCard(c.dayMaster.element, korean, localDateStr());
-          setTodayNote(myToday.note);
-          setTodayEmoji(myToday.emoji);
-          setTodayDateLabel(myToday.dateLabel);
         } catch (e) {
           setError(e instanceof Error ? e.message : 'Could not calculate chart');
         }
@@ -146,16 +137,7 @@ export default function YouPage() {
     )}
     <div style={{ minHeight: '100%', background: 'var(--c-paper)' }}>
       <TabTopBar />
-      {/* Header */}
-      <header style={{
-        padding: '20px 20px 12px', borderBottom: '1px solid var(--c-hairline)',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      }}>
-        <h1 className="t-h2">You</h1>
-        <Link href="/settings" aria-label="Settings" style={{ color: 'var(--c-muted)', display: 'flex' }}>
-          <SettingsIcon />
-        </Link>
-      </header>
+      <TabHeader title="You" />
 
       <div className="stagger" style={{ padding: '24px 20px', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
@@ -230,11 +212,6 @@ export default function YouPage() {
 
             {/* ── Eight characters ─────────────────────────────────────────── */}
             <EightCharactersCard pillars={chart.pillars} pillarsKnown={chart.pillarsKnown as 6 | 8} />
-
-            {/* ── Today card ───────────────────────────────────────────────── */}
-            {todayNote && (
-              <TodayCard note={todayNote} dateLabel={todayDateLabel} emoji={todayEmoji} animationDelay="30ms" />
-            )}
 
             {/* ── Share my card ────────────────────────────────────────────── */}
             <button
