@@ -292,7 +292,7 @@ export default function SettingsPage() {
     <div style={{ minHeight: '100%', background: 'var(--c-paper)' }}>
       <TabTopBar />
       {/* Header */}
-      <TabHeader title="Settings" showSettings={false} />
+      <TabHeader title="Settings" />
 
       {/* Section rows */}
       <div style={{ marginTop: 8 }}>

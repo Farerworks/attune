@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useReadings, getProfile, getDaysIn, ELEMENT_COLORS } from '@/lib/store';
 import { TabTopBar } from '@/components/TabTopBar';
 import { TabHeader } from '@/components/TabHeader';
+import { AccountAvatar } from '@/components/AccountAvatar';
 import { TodayCard } from '@/components/TodayCard';
 import { DoIcon } from '@/components/icons/DoIcon';
 import { DontIcon } from '@/components/icons/DontIcon';
@@ -132,7 +133,7 @@ export default function HomePage() {
 
   return (
     <div style={{ minHeight: '100%', background: 'var(--c-paper)' }}>
-      <TabTopBar />
+      <TabTopBar right={<AccountAvatar />} />
 
       <TabHeader title={greeting} />
 

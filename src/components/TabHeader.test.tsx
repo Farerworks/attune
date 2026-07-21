@@ -11,14 +11,8 @@ describe('TabHeader', () => {
     expect(screen.getByText('People')).toBeTruthy();
   });
 
-  it('renders a Settings link by default', () => {
+  it('no longer renders a Settings link — moved to the top bar avatar (BRIEF-080)', () => {
     render(<TabHeader title="Home" />);
-    const link = screen.getByLabelText('Settings');
-    expect(link.getAttribute('href')).toBe('/settings');
-  });
-
-  it('omits the Settings link when showSettings is false', () => {
-    render(<TabHeader title="Settings" showSettings={false} />);
     expect(screen.queryByLabelText('Settings')).toBeNull();
   });
 });

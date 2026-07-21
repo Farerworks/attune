@@ -8,11 +8,13 @@ afterEach(() => {
 });
 
 describe('PeoplePage', () => {
-  it('renders the Settings link in the header (BRIEF-077)', async () => {
+  it('renders exactly one Settings link, in the top bar (avatar), not in TabHeader (BRIEF-080)', async () => {
     const { default: PeoplePage } = await import('./page');
-    render(<PeoplePage />);
+    const { container } = render(<PeoplePage />);
 
-    const link = screen.getByLabelText('Settings');
-    expect(link.getAttribute('href')).toBe('/settings');
+    const links = screen.getAllByLabelText('Settings');
+    expect(links).toHaveLength(1);
+    expect(links[0].getAttribute('href')).toBe('/settings');
+    expect(container.querySelector('header')?.contains(links[0])).toBe(false);
   });
 });

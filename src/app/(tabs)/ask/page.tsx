@@ -9,6 +9,7 @@ import type { TenStem } from '@/lib/saju';
 import { GlyphAvatar } from '@/components/ArchetypeGlyph';
 import { TabTopBar } from '@/components/TabTopBar';
 import { TabHeader } from '@/components/TabHeader';
+import { AccountAvatar } from '@/components/AccountAvatar';
 import { pickVariant, localDateStr } from '@/lib/today';
 import { friendlyError } from '@/lib/errorCopy';
 import { getQuickPrompts } from '@/lib/askPrompts';
@@ -321,7 +322,7 @@ export default function AskPage() {
     <div className="ask-full" style={{ background: 'var(--c-paper)', display: 'flex', flexDirection: 'column' }}>
 
       {/* ── Header ────────────────────────────────────────────────────────────── */}
-      <TabTopBar />
+      <TabTopBar right={<AccountAvatar />} />
       <TabHeader title="Ask" />
 
       {/* ── Quota + chip row — moved out of the sticky header (BRIEF-077) ───────── */}

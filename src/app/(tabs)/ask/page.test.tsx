@@ -12,18 +12,20 @@ afterEach(() => {
 });
 
 describe('AskPage', () => {
-  it('renders the Settings link in the header (BRIEF-077)', async () => {
+  it('renders exactly one Settings link, in the top bar (avatar), not in TabHeader (BRIEF-080)', async () => {
     localStorage.setItem('attune.profile', JSON.stringify({
       date: '1990-06-15', time: '14:30', gender: 'other', createdAt: new Date().toISOString(),
     }));
 
     const { default: AskPage } = await import('./page');
-    render(<AskPage />);
+    const { container } = render(<AskPage />);
 
     await waitFor(() => {
-      expect(screen.getByLabelText('Settings')).toBeTruthy();
+      expect(screen.getAllByLabelText('Settings')).toHaveLength(1);
     });
-    expect(screen.getByLabelText('Settings').getAttribute('href')).toBe('/settings');
+    const link = screen.getByLabelText('Settings');
+    expect(link.getAttribute('href')).toBe('/settings');
+    expect(container.querySelector('header')?.contains(link)).toBe(false);
   });
 
   it('includes an "at" date field (from createdAt) in each serialized history entry (BRIEF-078)', async () => {
@@ -53,10 +55,10 @@ describe('AskPage', () => {
     fireEvent.change(screen.getByPlaceholderText('Ask anything…'), { target: { value: 'a follow-up question' } });
     fireEvent.click(screen.getByLabelText('Send'));
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/ask', expect.anything()));
 
-    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    const body = JSON.parse(init.body as string);
+    const askCall = fetchMock.mock.calls.find(([url]) => url === '/api/ask') as [string, RequestInit];
+    const body = JSON.parse(askCall[1].body as string);
 
     expect(body.history).toEqual([
       { role: 'user', text: 'hi', at: '2026-07-19' },

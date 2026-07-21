@@ -30,15 +30,17 @@ describe('YouPage', () => {
     expect(screen.queryByText(/^TODAY ·/)).toBeNull();
   });
 
-  it('renders the Settings link in the header (BRIEF-077)', async () => {
+  it('renders exactly one Settings link, in the top bar (avatar), not in TabHeader (BRIEF-080)', async () => {
     localStorage.setItem('attune.profile', JSON.stringify({
       date: '1990-06-15', time: '14:30', gender: 'other', createdAt: new Date().toISOString(),
     }));
 
     const { default: YouPage } = await import('./page');
-    render(<YouPage />);
+    const { container } = render(<YouPage />);
 
-    const link = screen.getByLabelText('Settings');
-    expect(link.getAttribute('href')).toBe('/settings');
+    const links = screen.getAllByLabelText('Settings');
+    expect(links).toHaveLength(1);
+    expect(links[0].getAttribute('href')).toBe('/settings');
+    expect(container.querySelector('header')?.contains(links[0])).toBe(false);
   });
 });

@@ -15,6 +15,7 @@ import { ElementChart } from '@/components/ElementChart';
 import { SpectrumBar } from '@/components/SpectrumBar';
 import { TabTopBar } from '@/components/TabTopBar';
 import { TabHeader } from '@/components/TabHeader';
+import { AccountAvatar } from '@/components/AccountAvatar';
 
 interface ChartData {
   stem:     string;
@@ -136,7 +137,7 @@ export default function YouPage() {
       />
     )}
     <div style={{ minHeight: '100%', background: 'var(--c-paper)' }}>
-      <TabTopBar />
+      <TabTopBar right={<AccountAvatar />} />
       <TabHeader title="You" />
 
       <div className="stagger" style={{ padding: '24px 20px', display: 'flex', flexDirection: 'column', gap: 20 }}>
