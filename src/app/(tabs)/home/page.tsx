@@ -184,7 +184,7 @@ export default function HomePage() {
 
       {/* ── Do / Don't ──────────────────────────────────────────────────────── */}
       {doDont && (
-        <div className="card" style={{ padding: '18px 20px', margin: '0 20px 20px' }}>
+        <div className="card" style={{ padding: '20px', margin: '0 20px 20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
             <DoIcon width={14} height={14} style={{ color: ELEMENT_COLORS.wood.fg }} />
             <span style={{

@@ -10,7 +10,7 @@ interface TodayCardProps {
 
 export function TodayCard({ note, dateLabel, emoji, animationDelay }: TodayCardProps) {
   return (
-    <div className="card" style={{ padding: '16px 18px', animationDelay }}>
+    <div className="card" style={{ padding: '20px', animationDelay }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
         <div style={{
           width: 8, height: 8, borderRadius: '50%', flexShrink: 0,

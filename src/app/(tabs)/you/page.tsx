@@ -231,7 +231,7 @@ export default function YouPage() {
 
             {/* ── Element insight ──────────────────────────────────────────── */}
             {domEl && ELEMENT_INSIGHT[domEl] && (
-              <div className="card" style={{ padding: '16px 18px', animationDelay: '68ms' }}>
+              <div className="card" style={{ padding: '20px', animationDelay: '68ms' }}>
                 <p style={{
                   margin: 0,
                   fontFamily: "var(--font-inter,system-ui)",

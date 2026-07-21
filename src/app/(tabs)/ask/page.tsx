@@ -365,7 +365,7 @@ export default function AskPage() {
       </div>
 
       {/* ── Chat area ─────────────────────────────────────────────────────────── */}
-      <div style={{ flex: 1, padding: '20px 16px 8px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ flex: 1, padding: '20px 20px 8px', display: 'flex', flexDirection: 'column', gap: 12 }}>
 
         {currentThread.length === 0 && !loading && (
           hasAnyThread
@@ -387,7 +387,7 @@ export default function AskPage() {
       </div>
 
       {/* ── Bottom input area ─────────────────────────────────────────────────── */}
-      <div style={{ position: 'sticky', bottom: 0, background: 'var(--c-paper)', borderTop: '1px solid var(--c-hairline)', padding: '12px 16px 10px' }}>
+      <div style={{ position: 'sticky', bottom: 0, background: 'var(--c-paper)', borderTop: '1px solid var(--c-hairline)', padding: '12px 20px 10px' }}>
         {left <= 0 ? (
           <div style={{ textAlign: 'center', padding: '12px 0 4px' }}>
             <p style={{

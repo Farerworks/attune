@@ -111,7 +111,7 @@ export function EightCharactersCard({ pillars, pillarsKnown }: Props) {
     : null;
 
   return (
-    <div className="card" style={{ padding: '18px 16px' }}>
+    <div className="card" style={{ padding: '20px' }}>
       {sheetOpen && dayProfile && dayStemInfo && dayBranchInfo && (
         <IljuSheet
           profile={dayProfile}
