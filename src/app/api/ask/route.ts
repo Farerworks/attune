@@ -41,7 +41,7 @@ function findBanned(text: string): string[] {
 
 // ── Prompt builder ─────────────────────────────────────────────────────────────
 
-function buildAskSystem(
+export function buildAskSystem(
   mode: 'me' | 'person' | 'general',
   meChart: SajuChart,
   themChart: SajuChart | null,
@@ -168,6 +168,13 @@ If the user asks a yes-or-no prediction ("will it work out", "do they like me", 
 3. Immediately pivot: what the current pattern shows, then the one move that fits it now.
 4. Answer in the user's language. Korean example of the pivot line: "그건 사주가 예/아니오로 답해 주는 질문은 아니에요. 대신 흐름으로 보면 —"`;
 
+  const IDENTITY_MENTIONS_RULES = `IDENTITY MENTIONS — AVOID THE BROKEN RECORD
+The person's element/archetype identity is context, not a greeting.
+1. Do NOT re-introduce their identity ("as a Metal-forward Straight Line", "○○님은 ~기운이라") in answer after answer. Within the same day of a conversation, one framing is plenty.
+2. It IS natural to name it again when: a [new day — …] marker shows time has passed, the chart trait is genuinely the point of this answer, or the user asks about it. Even then, vary the wording — never repeat the same formula.
+3. Otherwise refer to the trait implicitly ("that head-on streak of theirs") or just answer the question.
+4. Vary answer openings: lead with the situation, the read, or the move — not the chart. This applies in every language.`;
+
   return `${persona}
 
 ${chartBlock ? `SAJU CONTEXT:\n${chartBlock}\n\nRead the WHOLE chart — all pillars and the element balance — not just the day master. Weave at most one or two specific chart details into an answer when they genuinely matter; never recite or dump the chart.\n\n` : ''}DAILY PILLARS — NEXT 90 DAYS (server-computed, do not modify):
@@ -178,6 +185,8 @@ ${mode === 'person' ? PERSON_RULES : SELF_RULES}
 
 ${PREDICTION_RULES}
 
+${IDENTITY_MENTIONS_RULES}
+
 ${localeVoiceBlock()}
 
 FOLLOW-UP RULE: at most ONE followUp per answer. Never re-ask what the user already told you. Never stack questions. In Korean, no 당신 — e.g. "해보고 어땠는지 알려줘요" / "혹시 지현이 먼저 연락한 적도 있어요?". Skip it entirely on heavy or emotional moments where a question would feel pushy.
@@ -187,13 +196,31 @@ ${outputSpec}`;
 
 // ── Chat turns ──────────────────────────────────────────────────────────────────
 
-function buildAskTurns(
-  history: Array<{ role: 'user' | 'assistant'; text: string }>,
+export function buildAskTurns(
+  history: Array<{ role: 'user' | 'assistant'; text: string; at?: string }>,
   question: string,
+  today?: string,
 ): ChatTurn[] {
-  const turns: ChatTurn[] = history.map(h => ({ role: h.role === 'user' ? 'user' as const : 'model' as const, text: h.text }));
+  const newDayMarker = (date: string) => `[new day — ${date}]\n`;
+
+  let lastKnownDate: string | undefined;
+  const turns: ChatTurn[] = history.map(h => {
+    let text = h.text;
+    if (h.at !== undefined) {
+      if (lastKnownDate !== undefined && h.at !== lastKnownDate) {
+        text = newDayMarker(h.at) + text;
+      }
+      lastKnownDate = h.at;
+    }
+    return { role: h.role === 'user' ? 'user' as const : 'model' as const, text };
+  });
   if (turns.length > 0 && turns[0].role === 'model') turns.shift(); // Gemini는 user로 시작
-  turns.push({ role: 'user', text: question });
+
+  let questionText = question;
+  if (lastKnownDate !== undefined && today !== undefined && today !== lastKnownDate) {
+    questionText = newDayMarker(today) + questionText;
+  }
+  turns.push({ role: 'user', text: questionText });
   return turns;
 }
 
@@ -271,6 +298,7 @@ const RequestSchema = z.object({
   history: z.array(z.object({
     role: z.enum(['user', 'assistant']),
     text: z.string(),
+    at: z.string().optional(),
   })).max(10),
   question: z.string().min(1).max(500),
   todayLocal: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
@@ -320,7 +348,7 @@ export async function POST(request: Request) {
     parsed.data.me.name, themInput?.name,
     mode === 'person' ? parsed.data.memory : undefined,
   );
-  const turns = buildAskTurns(history, question);
+  const turns = buildAskTurns(history, question, today);
 
   const llm = createLlmProvider();
 

@@ -186,6 +186,7 @@ export default function AskPage() {
           : ((m as AssistantMsg).parts
               ? (m as AssistantMsg).parts!.map(p => `${p.label}: ${p.text}`).join('\n')
               : ((m as AssistantMsg).text ?? '')),
+        at: m.createdAt?.slice(0, 10),
       }));
 
       const body: Record<string, unknown> = {
