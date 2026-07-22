@@ -53,4 +53,4 @@ When the user asks what today is, today's energy, or today's saju, first state t
 ## 5. 커밋 해시
 
 - 저장소: https://github.com/Farerworks/attune
-- 커밋 해시: (본 커밋 — 텔레그램 완료 보고에 함께 남긴다)
+- 커밋 해시: `d237f29`
