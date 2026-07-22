@@ -565,7 +565,7 @@ function FirstVisitContent({ onSelect }: { onSelect: (q: string) => void }) {
               style={{
                 display: 'flex', alignItems: 'center', gap: 8,
                 background: 'var(--c-card)', border: '1px solid #EAE4D8',
-                borderRadius: right ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
+                borderRadius: right ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
                 padding: '12px 16px', cursor: 'pointer',
                 boxShadow: '0 4px 12px -6px rgba(26,24,21,0.12)',
                 transform: `rotate(${rot})`,

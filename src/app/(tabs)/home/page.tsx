@@ -297,7 +297,7 @@ export default function HomePage() {
                 className="card pressable"
                 style={{
                   display: 'flex', alignItems: 'flex-start', gap: 12,
-                  padding: '14px 16px', textDecoration: 'none',
+                  padding: '16px 20px', textDecoration: 'none',
                 }}
               >
                 {person.stem && person.element ? (
