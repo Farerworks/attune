@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useKeyboardOpen } from '@/lib/keyboard';
 import { HomeIcon } from './icons/HomeIcon';
 import { PeopleIcon } from './icons/PeopleIcon';
 import { AskIcon } from './icons/AskIcon';
@@ -40,6 +41,7 @@ const TABS: TabItem[] = [
 
 export function TabBar() {
   const pathname = usePathname();
+  const keyboardOpen = useKeyboardOpen();
 
   return (
     <nav
@@ -58,6 +60,9 @@ export function TabBar() {
         zIndex: 50,
         display: 'flex',
         alignItems: 'stretch',
+        transform: keyboardOpen ? 'translateY(120%)' : 'translateY(0)',
+        pointerEvents: keyboardOpen ? 'none' : 'auto',
+        transition: 'transform var(--dur-base) var(--ease-out)',
       }}
     >
       {/* First two tabs: People, Ask */}
