@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
 
 const { buildAskTurns, buildAskSystem } = await import('./route');
-const { calculateSaju } = await import('@/lib/saju');
+const { calculateSaju, getDailyPillars } = await import('@/lib/saju');
 
 function countMarkers(text: string): number {
   return (text.match(/\[new day — \d{4}-\d{2}-\d{2}\]\n/g) ?? []).length;
@@ -104,6 +104,21 @@ describe('buildAskSystem — TIMING & PREDICTION block (BRIEF-083)', () => {
     for (const mode of ['me', 'person', 'general'] as const) {
       const system = buildAskSystem(mode, meChart, mode === 'person' ? themChart : null, undefined, [], 'Alex', 'Sam');
       expect(system).not.toContain('예/아니오로 답해 주는 질문은 아니에요');
+    }
+  });
+});
+
+describe('buildAskSystem — TODAY identity line (BRIEF-084)', () => {
+  const meChart = calculateSaju({ date: '1990-06-15', time: '14:30' });
+  const themChart = calculateSaju({ date: '1988-03-02', time: '09:00' });
+  const daily = getDailyPillars('2026-07-22', 90); // 2026-07-22 = 丁酉일 (Yin Fire / Rooster)
+
+  it('includes a TODAY line, and the day pillar matches dailyPillars[0], for all 3 modes', () => {
+    for (const mode of ['me', 'person', 'general'] as const) {
+      const system = buildAskSystem(mode, meChart, mode === 'person' ? themChart : null, undefined, daily, 'Alex', 'Sam');
+      expect(system).toContain('TODAY');
+      expect(system).toContain(daily[0].stem);
+      expect(system).toContain(daily[0].branch);
     }
   });
 });

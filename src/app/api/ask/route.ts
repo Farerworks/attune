@@ -106,6 +106,11 @@ ${memory.map(f => `- ${f}`).join('\n')}`;
     return `${p.date} (${dow}): ${p.stem} / ${p.branch} — ${p.element}`;
   }).join('\n');
 
+  // Today's identity line — year/month/day pillars named plainly (no hour; today has no birth time)
+  const today = dailyPillars[0]?.date ?? new Date().toISOString().split('T')[0];
+  const todayChart = calculateSaju({ date: today });
+  const todayLine = `TODAY — ${today}: ${todayChart.pillars.year.stem} / ${todayChart.pillars.year.branch} year · ${todayChart.pillars.month.stem} / ${todayChart.pillars.month.branch} month · ${todayChart.pillars.day.stem} / ${todayChart.pillars.day.branch} day (일진). Hour is unknown.`;
+
   // Output schema per mode
   const outputSpec = mode === 'person'
     ? `Choose the 3 part labels to fit the question (labels in English, UPPERCASE):
@@ -184,8 +189,10 @@ The person's element/archetype identity is context, not a greeting.
   return `${persona}
 
 ${chartBlock ? `SAJU CONTEXT:\n${chartBlock}\n\nRead the WHOLE chart — all pillars and the element balance — not just the day master. Weave at most one or two specific chart details into an answer when they genuinely matter; never recite or dump the chart.\n\n` : ''}DAILY PILLARS — NEXT 90 DAYS (server-computed, do not modify):
+${todayLine}
 ${pillarsText}
 Use the daily pillars for timing / auspicious-day questions (see TIMING & PREDICTION) and whenever the question is about when to act.
+When the user asks what today is, today's energy, or today's saju, first state today's pillars plainly by name (lead with the day pillar / 일진), then interpret. Never answer only in abstract element talk.
 
 ${mode === 'person' ? PERSON_RULES : SELF_RULES}
 

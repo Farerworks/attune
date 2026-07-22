@@ -31,7 +31,7 @@ Module._load = function (request, parent, isMain) {
   return originalLoad.apply(this, arguments);
 };
 
-const { calculateSaju } = await import(path.join(ROOT, 'src/lib/saju.ts'));
+const { calculateSaju, getDailyPillars } = await import(path.join(ROOT, 'src/lib/saju.ts'));
 const { buildBriefingPrompt } = await import(path.join(ROOT, 'src/lib/briefing.ts'));
 const { buildAskTurns, buildAskSystem } = await import(path.join(ROOT, 'src/app/api/ask/route.ts'));
 const { LENS_FRAGMENTS } = await import(path.join(ROOT, 'src/lib/promptFragments.ts'));
@@ -122,6 +122,17 @@ const prompt = buildBriefingPrompt(me, them, 'friend', 'Catching up after a whil
     const system = buildAskSystem(mode, me, mode === 'person' ? them : null, undefined, [], 'Alex', 'Sam');
     check(`askSystem (${mode}): contains "TIMING & PREDICTION"`, system.includes('TIMING & PREDICTION'), '');
     check(`askSystem (${mode}): old canned Korean refusal sentence absent`, !system.includes('예/아니오로 답해 주는 질문은 아니에요'), '');
+  }
+}
+
+// ── buildAskSystem TODAY identity line (BRIEF-084) ──────────────────────────
+
+{
+  const daily = getDailyPillars('2026-07-22', 90); // 2026-07-22 = 丁酉일 (Yin Fire / Rooster)
+  for (const mode of ['me', 'person', 'general']) {
+    const system = buildAskSystem(mode, me, mode === 'person' ? them : null, undefined, daily, 'Alex', 'Sam');
+    check(`askSystem (${mode}): contains "TODAY" line`, system.includes('TODAY'), '');
+    check(`askSystem (${mode}): today's day pillar matches dailyPillars[0]`, system.includes(daily[0].stem) && system.includes(daily[0].branch), '');
   }
 }
 
