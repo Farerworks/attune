@@ -33,7 +33,7 @@ Module._load = function (request, parent, isMain) {
 
 const { calculateSaju } = await import(path.join(ROOT, 'src/lib/saju.ts'));
 const { buildBriefingPrompt } = await import(path.join(ROOT, 'src/lib/briefing.ts'));
-const { buildAskTurns } = await import(path.join(ROOT, 'src/app/api/ask/route.ts'));
+const { buildAskTurns, buildAskSystem } = await import(path.join(ROOT, 'src/app/api/ask/route.ts'));
 const { LENS_FRAGMENTS } = await import(path.join(ROOT, 'src/lib/promptFragments.ts'));
 const { ILJU_PROFILES } = await import(path.join(ROOT, 'src/lib/iljuProfiles.ts'));
 
@@ -113,6 +113,16 @@ const prompt = buildBriefingPrompt(me, them, 'friend', 'Catching up after a whil
   check('gifts strings absent (癸丑 fixture)', profile.gifts.every(g => !promptGuiChou.includes(g)), '');
   check('KO fields absent (癸丑 fixture)', !promptGuiChou.includes(profile.essenceKo) && !promptGuiChou.includes(profile.coreKo), '');
   check('"White Tiger" (traditionNote) absent (癸丑 fixture)', !promptGuiChou.includes('White Tiger'), '');
+}
+
+// ── buildAskSystem TIMING & PREDICTION block (BRIEF-083) ────────────────────
+
+{
+  for (const mode of ['me', 'person', 'general']) {
+    const system = buildAskSystem(mode, me, mode === 'person' ? them : null, undefined, [], 'Alex', 'Sam');
+    check(`askSystem (${mode}): contains "TIMING & PREDICTION"`, system.includes('TIMING & PREDICTION'), '');
+    check(`askSystem (${mode}): old canned Korean refusal sentence absent`, !system.includes('예/아니오로 답해 주는 질문은 아니에요'), '');
+  }
 }
 
 // ── buildAskTurns date-marker cases (BRIEF-078) ──────────────────────────────

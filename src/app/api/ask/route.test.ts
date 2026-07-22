@@ -88,3 +88,22 @@ describe('buildAskSystem — IDENTITY MENTIONS block', () => {
     }
   });
 });
+
+describe('buildAskSystem — TIMING & PREDICTION block (BRIEF-083)', () => {
+  const meChart = calculateSaju({ date: '1990-06-15', time: '14:30' });
+  const themChart = calculateSaju({ date: '1988-03-02', time: '09:00' });
+
+  it('contains the new "TIMING & PREDICTION" structure for all 3 modes', () => {
+    for (const mode of ['me', 'person', 'general'] as const) {
+      const system = buildAskSystem(mode, meChart, mode === 'person' ? themChart : null, undefined, [], 'Alex', 'Sam');
+      expect(system).toContain('TIMING & PREDICTION');
+    }
+  });
+
+  it('no longer contains the old canned Korean refusal sentence, for all 3 modes', () => {
+    for (const mode of ['me', 'person', 'general'] as const) {
+      const system = buildAskSystem(mode, meChart, mode === 'person' ? themChart : null, undefined, [], 'Alex', 'Sam');
+      expect(system).not.toContain('예/아니오로 답해 주는 질문은 아니에요');
+    }
+  });
+});
