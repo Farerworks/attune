@@ -65,4 +65,4 @@ If today was already named earlier in this conversation, never cold-open with th
 ## 6. 커밋 해시
 
 - 저장소: https://github.com/Farerworks/attune
-- 커밋 해시: (본 커밋 — 텔레그램 완료 보고에 함께 남긴다)
+- 커밋 해시: `9b3a4ed`
