@@ -122,3 +122,16 @@ describe('buildAskSystem — TODAY identity line (BRIEF-084)', () => {
     }
   });
 });
+
+describe('buildAskSystem — TODAY-MENTION RESTRAINT (BRIEF-087)', () => {
+  const meChart = calculateSaju({ date: '1990-06-15', time: '14:30' });
+  const themChart = calculateSaju({ date: '1988-03-02', time: '09:00' });
+  const daily = getDailyPillars('2026-07-22', 90);
+
+  it('includes the TODAY-MENTION RESTRAINT block for all 3 modes', () => {
+    for (const mode of ['me', 'person', 'general'] as const) {
+      const system = buildAskSystem(mode, meChart, mode === 'person' ? themChart : null, undefined, daily, 'Alex', 'Sam');
+      expect(system).toContain('TODAY-MENTION RESTRAINT');
+    }
+  });
+});

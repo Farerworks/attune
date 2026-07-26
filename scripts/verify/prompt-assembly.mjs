@@ -136,6 +136,16 @@ const prompt = buildBriefingPrompt(me, them, 'friend', 'Catching up after a whil
   }
 }
 
+// ── buildAskSystem TODAY-MENTION RESTRAINT (BRIEF-087) ───────────────────────
+
+{
+  const daily = getDailyPillars('2026-07-22', 90);
+  for (const mode of ['me', 'person', 'general']) {
+    const system = buildAskSystem(mode, me, mode === 'person' ? them : null, undefined, daily, 'Alex', 'Sam');
+    check(`askSystem (${mode}): contains "TODAY-MENTION RESTRAINT"`, system.includes('TODAY-MENTION RESTRAINT'), '');
+  }
+}
+
 // ── buildAskTurns date-marker cases (BRIEF-078) ──────────────────────────────
 
 function countMarkers(text) {
