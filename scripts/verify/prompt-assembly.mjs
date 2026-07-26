@@ -31,7 +31,7 @@ Module._load = function (request, parent, isMain) {
   return originalLoad.apply(this, arguments);
 };
 
-const { calculateSaju, getDailyPillars } = await import(path.join(ROOT, 'src/lib/saju.ts'));
+const { calculateSaju, getDailyPillars, pillarLabel, friendlyPillarName } = await import(path.join(ROOT, 'src/lib/saju.ts'));
 const { buildBriefingPrompt } = await import(path.join(ROOT, 'src/lib/briefing.ts'));
 const { buildAskTurns, buildAskSystem } = await import(path.join(ROOT, 'src/app/api/ask/route.ts'));
 const { LENS_FRAGMENTS } = await import(path.join(ROOT, 'src/lib/promptFragments.ts'));
@@ -129,10 +129,11 @@ const prompt = buildBriefingPrompt(me, them, 'friend', 'Catching up after a whil
 
 {
   const daily = getDailyPillars('2026-07-22', 90); // 2026-07-22 = 丁酉일 (Yin Fire / Rooster)
+  const todayLabel = pillarLabel(calculateSaju({ date: '2026-07-22' }).pillars.day); // 丁酉(정유)
   for (const mode of ['me', 'person', 'general']) {
     const system = buildAskSystem(mode, me, mode === 'person' ? them : null, undefined, daily, 'Alex', 'Sam');
     check(`askSystem (${mode}): contains "TODAY" line`, system.includes('TODAY'), '');
-    check(`askSystem (${mode}): today's day pillar matches dailyPillars[0]`, system.includes(daily[0].stem) && system.includes(daily[0].branch), '');
+    check(`askSystem (${mode}): today's day pillar matches dailyPillars[0]`, system.includes(todayLabel), '');
   }
 }
 
@@ -143,6 +144,22 @@ const prompt = buildBriefingPrompt(me, them, 'friend', 'Catching up after a whil
   for (const mode of ['me', 'person', 'general']) {
     const system = buildAskSystem(mode, me, mode === 'person' ? them : null, undefined, daily, 'Alex', 'Sam');
     check(`askSystem (${mode}): contains "TODAY-MENTION RESTRAINT"`, system.includes('TODAY-MENTION RESTRAINT'), '');
+  }
+}
+
+// ── buildAskSystem friendly day name + context-reference restraint (BRIEF-088) ─
+
+{
+  const daily = getDailyPillars('2026-07-22', 90); // 2026-07-22 = 丁酉일 -> Yin Fire / Rooster
+  const friendly = friendlyPillarName(calculateSaju({ date: '2026-07-22' }).pillars.day); // Fire Rooster / 불 닭
+  for (const mode of ['me', 'person', 'general']) {
+    const system = buildAskSystem(mode, me, mode === 'person' ? them : null, undefined, daily, 'Alex', 'Sam');
+    check(`askSystem (${mode}): contains "丁酉" hanja`, system.includes('丁酉'), '');
+    check(`askSystem (${mode}): contains "정유" reading`, system.includes('정유'), '');
+    check(`askSystem (${mode}): contains friendly EN handle "${friendly.en}"`, system.includes(friendly.en), '');
+    check(`askSystem (${mode}): contains friendly KO handle "${friendly.ko}"`, system.includes(friendly.ko), '');
+    check(`askSystem (${mode}): contains naming rule "Use ONLY the names given in TODAY"`, system.includes('Use ONLY the names given in TODAY'), '');
+    check(`askSystem (${mode}): contains context-reference restraint`, system.includes('never cold-open with the announcement again'), '');
   }
 }
 

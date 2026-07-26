@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { calculateSaju, getDailyPillars } from '@/lib/saju';
+import { calculateSaju, getDailyPillars, pillarLabel, friendlyPillarName } from '@/lib/saju';
 import type { SajuChart, DailyPillar } from '@/lib/saju';
 import { getArchetype, getElementRelationship, localeVoiceBlock } from '@/lib/interpretGuide';
 import { formatChart } from '@/lib/briefing';
@@ -109,7 +109,8 @@ ${memory.map(f => `- ${f}`).join('\n')}`;
   // Today's identity line — year/month/day pillars named plainly (no hour; today has no birth time)
   const today = dailyPillars[0]?.date ?? new Date().toISOString().split('T')[0];
   const todayChart = calculateSaju({ date: today });
-  const todayLine = `TODAY — ${today}: ${todayChart.pillars.year.stem} / ${todayChart.pillars.year.branch} year · ${todayChart.pillars.month.stem} / ${todayChart.pillars.month.branch} month · ${todayChart.pillars.day.stem} / ${todayChart.pillars.day.branch} day (일진). Hour is unknown.`;
+  const todayFriendly = friendlyPillarName(todayChart.pillars.day);
+  const todayLine = `TODAY — ${today}: ${pillarLabel(todayChart.pillars.year)} year · ${pillarLabel(todayChart.pillars.month)} month · ${pillarLabel(todayChart.pillars.day)} day. Friendly day name: ${todayFriendly.en} (${todayFriendly.ko}). Hour is unknown.`;
 
   // Output schema per mode
   const outputSpec = mode === 'person'
@@ -193,7 +194,11 @@ ${todayLine}
 ${pillarsText}
 Use the daily pillars for timing / auspicious-day questions (see TIMING & PREDICTION) and whenever the question is about when to act.
 When the user asks what today is, today's energy, or today's saju, state today's pillars plainly by name (lead with the day pillar / 일진), then interpret. Never answer only in abstract element talk.
+Use ONLY the names given in TODAY — never derive or translate day names yourself.
+FIRST mention of today in a conversation: Korean → 「오늘은 임인(壬寅)일 — '물 호랑이' 날이에요」 style (formal name + friendly gloss, once). English → "a Water Tiger day" (short name only; ganzhi optional in parentheses).
+AFTER that: use only the short handle, woven in ("물 호랑이 기운이…" / "with this Water Tiger energy…") — never repeat the full announcement.
 TODAY-MENTION RESTRAINT — same discipline as identity mentions: do NOT re-announce today's pillars in answer after answer. Name them when the user asks about today/timing or when a specific day genuinely drives the answer — once per day of conversation is plenty. Otherwise leave the date out or refer to it implicitly ("with today's restless energy"), and never open consecutive answers with the same "오늘은 ~일이라" formula.
+If today was already named earlier in this conversation, never cold-open with the announcement again — acknowledge briefly ("아까 말한 물 호랑이 날 흐름대로 —") and move straight to the answer. Two consecutive answers must never begin with the same sentence.
 
 ${mode === 'person' ? PERSON_RULES : SELF_RULES}
 

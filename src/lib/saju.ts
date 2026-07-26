@@ -77,6 +77,56 @@ const BRANCH_ELEMENT: Record<string, Element> = {
   '申': 'metal', '酉': 'metal', '戌': 'earth', '亥': 'water',
 };
 
+/** Reverse of STEM_MAP, plus Korean reading and element — for naming today's pillars in prose. */
+export const STEM_NAMES: Record<TenStem, { hanja: string; ko: string; element: Element }> = {
+  'Yang Wood':  { hanja: '甲', ko: '갑', element: 'wood' },
+  'Yin Wood':   { hanja: '乙', ko: '을', element: 'wood' },
+  'Yang Fire':  { hanja: '丙', ko: '병', element: 'fire' },
+  'Yin Fire':   { hanja: '丁', ko: '정', element: 'fire' },
+  'Yang Earth': { hanja: '戊', ko: '무', element: 'earth' },
+  'Yin Earth':  { hanja: '己', ko: '기', element: 'earth' },
+  'Yang Metal': { hanja: '庚', ko: '경', element: 'metal' },
+  'Yin Metal':  { hanja: '辛', ko: '신', element: 'metal' },
+  'Yang Water': { hanja: '壬', ko: '임', element: 'water' },
+  'Yin Water':  { hanja: '癸', ko: '계', element: 'water' },
+};
+
+/** Reverse of BRANCH_MAP, plus Korean reading and the standard 12-animal Korean name. */
+export const BRANCH_NAMES: Record<TwelveBranch, { hanja: string; ko: string; animalKo: string }> = {
+  Rat:     { hanja: '子', ko: '자', animalKo: '쥐' },
+  Ox:      { hanja: '丑', ko: '축', animalKo: '소' },
+  Tiger:   { hanja: '寅', ko: '인', animalKo: '호랑이' },
+  Rabbit:  { hanja: '卯', ko: '묘', animalKo: '토끼' },
+  Dragon:  { hanja: '辰', ko: '진', animalKo: '용' },
+  Snake:   { hanja: '巳', ko: '사', animalKo: '뱀' },
+  Horse:   { hanja: '午', ko: '오', animalKo: '말' },
+  Goat:    { hanja: '未', ko: '미', animalKo: '양' },
+  Monkey:  { hanja: '申', ko: '신', animalKo: '원숭이' },
+  Rooster: { hanja: '酉', ko: '유', animalKo: '닭' },
+  Dog:     { hanja: '戌', ko: '술', animalKo: '개' },
+  Pig:     { hanja: '亥', ko: '해', animalKo: '돼지' },
+};
+
+const ELEMENT_WORD_EN: Record<Element, string> = { wood: 'Wood', fire: 'Fire', earth: 'Earth', metal: 'Metal', water: 'Water' };
+const ELEMENT_WORD_KO: Record<Element, string> = { wood: '나무', fire: '불', earth: '흙', metal: '쇠', water: '물' };
+
+/** "丙午(병오)" — hanja + Korean reading, for naming a pillar plainly in prose. */
+export function pillarLabel(p: Pillar): string {
+  return `${p.stemHanja}${p.branchHanja}(${STEM_NAMES[p.stem].ko}${BRANCH_NAMES[p.branch].ko})`;
+}
+
+/**
+ * The friendly element+animal handle for a pillar (e.g. day pillar 壬寅 -> "Water Tiger" / "물 호랑이").
+ * Element (5) x animal (12) = 60, exactly the sexagenary cycle, so this is a lossless nickname.
+ */
+export function friendlyPillarName(p: Pillar): { en: string; ko: string } {
+  const element = STEM_NAMES[p.stem].element;
+  return {
+    en: `${ELEMENT_WORD_EN[element]} ${p.branch}`,
+    ko: `${ELEMENT_WORD_KO[element]} ${BRANCH_NAMES[p.branch].animalKo}`,
+  };
+}
+
 function parsePillar(ganHanja: string, zhiHanja: string): Pillar {
   const stem = STEM_MAP[ganHanja];
   const branch = BRANCH_MAP[zhiHanja];

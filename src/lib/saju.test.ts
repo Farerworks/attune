@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { calculateSaju, getDailyPillars } from './saju';
+import { calculateSaju, getDailyPillars, STEM_NAMES, BRANCH_NAMES, pillarLabel, friendlyPillarName } from './saju';
+import type { TenStem, TwelveBranch } from './saju';
 
 // Fixture: verified against lunar-javascript output
 // Cross-check these values against a Korean 만세력 site before shipping.
@@ -115,5 +116,57 @@ describe('getDailyPillars', () => {
       expect(dp.branch).toBeTruthy();
       expect(['wood', 'fire', 'earth', 'metal', 'water']).toContain(dp.element);
     }
+  });
+});
+
+describe('STEM_NAMES / BRANCH_NAMES (BRIEF-088)', () => {
+  const ALL_STEMS: TenStem[] = [
+    'Yang Wood', 'Yin Wood', 'Yang Fire', 'Yin Fire', 'Yang Earth',
+    'Yin Earth', 'Yang Metal', 'Yin Metal', 'Yang Water', 'Yin Water',
+  ];
+  const ALL_BRANCHES: TwelveBranch[] = [
+    'Rat', 'Ox', 'Tiger', 'Rabbit', 'Dragon', 'Snake',
+    'Horse', 'Goat', 'Monkey', 'Rooster', 'Dog', 'Pig',
+  ];
+
+  it('all 10 stem keys exist', () => {
+    for (const s of ALL_STEMS) expect(STEM_NAMES[s]).toBeDefined();
+  });
+
+  it('all 12 branch keys exist', () => {
+    for (const b of ALL_BRANCHES) expect(BRANCH_NAMES[b]).toBeDefined();
+  });
+
+  it('Yang Water -> 壬/임', () => {
+    expect(STEM_NAMES['Yang Water']).toMatchObject({ hanja: '壬', ko: '임', element: 'water' });
+  });
+
+  it('Yin Fire -> 丁/정', () => {
+    expect(STEM_NAMES['Yin Fire']).toMatchObject({ hanja: '丁', ko: '정', element: 'fire' });
+  });
+
+  it('Tiger -> 寅/인/호랑이', () => {
+    expect(BRANCH_NAMES.Tiger).toMatchObject({ hanja: '寅', ko: '인', animalKo: '호랑이' });
+  });
+
+  it('Rooster -> 酉/유/닭', () => {
+    expect(BRANCH_NAMES.Rooster).toMatchObject({ hanja: '酉', ko: '유', animalKo: '닭' });
+  });
+});
+
+describe('pillarLabel / friendlyPillarName (BRIEF-088)', () => {
+  it('labels a 壬寅 (Yang Water / Tiger) pillar as "壬寅(임인)"', () => {
+    const label = pillarLabel({ stem: 'Yang Water', branch: 'Tiger', stemHanja: '壬', branchHanja: '寅' });
+    expect(label).toBe('壬寅(임인)');
+  });
+
+  it('friendly name for Yang Water / Tiger is "Water Tiger" / "물 호랑이"', () => {
+    const name = friendlyPillarName({ stem: 'Yang Water', branch: 'Tiger', stemHanja: '壬', branchHanja: '寅' });
+    expect(name).toEqual({ en: 'Water Tiger', ko: '물 호랑이' });
+  });
+
+  it('friendly name for Yin Fire / Rooster is "Fire Rooster" / "불 닭"', () => {
+    const name = friendlyPillarName({ stem: 'Yin Fire', branch: 'Rooster', stemHanja: '丁', branchHanja: '酉' });
+    expect(name).toEqual({ en: 'Fire Rooster', ko: '불 닭' });
   });
 });

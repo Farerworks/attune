@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
 
 const { buildAskTurns, buildAskSystem } = await import('./route');
-const { calculateSaju, getDailyPillars } = await import('@/lib/saju');
+const { calculateSaju, getDailyPillars, pillarLabel, friendlyPillarName } = await import('@/lib/saju');
 
 function countMarkers(text: string): number {
   return (text.match(/\[new day — \d{4}-\d{2}-\d{2}\]\n/g) ?? []).length;
@@ -112,13 +112,15 @@ describe('buildAskSystem — TODAY identity line (BRIEF-084)', () => {
   const meChart = calculateSaju({ date: '1990-06-15', time: '14:30' });
   const themChart = calculateSaju({ date: '1988-03-02', time: '09:00' });
   const daily = getDailyPillars('2026-07-22', 90); // 2026-07-22 = 丁酉일 (Yin Fire / Rooster)
+  const todayDayLabel = pillarLabel(calculateSaju({ date: '2026-07-22' }).pillars.day); // 丁酉(정유)
 
   it('includes a TODAY line, and the day pillar matches dailyPillars[0], for all 3 modes', () => {
     for (const mode of ['me', 'person', 'general'] as const) {
       const system = buildAskSystem(mode, meChart, mode === 'person' ? themChart : null, undefined, daily, 'Alex', 'Sam');
       expect(system).toContain('TODAY');
-      expect(system).toContain(daily[0].stem);
-      expect(system).toContain(daily[0].branch);
+      expect(system).toContain(todayDayLabel);
+      expect(daily[0].stem).toBe('Yin Fire');
+      expect(daily[0].branch).toBe('Rooster');
     }
   });
 });
@@ -132,6 +134,34 @@ describe('buildAskSystem — TODAY-MENTION RESTRAINT (BRIEF-087)', () => {
     for (const mode of ['me', 'person', 'general'] as const) {
       const system = buildAskSystem(mode, meChart, mode === 'person' ? themChart : null, undefined, daily, 'Alex', 'Sam');
       expect(system).toContain('TODAY-MENTION RESTRAINT');
+    }
+  });
+});
+
+describe('buildAskSystem — friendly day name + context-reference restraint (BRIEF-088)', () => {
+  const meChart = calculateSaju({ date: '1990-06-15', time: '14:30' });
+  const themChart = calculateSaju({ date: '1988-03-02', time: '09:00' });
+  const daily = getDailyPillars('2026-07-22', 90); // 2026-07-22 = 丁酉일 -> Yin Fire / Rooster
+  const todayPillar = calculateSaju({ date: '2026-07-22' }).pillars.day;
+  const friendly = friendlyPillarName(todayPillar); // { en: 'Fire Rooster', ko: '불 닭' }
+
+  it('TODAY line names the day pillar as 丁酉(정유) and the friendly handle as Fire Rooster (불 닭), for all 3 modes', () => {
+    for (const mode of ['me', 'person', 'general'] as const) {
+      const system = buildAskSystem(mode, meChart, mode === 'person' ? themChart : null, undefined, daily, 'Alex', 'Sam');
+      expect(system).toContain('丁酉');
+      expect(system).toContain('정유');
+      expect(system).toContain(friendly.en); // "Fire Rooster"
+      expect(system).toContain(friendly.ko); // "불 닭"
+    }
+  });
+
+  it('includes the naming rule (use only TODAY names, first/after mention split) and the context-reference restraint', () => {
+    for (const mode of ['me', 'person', 'general'] as const) {
+      const system = buildAskSystem(mode, meChart, mode === 'person' ? themChart : null, undefined, daily, 'Alex', 'Sam');
+      expect(system).toContain('Use ONLY the names given in TODAY');
+      expect(system).toContain('FIRST mention of today');
+      expect(system).toContain('never cold-open with the announcement again');
+      expect(system).toContain('Two consecutive answers must never begin with the same sentence');
     }
   });
 });
