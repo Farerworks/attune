@@ -39,4 +39,4 @@ TODAY-MENTION RESTRAINT — same discipline as identity mentions: do NOT re-anno
 ## 5. 커밋 해시
 
 - 저장소: https://github.com/Farerworks/attune
-- 커밋 해시: (본 커밋 — 텔레그램 완료 보고에 함께 남긴다)
+- 커밋 해시: `8c3efc0`
