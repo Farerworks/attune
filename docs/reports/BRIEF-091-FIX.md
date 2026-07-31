@@ -34,4 +34,4 @@ CSS에서 단축 속성(`padding`) 뒤에 개별 속성(`paddingTop`)이 오면,
 ## 5. 커밋 해시
 
 - 저장소: https://github.com/Farerworks/attune
-- 커밋 해시: (본 커밋 — 텔레그램 완료 보고에 함께 남긴다)
+- 커밋 해시: `8aeb135`
