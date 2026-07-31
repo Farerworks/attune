@@ -81,4 +81,41 @@ describe('AskPage', () => {
     const textarea = screen.getByPlaceholderText('Ask anything…') as HTMLTextAreaElement;
     expect(textarea.style.fontSize).toBe('16px');
   });
+
+  it('first-visit examples: 0 saved people -> self/general examples, no person-oriented ones (BRIEF-089)', async () => {
+    localStorage.setItem('attune.profile', JSON.stringify({
+      date: '1990-06-15', time: '14:30', gender: 'other', createdAt: new Date().toISOString(),
+    }));
+
+    const { default: AskPage } = await import('./page');
+    render(<AskPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("What's today like for me?")).toBeTruthy();
+    });
+    expect(screen.getByText('Is this a good stretch to start something?')).toBeTruthy();
+    expect(screen.getByText('What should I watch for this week?')).toBeTruthy();
+    expect(screen.queryByText('How do I ask them out?')).toBeNull();
+    expect(screen.queryByText('Why the slow replies?')).toBeNull();
+    expect(screen.queryByText('How do I raise a hard topic?')).toBeNull();
+  });
+
+  it('first-visit examples: 1+ saved people -> the original person-oriented examples (BRIEF-089)', async () => {
+    localStorage.setItem('attune.profile', JSON.stringify({
+      date: '1990-06-15', time: '14:30', gender: 'other', createdAt: new Date().toISOString(),
+    }));
+    localStorage.setItem('attune.readings', JSON.stringify([
+      { id: 'r1', name: 'Sam', date: '1988-03-02', time: '09:00', createdAt: new Date().toISOString() },
+    ]));
+
+    const { default: AskPage } = await import('./page');
+    render(<AskPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('How do I ask them out?')).toBeTruthy();
+    });
+    expect(screen.getByText('Why the slow replies?')).toBeTruthy();
+    expect(screen.getByText('How do I raise a hard topic?')).toBeTruthy();
+    expect(screen.queryByText("What's today like for me?")).toBeNull();
+  });
 });

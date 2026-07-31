@@ -248,7 +248,10 @@ export default function SettingsPage() {
   }
 
   async function handleClearData() {
-    if (window.confirm('Clear all readings and your birth info? This cannot be undone.')) {
+    const message = syncSession
+      ? 'Clear all readings and your birth info? This also deletes your Google backup. This cannot be undone.'
+      : 'Clear all readings and your birth info? There is no backup — this permanently erases everything on this phone.';
+    if (window.confirm(message)) {
       if (syncSession) { await deleteBackup(); }
       clearAllData();
       router.push('/');
@@ -298,7 +301,7 @@ export default function SettingsPage() {
       <div style={{ marginTop: 8 }}>
         <Row label="What is Saju?" href="/saju" />
         <Row label="Edit birth info" href="/onboarding" />
-        <Row label="Add to Home Screen" onClick={handleAddToHome} />
+        <Row label="Add to Home Screen" chevron onClick={handleAddToHome} />
         <Row label="Share Attune" onClick={handleShare} />
         <Row label="Send feedback" href="mailto:farerworks@gmail.com?subject=Attune%20feedback" />
         <Row label="About Attune" chevron onClick={() => setShowAboutSheet(true)} />

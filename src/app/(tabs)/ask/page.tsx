@@ -370,7 +370,7 @@ export default function AskPage() {
         {currentThread.length === 0 && !loading && (
           hasAnyThread
             ? <EmptyHint chipId={selected} chipLabel={currentChip?.label} />
-            : <FirstVisitContent onSelect={(q) => setInput(q)} />
+            : <FirstVisitContent onSelect={(q) => setInput(q)} hasPersonChips={hasPersonChips} />
         )}
 
         {showDateDivider && currentThread[0]?.createdAt && (
@@ -532,12 +532,18 @@ function ChipButton({ chip, active, onClick }: { chip: Chip; active: boolean; on
   );
 }
 
-function FirstVisitContent({ onSelect }: { onSelect: (q: string) => void }) {
-  const EXAMPLES = [
-    { q: 'How do I ask them out?',       color: '#C4502E', right: true,  rot: '-1deg' },
-    { q: 'Why the slow replies?',         color: '#4A76AC', right: false, rot: '1deg' },
-    { q: 'How do I raise a hard topic?', color: '#4E8A52', right: true,  rot: '-0.8deg' },
-  ];
+function FirstVisitContent({ onSelect, hasPersonChips }: { onSelect: (q: string) => void; hasPersonChips: boolean }) {
+  const EXAMPLES = hasPersonChips
+    ? [
+      { q: 'How do I ask them out?',       color: '#C4502E', right: true,  rot: '-1deg' },
+      { q: 'Why the slow replies?',         color: '#4A76AC', right: false, rot: '1deg' },
+      { q: 'How do I raise a hard topic?', color: '#4E8A52', right: true,  rot: '-0.8deg' },
+    ]
+    : [
+      { q: "What's today like for me?",            color: '#C4502E', right: true,  rot: '-1deg' },
+      { q: 'Is this a good stretch to start something?', color: '#4A76AC', right: false, rot: '1deg' },
+      { q: 'What should I watch for this week?',   color: '#4E8A52', right: true,  rot: '-0.8deg' },
+    ];
 
   return (
     <div style={{ padding: '32px 8px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
