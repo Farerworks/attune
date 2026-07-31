@@ -52,4 +52,4 @@ ME ARCHETYPE: The Fine Edge (KO: 예리한 날)
 ## 5. 커밋 해시
 
 - 저장소: https://github.com/Farerworks/attune
-- 커밋 해시: (본 커밋 — 텔레그램 완료 보고에 함께 남긴다)
+- 커밋 해시: `57fd564`
