@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { calculateSaju, getDailyPillars, pillarLabel, friendlyPillarName } from '@/lib/saju';
-import type { SajuChart, DailyPillar } from '@/lib/saju';
-import { getArchetype, getElementRelationship, localeVoiceBlock } from '@/lib/interpretGuide';
+import type { SajuChart, DailyPillar, Pillar } from '@/lib/saju';
+import { getArchetype, getElementRelationship, localeVoiceBlock, ARCHETYPE_LOCALE } from '@/lib/interpretGuide';
 import { formatChart } from '@/lib/briefing';
 import { createLlmProvider, type ChatTurn } from '@/lib/llm';
 import { checkRateLimit } from '@/lib/rateLimit';
@@ -39,6 +39,23 @@ function findBanned(text: string): string[] {
   return BANNED.filter(w => lower.includes(w));
 }
 
+/** Today's day-pillar name candidates (hanja, ko reading, friendly ko/en) — assembled from pillarLabel/friendlyPillarName, no new calculation. */
+function todayNameCandidates(dayPillar: Pillar): string[] {
+  const hanja = dayPillar.stemHanja + dayPillar.branchHanja;
+  const koMatch = pillarLabel(dayPillar).match(/\(([^)]+)\)/);
+  const ko = koMatch ? koMatch[1] : '';
+  const friendly = friendlyPillarName(dayPillar);
+  return [hanja, ko, friendly.ko, friendly.en];
+}
+
+/** True if any assistant-role message in `history` already named today's day pillar. */
+export function hasTodayIntroduced(
+  history: Array<{ role: 'user' | 'assistant'; text: string }>,
+  names: string[],
+): boolean {
+  return history.some(h => h.role === 'assistant' && names.some(n => n && h.text.includes(n)));
+}
+
 // ── Prompt builder ─────────────────────────────────────────────────────────────
 
 export function buildAskSystem(
@@ -50,26 +67,29 @@ export function buildAskSystem(
   meName?: string,
   themName?: string,
   memory?: string[],
+  todayIntroduced?: boolean,
 ): string {
   // Chart context
   let chartBlock = '';
   if (mode !== 'general') {
     const myArch = getArchetype(meChart.dayMaster.stem);
+    const myArchKo = ARCHETYPE_LOCALE[meChart.dayMaster.stem]?.name_ko;
     chartBlock = `${formatChart(meChart, `ME${meName ? ` — ${meName}` : ''}`)}
 
-ME ARCHETYPE: ${myArch.name}
+ME ARCHETYPE: ${myArch.name}${myArchKo ? ` (KO: ${myArchKo})` : ''}
   Drive: ${myArch.coreDrive}
   Communication: ${myArch.communication}
   Under stress: ${myArch.stress}`;
 
     if (mode === 'person' && themChart) {
       const themArch  = getArchetype(themChart.dayMaster.stem);
+      const themArchKo = ARCHETYPE_LOCALE[themChart.dayMaster.stem]?.name_ko;
       const elemAxis  = getElementRelationship(meChart.dayMaster.stem, themChart.dayMaster.stem);
       chartBlock += `
 
 ${formatChart(themChart, `THEM${themName ? ` — ${themName}` : ''}`)}
 
-THEM ARCHETYPE: ${themArch.name}
+THEM ARCHETYPE: ${themArch.name}${themArchKo ? ` (KO: ${themArchKo})` : ''}
   Drive: ${themArch.coreDrive}
   Communication: ${themArch.communication}
   Under stress: ${themArch.stress}
@@ -111,6 +131,11 @@ ${memory.map(f => `- ${f}`).join('\n')}`;
   const todayChart = calculateSaju({ date: today });
   const todayFriendly = friendlyPillarName(todayChart.pillars.day);
   const todayLine = `TODAY — ${today}: ${pillarLabel(todayChart.pillars.year)} year · ${pillarLabel(todayChart.pillars.month)} month · ${pillarLabel(todayChart.pillars.day)} day. Friendly day name: ${todayFriendly.en} (${todayFriendly.ko}). Hour is unknown.`;
+
+  const todayNamingBlock = todayIntroduced
+    ? `TODAY ALREADY INTRODUCED earlier in this conversation. Do NOT announce or restate today's day name in any answer opening — never begin with "오늘은" + the day name in any form (formal, friendly, or element words). If the day genuinely matters mid-answer, weave the short handle once ("물 호랑이 기운이…"); otherwise leave it out entirely.`
+    : `FIRST mention of today in a conversation: Korean → 「오늘은 임인(壬寅)일 — '물 호랑이' 날이에요」 style (formal name + friendly gloss, once). English → "a Water Tiger day" (short name only; ganzhi optional in parentheses).
+AFTER that: use only the short handle, woven in ("물 호랑이 기운이…" / "with this Water Tiger energy…") — never repeat the full announcement.`;
 
   // Output schema per mode
   const outputSpec = mode === 'person'
@@ -195,8 +220,7 @@ ${pillarsText}
 Use the daily pillars for timing / auspicious-day questions (see TIMING & PREDICTION) and whenever the question is about when to act.
 When the user asks what today is, today's energy, or today's saju, state today's pillars plainly by name (lead with the day pillar / 일진), then interpret. Never answer only in abstract element talk.
 Use ONLY the names given in TODAY — never derive or translate day names yourself.
-FIRST mention of today in a conversation: Korean → 「오늘은 임인(壬寅)일 — '물 호랑이' 날이에요」 style (formal name + friendly gloss, once). English → "a Water Tiger day" (short name only; ganzhi optional in parentheses).
-AFTER that: use only the short handle, woven in ("물 호랑이 기운이…" / "with this Water Tiger energy…") — never repeat the full announcement.
+${todayNamingBlock}
 TODAY-MENTION RESTRAINT — same discipline as identity mentions: do NOT re-announce today's pillars in answer after answer. Name them when the user asks about today/timing or when a specific day genuinely drives the answer — once per day of conversation is plenty. Otherwise leave the date out or refer to it implicitly ("with today's restless energy"), and never open consecutive answers with the same "오늘은 ~일이라" formula.
 If today was already named earlier in this conversation, never cold-open with the announcement again — acknowledge briefly ("아까 말한 물 호랑이 날 흐름대로 —") and move straight to the answer. Two consecutive answers must never begin with the same sentence.
 
@@ -205,6 +229,8 @@ ${mode === 'person' ? PERSON_RULES : SELF_RULES}
 ${PREDICTION_RULES}
 
 ${IDENTITY_MENTIONS_RULES}
+
+If you name an archetype in a Korean answer, use its Korean name (the KO value) — never mix the English archetype name into Korean prose.
 
 ${localeVoiceBlock()}
 
@@ -360,12 +386,17 @@ export async function POST(request: Request) {
   const today = parsed.data.todayLocal ?? new Date().toISOString().split('T')[0];
   const dailyPillars = getDailyPillars(today, 90);
 
+  // Has today's day pillar already been named earlier in this conversation?
+  const todayNames = todayNameCandidates(calculateSaju({ date: today }).pillars.day);
+  const todayIntroduced = hasTodayIntroduced(history, todayNames);
+
   const system = buildAskSystem(
     mode, meChart, themChart,
     briefing as Record<string, unknown> | undefined,
     dailyPillars,
     parsed.data.me.name, themInput?.name,
     mode === 'person' ? parsed.data.memory : undefined,
+    todayIntroduced,
   );
   const turns = buildAskTurns(history, question, today);
 

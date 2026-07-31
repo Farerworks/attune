@@ -33,7 +33,7 @@ Module._load = function (request, parent, isMain) {
 
 const { calculateSaju, getDailyPillars, pillarLabel, friendlyPillarName } = await import(path.join(ROOT, 'src/lib/saju.ts'));
 const { buildBriefingPrompt } = await import(path.join(ROOT, 'src/lib/briefing.ts'));
-const { buildAskTurns, buildAskSystem } = await import(path.join(ROOT, 'src/app/api/ask/route.ts'));
+const { buildAskTurns, buildAskSystem, hasTodayIntroduced } = await import(path.join(ROOT, 'src/app/api/ask/route.ts'));
 const { LENS_FRAGMENTS } = await import(path.join(ROOT, 'src/lib/promptFragments.ts'));
 const { ILJU_PROFILES } = await import(path.join(ROOT, 'src/lib/iljuProfiles.ts'));
 
@@ -161,6 +161,46 @@ const prompt = buildBriefingPrompt(me, them, 'friend', 'Catching up after a whil
     check(`askSystem (${mode}): contains naming rule "Use ONLY the names given in TODAY"`, system.includes('Use ONLY the names given in TODAY'), '');
     check(`askSystem (${mode}): contains context-reference restraint`, system.includes('never cold-open with the announcement again'), '');
   }
+}
+
+// ── hasTodayIntroduced + todayIntroduced branch + KO archetype (BRIEF-090) ────
+
+{
+  const names = ['乙巳', '을사', '나무 뱀', 'Wood Snake'];
+  check(
+    'hasTodayIntroduced: assistant message with the name -> true',
+    hasTodayIntroduced([{ role: 'assistant', text: '오늘은 을사일이라 차분해요.' }], names) === true,
+    '',
+  );
+  check(
+    'hasTodayIntroduced: user-only message with the name -> false',
+    hasTodayIntroduced([{ role: 'user', text: '오늘 을사일이야?' }], names) === false,
+    '',
+  );
+}
+
+{
+  const daily = getDailyPillars('2026-07-22', 90);
+  for (const mode of ['me', 'person', 'general']) {
+    const introduced = buildAskSystem(mode, me, mode === 'person' ? them : null, undefined, daily, 'Alex', 'Sam', undefined, true);
+    check(`askSystem (${mode}, todayIntroduced=true): contains "TODAY ALREADY INTRODUCED"`, introduced.includes('TODAY ALREADY INTRODUCED'), '');
+    check(`askSystem (${mode}, todayIntroduced=true): "FIRST mention of today" absent`, !introduced.includes('FIRST mention of today'), '');
+
+    const notIntroduced = buildAskSystem(mode, me, mode === 'person' ? them : null, undefined, daily, 'Alex', 'Sam', undefined, false);
+    check(`askSystem (${mode}, todayIntroduced=false): contains "FIRST mention of today"`, notIntroduced.includes('FIRST mention of today'), '');
+    check(`askSystem (${mode}, todayIntroduced=false): "TODAY ALREADY INTRODUCED" absent`, !notIntroduced.includes('TODAY ALREADY INTRODUCED'), '');
+  }
+}
+
+{
+  const daily = getDailyPillars('2026-07-22', 90);
+  const meSystem = buildAskSystem('me', me, null, undefined, daily, 'Alex');
+  check('askSystem (me): ME ARCHETYPE has a "(KO: ...)" gloss', /ME ARCHETYPE: .+\(KO: .+\)/.test(meSystem), '');
+
+  const personSystem = buildAskSystem('person', me, them, undefined, daily, 'Alex', 'Sam');
+  check('askSystem (person): ME ARCHETYPE has a "(KO: ...)" gloss', /ME ARCHETYPE: .+\(KO: .+\)/.test(personSystem), '');
+  check('askSystem (person): THEM ARCHETYPE has a "(KO: ...)" gloss', /THEM ARCHETYPE: .+\(KO: .+\)/.test(personSystem), '');
+  check('askSystem: contains the Korean-archetype-naming rule', meSystem.includes('never mix the English archetype name into Korean prose'), '');
 }
 
 // ── buildAskTurns date-marker cases (BRIEF-078) ──────────────────────────────

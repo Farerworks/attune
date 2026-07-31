@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 
-const { buildAskTurns, buildAskSystem } = await import('./route');
+const { buildAskTurns, buildAskSystem, hasTodayIntroduced } = await import('./route');
 const { calculateSaju, getDailyPillars, pillarLabel, friendlyPillarName } = await import('@/lib/saju');
 
 function countMarkers(text: string): number {
@@ -163,5 +163,84 @@ describe('buildAskSystem — friendly day name + context-reference restraint (BR
       expect(system).toContain('never cold-open with the announcement again');
       expect(system).toContain('Two consecutive answers must never begin with the same sentence');
     }
+  });
+});
+
+describe('hasTodayIntroduced (BRIEF-090)', () => {
+  const names = ['乙巳', '을사', '나무 뱀', 'Wood Snake'];
+
+  it('assistant message containing the hanja/ko combo -> true', () => {
+    const history = [{ role: 'assistant' as const, text: '오늘은 을사일이라 차분한 하루예요.' }];
+    expect(hasTodayIntroduced(history, names)).toBe(true);
+  });
+
+  it('user message containing the name (not assistant) -> false', () => {
+    const history = [{ role: 'user' as const, text: '오늘 을사일이야?' }];
+    expect(hasTodayIntroduced(history, names)).toBe(false);
+  });
+
+  it('no message contains any name -> false', () => {
+    const history = [
+      { role: 'user' as const, text: '안녕' },
+      { role: 'assistant' as const, text: '반가워요' },
+    ];
+    expect(hasTodayIntroduced(history, names)).toBe(false);
+  });
+
+  it('assistant message containing only the friendly handle ("나무 뱀") -> true', () => {
+    const history = [{ role: 'assistant' as const, text: '나무 뱀 기운이 도는 하루네요.' }];
+    expect(hasTodayIntroduced(history, names)).toBe(true);
+  });
+});
+
+describe('buildAskSystem — todayIntroduced branch (BRIEF-090)', () => {
+  const meChart = calculateSaju({ date: '1990-06-15', time: '14:30' });
+  const themChart = calculateSaju({ date: '1988-03-02', time: '09:00' });
+  const daily = getDailyPillars('2026-07-22', 90);
+
+  it('todayIntroduced=true -> "TODAY ALREADY INTRODUCED" present, FIRST-mention block absent (3 modes)', () => {
+    for (const mode of ['me', 'person', 'general'] as const) {
+      const system = buildAskSystem(mode, meChart, mode === 'person' ? themChart : null, undefined, daily, 'Alex', 'Sam', undefined, true);
+      expect(system).toContain('TODAY ALREADY INTRODUCED');
+      expect(system).not.toContain('FIRST mention of today');
+    }
+  });
+
+  it('todayIntroduced=false -> FIRST-mention block present, "TODAY ALREADY INTRODUCED" absent (3 modes)', () => {
+    for (const mode of ['me', 'person', 'general'] as const) {
+      const system = buildAskSystem(mode, meChart, mode === 'person' ? themChart : null, undefined, daily, 'Alex', 'Sam', undefined, false);
+      expect(system).toContain('FIRST mention of today');
+      expect(system).not.toContain('TODAY ALREADY INTRODUCED');
+    }
+  });
+
+  it('todayIntroduced omitted -> defaults to the FIRST-mention block (backward compatible, 3 modes)', () => {
+    for (const mode of ['me', 'person', 'general'] as const) {
+      const system = buildAskSystem(mode, meChart, mode === 'person' ? themChart : null, undefined, daily, 'Alex', 'Sam');
+      expect(system).toContain('FIRST mention of today');
+      expect(system).not.toContain('TODAY ALREADY INTRODUCED');
+    }
+  });
+});
+
+describe('buildAskSystem — Korean archetype name injection (BRIEF-090)', () => {
+  const meChart = calculateSaju({ date: '1990-06-15', time: '14:30' });
+  const themChart = calculateSaju({ date: '1988-03-02', time: '09:00' });
+  const daily = getDailyPillars('2026-07-22', 90);
+
+  it('chartBlock includes "(KO: ...)" next to ME ARCHETYPE (me mode)', () => {
+    const system = buildAskSystem('me', meChart, null, undefined, daily, 'Alex');
+    expect(system).toMatch(/ME ARCHETYPE: .+\(KO: .+\)/);
+  });
+
+  it('chartBlock includes "(KO: ...)" next to both ME and THEM ARCHETYPE (person mode)', () => {
+    const system = buildAskSystem('person', meChart, themChart, undefined, daily, 'Alex', 'Sam');
+    expect(system).toMatch(/ME ARCHETYPE: .+\(KO: .+\)/);
+    expect(system).toMatch(/THEM ARCHETYPE: .+\(KO: .+\)/);
+  });
+
+  it('includes the Korean-archetype-naming rule', () => {
+    const system = buildAskSystem('me', meChart, null, undefined, daily, 'Alex');
+    expect(system).toContain('never mix the English archetype name into Korean prose');
   });
 });
