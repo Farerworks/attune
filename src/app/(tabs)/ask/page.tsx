@@ -433,7 +433,7 @@ export default function AskPage() {
                 }}
                 style={{
                   flex: 1, resize: 'none', maxHeight: 120,
-                  fontFamily: "var(--font-inter,system-ui)", fontSize: 15,
+                  fontFamily: "var(--font-inter,system-ui)", fontSize: 16,
                   color: 'var(--c-ink)', lineHeight: 1.5,
                   background: 'var(--c-card)', border: '1px solid var(--c-hairline)',
                   borderRadius: 24, padding: '10px 16px', outline: 'none',

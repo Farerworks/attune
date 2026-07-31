@@ -65,4 +65,20 @@ describe('AskPage', () => {
       { role: 'assistant', text: 'hello', at: '2026-07-19' },
     ]);
   });
+
+  it('composer textarea has fontSize 16 — prevents iOS Safari auto-zoom on focus (BRIEF-091)', async () => {
+    localStorage.setItem('attune.profile', JSON.stringify({
+      date: '1990-06-15', time: '14:30', gender: 'other', createdAt: new Date().toISOString(),
+    }));
+
+    const { default: AskPage } = await import('./page');
+    render(<AskPage />);
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('Ask anything…')).toBeTruthy();
+    });
+
+    const textarea = screen.getByPlaceholderText('Ask anything…') as HTMLTextAreaElement;
+    expect(textarea.style.fontSize).toBe('16px');
+  });
 });

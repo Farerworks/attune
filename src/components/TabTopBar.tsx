@@ -9,6 +9,7 @@ export function TabTopBar({ right, children }: { right?: ReactNode; children?: R
       WebkitBackdropFilter: 'blur(8px)',
       borderBottom: '1px solid var(--c-hairline)',
       padding: children ? '12px 20px 0' : '12px 20px',
+      paddingTop: 'env(safe-area-inset-top, 0px)',
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: children ? 10 : 0 }}>
         <span style={{
