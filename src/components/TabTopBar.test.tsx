@@ -9,8 +9,8 @@ import * as path from 'node:path';
 const SOURCE = fs.readFileSync(path.join(__dirname, 'TabTopBar.tsx'), 'utf8');
 
 describe('TabTopBar — safe-area top padding (BRIEF-091)', () => {
-  it('sticky container declares paddingTop: env(safe-area-inset-top, 0px)', () => {
-    expect(SOURCE).toContain("paddingTop: 'env(safe-area-inset-top, 0px)'");
+  it('sticky container declares paddingTop: calc(12px + env(safe-area-inset-top, 0px)) — additive, not a replacement of the original 12px (BRIEF-091-FIX)', () => {
+    expect(SOURCE).toContain("paddingTop: 'calc(12px + env(safe-area-inset-top, 0px))'");
   });
 
   it('background/blur are unchanged (not made opaque)', () => {
