@@ -1,19 +1,25 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import { act, cleanup, renderHook } from '@testing-library/react';
-import { useKeyboardOpen } from './keyboard';
+import { useKeyboardOpen, useKeyboardInset } from './keyboard';
 
 afterEach(cleanup);
 
 class FakeVisualViewport extends EventTarget {
   height: number;
-  constructor(height: number) {
+  offsetTop: number;
+  constructor(height: number, offsetTop = 0) {
     super();
     this.height = height;
+    this.offsetTop = offsetTop;
   }
   setHeight(height: number) {
     this.height = height;
     this.dispatchEvent(new Event('resize'));
+  }
+  setOffsetTop(offsetTop: number) {
+    this.offsetTop = offsetTop;
+    this.dispatchEvent(new Event('scroll'));
   }
 }
 
@@ -88,5 +94,25 @@ describe('useKeyboardOpen — focus-based fallback (BRIEF-086)', () => {
 
     a.remove();
     b.remove();
+  });
+});
+
+describe('useKeyboardInset (BRIEF-094C-FIX)', () => {
+  it('computes bottomInset and topOffset from window.innerHeight vs. visualViewport height/offsetTop', () => {
+    const fakeViewport = new FakeVisualViewport(500, 40);
+    Object.defineProperty(window, 'visualViewport', { value: fakeViewport, configurable: true });
+    Object.defineProperty(window, 'innerHeight', { value: 800, configurable: true });
+
+    const { result } = renderHook(() => useKeyboardInset());
+
+    expect(result.current).toEqual({ bottomInset: 260, topOffset: 40 });
+  });
+
+  it('falls back to {bottomInset: 0, topOffset: 0} when visualViewport is unsupported', () => {
+    Object.defineProperty(window, 'visualViewport', { value: undefined, configurable: true });
+
+    const { result } = renderHook(() => useKeyboardInset());
+
+    expect(result.current).toEqual({ bottomInset: 0, topOffset: 0 });
   });
 });

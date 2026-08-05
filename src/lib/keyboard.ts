@@ -79,3 +79,37 @@ export function useKeyboardOpen(): boolean {
 
   return viewportOpen || focusOpen;
 }
+
+/**
+ * iOS keeps the layout viewport full-height when the keyboard opens — it only shrinks/shifts
+ * the *visual* viewport. `position: fixed`/`sticky` elements are laid out against the layout
+ * viewport, so without this correction they end up hidden behind the keyboard (bottom) or
+ * panned off-screen above it (top). Standard chat-app technique: read `window.visualViewport`'s
+ * height/offsetTop and translate fixed elements to compensate.
+ */
+export function useKeyboardInset(): { bottomInset: number; topOffset: number } {
+  const [inset, setInset] = useState({ bottomInset: 0, topOffset: 0 });
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.visualViewport) return;
+    const vv = window.visualViewport;
+
+    const update = () => {
+      setInset({
+        bottomInset: Math.max(0, window.innerHeight - vv.height - vv.offsetTop),
+        topOffset: vv.offsetTop,
+      });
+    };
+    update();
+
+    // iOS also shifts offsetTop on scroll while the keyboard stays open — resize alone misses that.
+    vv.addEventListener('resize', update);
+    vv.addEventListener('scroll', update);
+    return () => {
+      vv.removeEventListener('resize', update);
+      vv.removeEventListener('scroll', update);
+    };
+  }, []);
+
+  return inset;
+}

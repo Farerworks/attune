@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { cleanup, render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor, fireEvent } from '@testing-library/react';
 
 // jsdom doesn't implement scrollIntoView — the page calls it on new messages.
 Element.prototype.scrollIntoView = vi.fn();
@@ -16,6 +16,7 @@ afterEach(() => {
   vi.restoreAllMocks();
   mockReplace.mockReset();
   window.history.pushState({}, '', '/ask');
+  Object.defineProperty(window, 'visualViewport', { value: undefined, configurable: true });
 });
 
 describe('AskPage', () => {
@@ -193,6 +194,48 @@ describe('AskPage', () => {
       el = el.parentElement;
     }
     expect(fixedOrSticky).not.toBeNull();
+  });
+
+  it('keyboard open: composer bottom follows bottomInset instead of sitting behind the keyboard (BRIEF-094C-FIX)', async () => {
+    localStorage.setItem('attune.profile', JSON.stringify({
+      date: '1990-06-15', time: '14:30', gender: 'other', createdAt: new Date().toISOString(),
+    }));
+
+    class FakeVisualViewport extends EventTarget {
+      height: number;
+      offsetTop: number;
+      constructor(height: number, offsetTop: number) {
+        super();
+        this.height = height;
+        this.offsetTop = offsetTop;
+      }
+      shrink(height: number, offsetTop: number) {
+        this.height = height;
+        this.offsetTop = offsetTop;
+        this.dispatchEvent(new Event('resize'));
+      }
+    }
+    const fakeViewport = new FakeVisualViewport(800, 0);
+    Object.defineProperty(window, 'visualViewport', { value: fakeViewport, configurable: true });
+    Object.defineProperty(window, 'innerHeight', { value: 800, configurable: true });
+
+    const { default: AskPage } = await import('./page');
+    render(<AskPage />);
+
+    const textarea = await waitFor(() => screen.getByPlaceholderText('Ask anything…'));
+
+    // Simulate the on-screen keyboard opening: iOS shrinks + pans the visual viewport.
+    act(() => { fakeViewport.shrink(460, 40); });
+
+    let el: HTMLElement | null = textarea;
+    let fixedAncestor: HTMLElement | null = null;
+    while (el) {
+      if (getComputedStyle(el).position === 'fixed') { fixedAncestor = el; break; }
+      el = el.parentElement;
+    }
+    expect(fixedAncestor).not.toBeNull();
+    // bottomInset = innerHeight(800) - vv.height(460) - vv.offsetTop(40) = 300
+    expect(fixedAncestor!.style.bottom).toBe('300px');
   });
 
   it('with a long thread, the quota/chip row and composer are not inside the scrolling message container (BRIEF-094C)', async () => {

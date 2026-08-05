@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getProfile, getReadings, ELEMENT_COLORS } from '@/lib/store';
@@ -14,7 +15,7 @@ import { AccountAvatar } from '@/components/AccountAvatar';
 import { pickVariant, localDateStr } from '@/lib/today';
 import { friendlyError } from '@/lib/errorCopy';
 import { getQuickPrompts } from '@/lib/askPrompts';
-import { useKeyboardOpen } from '@/lib/keyboard';
+import { useKeyboardOpen, useKeyboardInset } from '@/lib/keyboard';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -88,6 +89,7 @@ const EXHAUSTED = [
 export default function AskPage() {
   const router = useRouter();
   const keyboardOpen = useKeyboardOpen();
+  const { bottomInset, topOffset } = useKeyboardInset();
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -342,45 +344,49 @@ export default function AskPage() {
     <div className="ask-full" style={{ background: 'var(--c-paper)', display: 'flex', flexDirection: 'column' }}>
 
       {/* ── Fixed top: TabTopBar + quota/chip row, one sticky unit (BRIEF-094C) ── */}
-      <TabTopBar right={<AccountAvatar />}>
-        <div>
-          <p style={{
-            margin: '0 0 10px', textAlign: 'right',
-            fontFamily: "var(--font-space-mono,'Courier New')", fontSize: 11, letterSpacing: '0.08em', color: 'var(--c-muted)',
-          }}>
-            {left} QUESTIONS LEFT TODAY
-          </p>
-          <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 12, scrollbarWidth: 'none', alignItems: 'flex-start' }}>
-            <style>{`::-webkit-scrollbar{display:none}`}</style>
-            {/* Me + Person chips */}
-            {chips.filter(c => c.id !== 'general').map(chip => (
-              <div key={chip.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, flexShrink: 0 }}>
-                <ChipButton chip={chip} active={selected === chip.id} onClick={() => setSelected(chip.id)} />
-                {!hasAnyThread && chip.id === 'me' && (
-                  <span style={{ fontFamily: "var(--font-space-mono,'Courier New')", fontSize: 8.5, letterSpacing: '0.1em', color: 'var(--c-muted)', textTransform: 'uppercase' }}>YOU · TIMING · ANYTHING</span>
-                )}
-              </div>
-            ))}
-            {/* + Someone chip — only when no saved people */}
-            {!hasPersonChips && (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, flexShrink: 0 }}>
-                <Link href="/new" style={{
-                  display: 'flex', alignItems: 'center', padding: '12px 18px',
-                  borderRadius: 20, border: '1.5px dashed #C9C0AD',
-                  background: 'transparent', color: 'var(--c-muted)',
-                  textDecoration: 'none', fontFamily: "var(--font-inter,system-ui)", fontSize: 13,
-                  whiteSpace: 'nowrap', minHeight: 48, boxSizing: 'border-box',
-                }}>
-                  + Someone
-                </Link>
-                {!hasAnyThread && (
-                  <span style={{ fontFamily: "var(--font-space-mono,'Courier New')", fontSize: 8.5, letterSpacing: '0.1em', color: 'var(--c-muted)', textTransform: 'uppercase' }}>ADD A PERSON</span>
-                )}
-              </div>
-            )}
+      {/* Keyboard-open panning fix (BRIEF-094C-FIX): iOS shifts the visual viewport down without
+          scrolling the layout viewport, so a plain `sticky top:0` gets panned off-screen. */}
+      <KeyboardPannedTop active={keyboardOpen && topOffset > 0} topOffset={topOffset}>
+        <TabTopBar right={<AccountAvatar />}>
+          <div>
+            <p style={{
+              margin: '0 0 10px', textAlign: 'right',
+              fontFamily: "var(--font-space-mono,'Courier New')", fontSize: 11, letterSpacing: '0.08em', color: 'var(--c-muted)',
+            }}>
+              {left} QUESTIONS LEFT TODAY
+            </p>
+            <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 12, scrollbarWidth: 'none', alignItems: 'flex-start' }}>
+              <style>{`::-webkit-scrollbar{display:none}`}</style>
+              {/* Me + Person chips */}
+              {chips.filter(c => c.id !== 'general').map(chip => (
+                <div key={chip.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, flexShrink: 0 }}>
+                  <ChipButton chip={chip} active={selected === chip.id} onClick={() => setSelected(chip.id)} />
+                  {!hasAnyThread && chip.id === 'me' && (
+                    <span style={{ fontFamily: "var(--font-space-mono,'Courier New')", fontSize: 8.5, letterSpacing: '0.1em', color: 'var(--c-muted)', textTransform: 'uppercase' }}>YOU · TIMING · ANYTHING</span>
+                  )}
+                </div>
+              ))}
+              {/* + Someone chip — only when no saved people */}
+              {!hasPersonChips && (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, flexShrink: 0 }}>
+                  <Link href="/new" style={{
+                    display: 'flex', alignItems: 'center', padding: '12px 18px',
+                    borderRadius: 20, border: '1.5px dashed #C9C0AD',
+                    background: 'transparent', color: 'var(--c-muted)',
+                    textDecoration: 'none', fontFamily: "var(--font-inter,system-ui)", fontSize: 13,
+                    whiteSpace: 'nowrap', minHeight: 48, boxSizing: 'border-box',
+                  }}>
+                    + Someone
+                  </Link>
+                  {!hasAnyThread && (
+                    <span style={{ fontFamily: "var(--font-space-mono,'Courier New')", fontSize: 8.5, letterSpacing: '0.1em', color: 'var(--c-muted)', textTransform: 'uppercase' }}>ADD A PERSON</span>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      </TabTopBar>
+        </TabTopBar>
+      </KeyboardPannedTop>
       <TabHeader title="Ask" />
 
       {/* ── Scrollable middle: conversation only (BRIEF-094C) ────────────────── */}
@@ -406,12 +412,17 @@ export default function AskPage() {
       </div>
 
       {/* ── Bottom input area ─────────────────────────────────────────────────── */}
+      {/* Keyboard-open positioning fix (BRIEF-094C-FIX): `bottom: bottomInset` (not 0) puts the
+          composer right above the keyboard instead of behind it. bottomInset is 0 when the
+          keyboard-open signal came from focus alone (e.g. desktop) — behaves like before. */}
       <div style={{
-        position: keyboardOpen ? 'fixed' : 'sticky', bottom: 0,
+        position: keyboardOpen ? 'fixed' : 'sticky', bottom: keyboardOpen ? bottomInset : 0,
         ...(keyboardOpen ? { left: 0, right: 0, margin: '0 auto', width: '100%', maxWidth: 480 } : {}),
         background: 'var(--c-paper)', borderTop: '1px solid var(--c-hairline)',
         paddingTop: 12, paddingRight: 20, paddingLeft: 20,
-        paddingBottom: keyboardOpen ? 'calc(10px + env(safe-area-inset-bottom, 0px))' : 10,
+        // No extra safe-area padding while the keyboard is open — there's no home indicator
+        // to clear above the keyboard, so it would just double up the bottom gap.
+        paddingBottom: 10,
       }}>
         {left <= 0 ? (
           <div style={{ textAlign: 'center', padding: '12px 0 4px' }}>
@@ -498,6 +509,34 @@ export default function AskPage() {
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
+
+/**
+ * When the on-screen keyboard pans the visual viewport down without scrolling the layout
+ * viewport (iOS), a `position: sticky` child gets pushed above the visible area. While `active`,
+ * this switches its child to `position: fixed` and pulls it back down by `topOffset` — and
+ * reserves the same height in the flow so the rest of the page doesn't jump up (BRIEF-094C-FIX).
+ */
+function KeyboardPannedTop({ active, topOffset, children }: { active: boolean; topOffset: number; children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [height, setHeight] = useState(0);
+
+  useEffect(() => {
+    if (ref.current) setHeight(ref.current.offsetHeight);
+  });
+
+  if (!active) {
+    return <div ref={ref}>{children}</div>;
+  }
+
+  return (
+    <>
+      <div style={{ height }} />
+      <div ref={ref} style={{ position: 'fixed', top: 0, left: 0, right: 0, transform: `translateY(${topOffset}px)` }}>
+        {children}
+      </div>
+    </>
+  );
+}
 
 function DateDivider({ isoStr }: { isoStr: string }) {
   const label = new Date(isoStr)
