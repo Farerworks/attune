@@ -2,334 +2,294 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useReadings, getProfile, getDaysIn, ELEMENT_COLORS } from '@/lib/store';
+import { useReadings, getProfile, ELEMENT_COLORS } from '@/lib/store';
+import type { Reading } from '@/lib/store';
 import { TabTopBar } from '@/components/TabTopBar';
-import { TabHeader } from '@/components/TabHeader';
 import { AccountAvatar } from '@/components/AccountAvatar';
-import { TodayCard } from '@/components/TodayCard';
-import { DoIcon } from '@/components/icons/DoIcon';
-import { DontIcon } from '@/components/icons/DontIcon';
 import { ChevronIcon } from '@/components/icons/ChevronIcon';
-import { GlyphAvatar } from '@/components/ArchetypeGlyph';
-import { getArchetype, ARCHETYPE_LOCALE } from '@/lib/interpretGuide';
-import { pickVariant, ME, ME_KO, todayDateLabel } from '@/lib/today';
-import type { TodayNote } from '@/lib/today';
-import type { DailyDoDont, FlowDay } from '@/lib/homeCopy';
-import type { Element, TenStem } from '@/lib/saju';
-
-const SECTION_LABEL_STYLE = {
-  fontFamily: 'var(--font-space-mono)',
-  fontSize: 10.5,
-  letterSpacing: '0.18em',
-  textTransform: 'uppercase' as const,
-  color: 'var(--c-muted)',
-};
+import type { DailyDoDont } from '@/lib/homeCopy';
+import type { Element } from '@/lib/saju';
 
 // Mirrors People page's per-reading language heuristic (isKo) — same rule, own copy.
 const isKo = (s?: string) => !!s && /[가-힣]/.test(s);
 
-interface ReachOutPerson {
+// Memoized so the two effects below share one `import('@/lib/today')` call
+// instead of two concurrent ones for the same specifier.
+let todayModulePromise: Promise<typeof import('@/lib/today')> | null = null;
+function loadTodayModule() {
+  if (!todayModulePromise) todayModulePromise = import('@/lib/today');
+  return todayModulePromise;
+}
+
+const WEEKDAY_3 = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+const MONTH_3 = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+
+/** "AUG 5 TUE" — top-of-page eyebrow date, always English 3-letter, regardless of locale. */
+function eyebrowDateLabel(d: Date): string {
+  return `${MONTH_3[d.getMonth()]} ${d.getDate()} ${WEEKDAY_3[d.getDay()]}`;
+}
+
+/** "WED · AUG 6" — AHEAD card date, always English 3-letter, regardless of locale. */
+function aheadDateLabel(d: Date): string {
+  return `${WEEKDAY_3[d.getDay()]} · ${MONTH_3[d.getMonth()]}`.concat(` ${d.getDate()}`);
+}
+
+/** Latest reading per name (readings are already newest-first), in that order. */
+function dedupeLatestByName(readings: Reading[]): Reading[] {
+  const seen = new Set<string>();
+  const out: Reading[] = [];
+  for (const r of readings) {
+    const key = r.name?.trim() || r.id;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(r);
+  }
+  return out;
+}
+
+const SECTION_LABEL_STYLE = {
+  fontFamily: 'var(--font-space-mono)',
+  fontSize: 10,
+  letterSpacing: '0.14em',
+  textTransform: 'uppercase' as const,
+  color: 'var(--c-muted)',
+};
+
+interface PersonRow {
   id: string;
-  createdAt: string;
-  displayName: string;
-  stem?: TenStem;
-  element?: string;
+  name: string;
+  relationship: string;
+  element: string;
+  line: string;
+}
+
+interface AheadDay {
+  date: string;
   line: string;
 }
 
 export default function HomePage() {
   const [readings] = useReadings();
-  const [greeting,   setGreeting]   = useState("Who's on your mind?");
-  const [myTodayNote,      setMyTodayNote]      = useState<TodayNote | null>(null);
-  const [myTodayEmoji,     setMyTodayEmoji]     = useState<string | undefined>(undefined);
-  const [myTodayDateLabel, setMyTodayDateLabel] = useState('');
-  const [korean,   setKorean]   = useState(false);
-  const [doDont,   setDoDont]   = useState<DailyDoDont | null>(null);
-  const [flowDays, setFlowDays] = useState<FlowDay[]>([]);
-  const [selectedIdx, setSelectedIdx] = useState(0);
-  const [reachOut, setReachOut] = useState<ReachOutPerson[]>([]);
-  const [dayCount, setDayCount] = useState<number | null>(null);
+  const [korean, setKorean] = useState(false);
+  const [todaySentence, setTodaySentence] = useState<string | null>(null);
+  const [doDont, setDoDont] = useState<DailyDoDont | null>(null);
+  const [aheadDays, setAheadDays] = useState<AheadDay[]>([]);
+  const [personRows, setPersonRows] = useState<PersonRow[]>([]);
+  const [quickPrompts, setQuickPrompts] = useState<string[]>([]);
 
-  useEffect(() => {
-    const h = new Date().getHours();
-    setGreeting(
-      h < 5 || h >= 18
-        ? "Thinking about someone tonight?"
-        : h < 11
-        ? "Who's on your mind this morning?"
-        : "Who's on your mind?"
-    );
-  }, []);
-
-  // DAY N — hidden without a known start date (profile.createdAt)
-  useEffect(() => {
-    const profile = getProfile();
-    if (!profile?.createdAt) return;
-    setDayCount(getDaysIn());
-  }, []);
-
-  // My today card + Do/Don't + 14-day flow — same chart, computed once
+  // Today's core sentence + Do/Don't + AHEAD — same profile chart, computed once
   useEffect(() => {
     const profile = getProfile();
     if (!profile) return;
-    Promise.all([import('@/lib/saju'), import('@/lib/today'), import('@/lib/homeCopy')])
-      .then(([{ calculateSaju }, { getMyTodayCard }, { getDailyDoDont, getFlowDays }]) => {
+    Promise.all([
+      import('@/lib/saju'),
+      loadTodayModule(),
+      import('@/lib/homeCopy'),
+      import('@/lib/askPrompts'),
+    ])
+      .then(([{ calculateSaju }, { getMyTodayCard, pickVariant, ME, ME_KO }, { getDailyDoDont, getFlowDays }, { getQuickPrompts }]) => {
         try {
           const c = calculateSaju({ date: profile.date, time: profile.time });
           const isKorean = typeof navigator !== 'undefined' && navigator.language.startsWith('ko');
           const element = c.dayMaster.element as Element;
           setKorean(isKorean);
 
-          const myToday = getMyTodayCard(element, isKorean);
-          setMyTodayNote(myToday.note);
-          setMyTodayEmoji(myToday.emoji);
-          setMyTodayDateLabel(myToday.dateLabel);
-
+          setTodaySentence(getMyTodayCard(element, isKorean).note.line);
           setDoDont(getDailyDoDont(element, isKorean));
-          setFlowDays(getFlowDays(element, isKorean));
-        } catch { /* chart calc failed — cards simply won't show */ }
+
+          const flow = getFlowDays(element, isKorean);
+          const goodAhead = flow.slice(1).filter(d => d.tone === 'good').slice(0, 2);
+          setAheadDays(goodAhead.map(d => ({
+            date: d.date,
+            line: pickVariant((isKorean ? ME_KO : ME)[d.rel], `${d.date}|me|${d.rel}`),
+          })));
+
+          setQuickPrompts(getQuickPrompts('general', isKorean));
+        } catch { /* chart calc failed — sections simply won't show */ }
       });
   }, []);
 
-  // Reach-out-today — same THEM-note computation as People, good-tone only, top 2 by recency
+  // People in today's edition — latest reading per name, up to 3, themChart required
   useEffect(() => {
-    if (readings.length === 0) { setReachOut([]); return; }
-    import('@/lib/today').then(({ getTodayNote, localDateStr }) => {
+    if (readings.length === 0) { setPersonRows([]); return; }
+    loadTodayModule().then(({ getTodayNote, localDateStr }) => {
       const ds = localDateStr();
-      const candidates: ReachOutPerson[] = [];
-      for (const r of readings) {
+      const rows: PersonRow[] = [];
+      for (const r of dedupeLatestByName(readings)) {
         const rEl = r.themChart?.dayMaster?.element?.toLowerCase() as Element | undefined;
         if (!rEl) continue;
-        const note = getTodayNote(rEl, 'them', ds, r.name);
-        if (note.tone !== 'good') continue;
-
-        const stem = r.themChart?.dayMaster?.stem as TenStem | undefined;
-        const nameIsKorean = isKo(r.briefing?.headline || r.situation);
-        const L = stem ? ARCHETYPE_LOCALE[stem] : undefined;
-        const archName = stem ? (nameIsKorean && L ? L.name_ko : getArchetype(stem).name) : null;
-
-        candidates.push({
+        rows.push({
           id: r.id,
-          createdAt: r.createdAt,
-          displayName: r.name ?? archName ?? 'Unknown',
-          stem,
+          name: r.name ?? 'Unknown',
+          relationship: r.relationship,
           element: rEl,
-          line: note.line,
+          line: getTodayNote(rEl, 'them', ds, r.name).line,
         });
       }
-      candidates.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      setReachOut(candidates.slice(0, 2));
+      setPersonRows(rows);
     });
   }, [readings]);
 
-  const hasReadings = readings.length > 0;
-  const selectedDay = flowDays[selectedIdx];
-  const selectedLine = selectedDay
-    ? pickVariant((korean ? ME_KO : ME)[selectedDay.rel], `${selectedDay.date}|me|${selectedDay.rel}`)
-    : null;
-  const selectedDateLabel = selectedDay
-    ? todayDateLabel(korean, new Date(`${selectedDay.date}T00:00:00`))
-    : '';
+  const shownPeople = personRows.slice(0, 3);
+  const hasMorePeople = personRows.length >= 4;
+  const today = new Date();
 
   return (
     <div style={{ minHeight: '100%', background: 'var(--c-paper)' }}>
       <TabTopBar right={<AccountAvatar />} />
 
-      <TabHeader title={greeting} />
-
-      {dayCount !== null && (
-        <p style={{
-          margin: 0, padding: '14px 20px 0',
-          fontFamily: 'var(--font-space-mono)', fontSize: 9.5, letterSpacing: '0.14em',
-          textTransform: 'uppercase', color: 'var(--c-muted)',
-        }}>
-          DAY {dayCount} WITH ATTUNE
+      <div style={{ padding: '20px 20px 0' }}>
+        {/* Eyebrow — content area's first line */}
+        <p style={{ margin: 0, ...SECTION_LABEL_STYLE }}>
+          TODAY&apos;S EDITION · {eyebrowDateLabel(today)}
         </p>
-      )}
 
-      {myTodayNote && (
-        <div style={{ padding: '16px 20px 0' }}>
-          <TodayCard note={myTodayNote} dateLabel={myTodayDateLabel} emoji={myTodayEmoji} />
-        </div>
-      )}
+        {/* Today's core sentence — the only large element on the screen */}
+        {todaySentence && (
+          <p style={{
+            margin: '28px 0 32px',
+            fontFamily: 'var(--font-fraunces)',
+            fontSize: isKo(todaySentence) ? 31 : 34,
+            lineHeight: 1.22,
+            color: 'var(--c-ink)',
+          }}>
+            {todaySentence}
+          </p>
+        )}
 
-      <div style={{ padding: '20px' }}>
-        <Link
-          href="/new"
-          className="pressable"
-          style={hasReadings ? {
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            height: 52, borderRadius: 999,
-            background: 'none', border: '1.5px solid var(--c-ink)', color: 'var(--c-ink)',
-            fontFamily: "var(--font-inter,system-ui)", fontSize: 17, fontWeight: 600,
-            textDecoration: 'none', marginBottom: 12,
-          } : {
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            height: 52, borderRadius: 999,
-            background: '#C4502E', color: '#fff',
-            fontFamily: "var(--font-inter,system-ui)", fontSize: 17, fontWeight: 600,
-            textDecoration: 'none', marginBottom: 12,
-          }}
-        >
-          Read someone →
-        </Link>
-        <p style={{
-          textAlign: 'center',
-          fontFamily: "var(--font-space-mono,'Courier New')",
-          fontSize: 10, letterSpacing: '0.1em', color: 'var(--c-muted)', margin: 0,
-        }}>
-          TAKES 30 SECONDS · NOT A VERDICT
-        </p>
+        {/* Do / Don't — single line, no card */}
+        {doDont && (
+          <p style={{ margin: '0 0 28px', fontFamily: 'var(--font-inter)', fontSize: 13, color: 'var(--c-ink-body)', lineHeight: 1.6 }}>
+            <span style={{ fontFamily: 'var(--font-space-mono)', fontSize: 10, letterSpacing: '0.1em', color: ELEMENT_COLORS.wood.fg }}>DO</span>
+            {' '}{doDont.dos[0]}{' · '}
+            <span style={{ fontFamily: 'var(--font-space-mono)', fontSize: 10, letterSpacing: '0.1em', color: 'var(--c-vermilion)' }}>DON&apos;T</span>
+            {' '}{doDont.donts[0]}
+          </p>
+        )}
       </div>
 
-      {/* ── Do / Don't ──────────────────────────────────────────────────────── */}
-      {doDont && (
-        <div className="card" style={{ padding: '20px', margin: '0 20px 20px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
-            <DoIcon width={14} height={14} style={{ color: ELEMENT_COLORS.wood.fg }} />
-            <span style={{
-              fontFamily: 'var(--font-space-mono)', fontSize: 10, letterSpacing: '0.14em',
-              textTransform: 'uppercase', color: ELEMENT_COLORS.wood.fg,
-            }}>
-              DO
-            </span>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {doDont.dos.map((line, i) => (
-              <p key={i} style={{ margin: 0, fontFamily: 'var(--font-inter)', fontSize: 14.5, color: 'var(--c-ink)', lineHeight: 1.5 }}>
-                {line}
-              </p>
-            ))}
-          </div>
-
-          <div style={{ borderTop: '1px solid var(--c-hairline)', margin: '16px 0' }} />
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
-            <DontIcon width={14} height={14} style={{ color: 'var(--c-vermilion)' }} />
-            <span style={{
-              fontFamily: 'var(--font-space-mono)', fontSize: 10, letterSpacing: '0.14em',
-              textTransform: 'uppercase', color: 'var(--c-vermilion)',
-            }}>
-              DON&apos;T
-            </span>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {doDont.donts.map((line, i) => (
-              <p key={i} style={{ margin: 0, fontFamily: 'var(--font-inter)', fontSize: 14.5, color: 'var(--c-ink)', lineHeight: 1.5 }}>
-                {line}
-              </p>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ── 14-day flow strip ─────────────────────────────────────────────── */}
-      {flowDays.length > 0 && (
-        <div style={{ padding: '0 20px 24px' }}>
-          <p style={{ ...SECTION_LABEL_STYLE, marginBottom: 14 }}>NEXT 14 DAYS</p>
-
-          <style>{`.home-flow-scroll::-webkit-scrollbar { display: none; }`}</style>
-          <div
-            className="home-flow-scroll"
-            style={{
-              display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 4,
-              scrollbarWidth: 'none',
-            }}
-          >
-            {flowDays.map((day, i) => {
-              const selected = i === selectedIdx;
-              return (
-                <button
-                  key={day.date}
-                  type="button"
-                  onClick={() => setSelectedIdx(i)}
-                  style={{
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
-                    background: 'none', border: 'none', padding: 0, flexShrink: 0, width: 28,
-                    cursor: 'pointer',
-                  }}
-                >
-                  <span style={{ fontFamily: 'var(--font-space-mono)', fontSize: 9, color: 'var(--c-muted)' }}>
-                    {day.weekdayLabel}
-                  </span>
-                  <span style={{
-                    fontFamily: 'var(--font-inter)', fontSize: 14,
-                    color: selected ? 'var(--c-vermilion)' : 'var(--c-ink)',
-                    fontWeight: selected ? 700 : 400,
-                  }}>
-                    {day.dayNumber}
-                  </span>
-                  {day.tone === 'soft' ? (
-                    <span style={{ width: 6, height: 6, borderRadius: '50%', border: '1px solid var(--c-muted)' }} />
-                  ) : (
-                    <span style={{
-                      width: 6, height: 6, borderRadius: '50%',
-                      background: day.tone === 'good' ? 'var(--c-vermilion)' : 'var(--c-muted)',
-                    }} />
-                  )}
-                </button>
-              );
-            })}
-          </div>
-
-          {selectedLine && (
-            <div style={{ marginTop: 14 }}>
-              <p style={{ margin: 0, fontFamily: 'var(--font-space-mono)', fontSize: 9, color: 'var(--c-muted)' }}>
-                {selectedDateLabel}
-              </p>
-              <p style={{ margin: '4px 0 0', fontFamily: 'var(--font-fraunces)', fontSize: 15, color: 'var(--c-ink-body)' }}>
-                {selectedLine}
-              </p>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── Reach out today ──────────────────────────────────────────────── */}
-      {reachOut.length > 0 && (
-        <div style={{ padding: '0 20px 24px' }}>
-          <p style={{ ...SECTION_LABEL_STYLE, marginBottom: 14 }}>REACH OUT TODAY</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {reachOut.map(person => (
+      {/* People in today's edition — or the empty-state ledger CTA row */}
+      {personRows.length > 0 ? (
+        <div style={{ padding: '0 0 28px' }}>
+          <p style={{ ...SECTION_LABEL_STYLE, padding: '0 20px', marginBottom: 10 }}>PEOPLE IN TODAY&apos;S EDITION</p>
+          <div>
+            {shownPeople.map(person => (
               <Link
                 key={person.id}
                 href={`/reading/${person.id}`}
-                className="card pressable"
+                className="pressable"
                 style={{
-                  display: 'flex', alignItems: 'flex-start', gap: 12,
-                  padding: '16px 20px', textDecoration: 'none',
+                  display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 4,
+                  minHeight: 72, padding: '10px 20px',
+                  borderBottom: '1px solid var(--c-hairline)',
+                  textDecoration: 'none',
                 }}
               >
-                {person.stem && person.element ? (
-                  <GlyphAvatar stem={person.stem} element={person.element} size={44} />
-                ) : (
-                  <div style={{
-                    width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
-                    background: 'var(--c-surface-alt)', color: 'var(--c-muted)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}>?</div>
-                )}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                    <span style={{ fontFamily: 'var(--font-inter)', fontSize: 15, fontWeight: 600, color: 'var(--c-ink)' }}>
-                      {person.displayName}
-                    </span>
-                    <ChevronIcon width={16} height={16} style={{ color: 'var(--c-muted)', flexShrink: 0 }} />
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
-                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--c-vermilion)', flexShrink: 0 }} />
-                    <span style={{ fontFamily: 'var(--font-inter)', fontSize: 13, color: 'var(--c-ink-body)', lineHeight: 1.5 }}>
-                      {person.line}
-                    </span>
-                  </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{
+                    width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+                    background: ELEMENT_COLORS[person.element]?.fg ?? 'var(--c-muted)',
+                  }} />
+                  <span style={{ fontFamily: 'var(--font-inter)', fontSize: 16, fontWeight: 600, color: 'var(--c-ink)' }}>
+                    {person.name}
+                  </span>
+                  <span style={{ fontFamily: 'var(--font-inter)', fontSize: 11, color: 'var(--c-muted)' }}>
+                    {person.relationship}
+                  </span>
+                  <ChevronIcon width={16} height={16} style={{ color: 'var(--c-muted)', marginLeft: 'auto', flexShrink: 0 }} />
                 </div>
+                <p style={{
+                  margin: 0, fontFamily: 'var(--font-inter)', fontSize: 14, color: 'var(--c-ink-body)',
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}>
+                  {person.line}
+                </p>
+              </Link>
+            ))}
+            {hasMorePeople && (
+              <Link
+                href="/people"
+                className="pressable"
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  padding: '14px 20px', fontFamily: 'var(--font-inter)', fontSize: 13, color: 'var(--c-muted)',
+                  textDecoration: 'none',
+                }}
+              >
+                {korean ? '모든 사람 보기 ›' : 'See everyone ›'}
+              </Link>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div style={{ padding: '0 0 28px' }}>
+          <Link
+            href="/new"
+            className="pressable"
+            style={{
+              display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 4,
+              minHeight: 72, padding: '14px 20px',
+              borderTop: '1px solid var(--c-hairline)', borderBottom: '1px solid var(--c-hairline)',
+              textDecoration: 'none',
+            }}
+          >
+            <span style={{ fontFamily: 'var(--font-inter)', fontSize: 16, fontWeight: 600, color: 'var(--c-ink)' }}>
+              {korean ? '＋ 오늘 떠오른 사람 추가하기' : '＋ Add someone on your mind'}
+            </span>
+            <span style={{ fontFamily: 'var(--font-inter)', fontSize: 14, color: 'var(--c-ink-body)' }}>
+              {korean ? '출생 시간은 몰라도 시작할 수 있어요' : 'You can start without a birth time'}
+            </span>
+          </Link>
+        </div>
+      )}
+
+      {/* AHEAD — up to 2 upcoming good-tone days */}
+      {aheadDays.length > 0 && (
+        <div style={{ padding: '0 20px 28px' }}>
+          <p style={{ ...SECTION_LABEL_STYLE, marginBottom: 10 }}>AHEAD</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {aheadDays.map(day => (
+              <div key={day.date} className="card" style={{ padding: 16 }}>
+                <p style={{ margin: '0 0 8px', fontFamily: 'var(--font-space-mono)', fontSize: 10, color: 'var(--c-muted)' }}>
+                  {aheadDateLabel(new Date(`${day.date}T00:00:00`))}
+                </p>
+                <p style={{
+                  margin: '0 0 10px', fontFamily: 'var(--font-inter)', fontSize: 15, color: 'var(--c-ink)', lineHeight: 1.5,
+                  display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+                }}>
+                  {day.line}
+                </p>
+                <p style={{ margin: 0, fontFamily: 'var(--font-inter)', fontSize: 11.5, color: 'var(--c-ink-body)' }}>
+                  {korean ? '화면 힌트일 뿐, 정답표가 아니에요' : 'A hint, not an answer key'}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Ask for the moment */}
+      {quickPrompts.length > 0 && (
+        <div style={{ padding: '0 20px 32px' }}>
+          <p style={{ ...SECTION_LABEL_STYLE, marginBottom: 10 }}>ASK FOR THE MOMENT</p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {quickPrompts.slice(0, 4).map(q => (
+              <Link
+                key={q}
+                href="/ask"
+                className="pressable"
+                style={{
+                  display: 'flex', alignItems: 'center', minHeight: 44, padding: '0 14px',
+                  textDecoration: 'none', fontFamily: 'var(--font-inter)', fontSize: 13, color: 'var(--c-ink)',
+                  border: '1px solid var(--c-hairline)', borderRadius: 20,
+                }}
+              >
+                {q}
               </Link>
             ))}
           </div>
         </div>
       )}
-
-      {/* letter — next BRIEF (copy in progress) */}
     </div>
   );
 }
