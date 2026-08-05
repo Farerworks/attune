@@ -283,4 +283,15 @@ describe('HomePage', () => {
       expect(icon.style.display).toBe('inline-block');
     });
   });
+
+  it('renders no h1 — Home stays a titleless page, not folded into TabTopBar\'s title prop (BRIEF-094F)', async () => {
+    seedProfile();
+    mockGetFlowDays.mockReturnValue(FLOW_NO_GOOD);
+
+    const { default: HomePage } = await import('./page');
+    render(<HomePage />);
+
+    await waitFor(() => expect(screen.getByText('Test today core sentence.')).toBeTruthy());
+    expect(screen.queryByRole('heading', { level: 1 })).toBeNull();
+  });
 });

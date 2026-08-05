@@ -14,7 +14,6 @@ import { formatDate } from '@/lib/format';
 import { ElementChart } from '@/components/ElementChart';
 import { SpectrumBar } from '@/components/SpectrumBar';
 import { TabTopBar } from '@/components/TabTopBar';
-import { TabHeader } from '@/components/TabHeader';
 import { AccountAvatar } from '@/components/AccountAvatar';
 import { ShareIcon } from '@/components/icons/ShareIcon';
 
@@ -142,8 +141,7 @@ export default function YouPage() {
       />
     )}
     <div style={{ minHeight: '100%', background: 'var(--c-paper)' }}>
-      <TabTopBar right={<AccountAvatar />} />
-      <TabHeader title="You" />
+      <TabTopBar right={<AccountAvatar />} title="You" />
 
       <div className="stagger" style={{ padding: '24px 20px', display: 'flex', flexDirection: 'column', gap: 20 }}>
 

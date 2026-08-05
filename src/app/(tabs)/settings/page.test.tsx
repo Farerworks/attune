@@ -33,6 +33,24 @@ describe('SettingsPage — version footer', () => {
   });
 });
 
+describe('SettingsPage — title in the fixed top bar (BRIEF-094F)', () => {
+  it('"Settings" renders exactly once, inside the sticky top bar', async () => {
+    const { default: SettingsPage } = await import('./page');
+    render(<SettingsPage />);
+
+    const titles = screen.getAllByText('Settings');
+    expect(titles).toHaveLength(1);
+
+    let el: HTMLElement | null = titles[0];
+    let stickyAncestor: HTMLElement | null = null;
+    while (el) {
+      if (getComputedStyle(el).position === 'sticky') { stickyAncestor = el; break; }
+      el = el.parentElement;
+    }
+    expect(stickyAncestor).not.toBeNull();
+  });
+});
+
 describe('SettingsPage — Clear all data confirm copy by backup state (BRIEF-089)', () => {
   it('no backup (signed out): warns that erasure is permanent with no backup', async () => {
     mockGetSyncSession.mockReturnValue(Promise.resolve(null));

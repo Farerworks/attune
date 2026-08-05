@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useReadings, ELEMENT_COLORS } from '@/lib/store';
 import { TabTopBar } from '@/components/TabTopBar';
-import { TabHeader } from '@/components/TabHeader';
 import { AccountAvatar } from '@/components/AccountAvatar';
 import { getArchetype, ARCHETYPE_LOCALE } from '@/lib/interpretGuide';
 import type { TenStem, Element } from '@/lib/saju';
@@ -33,9 +32,7 @@ export default function PeoplePage() {
 
   return (
     <div style={{ minHeight: '100%', background: 'var(--c-paper)' }}>
-      <TabTopBar right={<AccountAvatar />} />
-
-      <TabHeader title="People" />
+      <TabTopBar right={<AccountAvatar />} title="People" />
 
       {readings.length === 0 ? (
         /* Empty state */

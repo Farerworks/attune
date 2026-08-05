@@ -41,7 +41,29 @@ describe('YouPage', () => {
     const links = screen.getAllByLabelText('Settings');
     expect(links).toHaveLength(1);
     expect(links[0].getAttribute('href')).toBe('/settings');
-    expect(container.querySelector('header')?.contains(links[0])).toBe(false);
+    // No standalone <header> (TabHeader) exists on this page since BRIEF-094F folded the
+    // "You" title into the fixed top bar itself — so there's nothing for Settings to be inside.
+    expect(container.querySelector('header')?.contains(links[0]) ?? false).toBe(false);
+  });
+
+  it('"You" renders exactly once, inside the sticky top bar (BRIEF-094F)', async () => {
+    localStorage.setItem('attune.profile', JSON.stringify({
+      date: '1990-06-15', time: '14:30', gender: 'other', createdAt: new Date().toISOString(),
+    }));
+
+    const { default: YouPage } = await import('./page');
+    render(<YouPage />);
+
+    const titles = await waitFor(() => screen.getAllByText('You'));
+    expect(titles).toHaveLength(1);
+
+    let el: HTMLElement | null = titles[0];
+    let stickyAncestor: HTMLElement | null = null;
+    while (el) {
+      if (getComputedStyle(el).position === 'sticky') { stickyAncestor = el; break; }
+      el = el.parentElement;
+    }
+    expect(stickyAncestor).not.toBeNull();
   });
 
   it('stats line: 1 reading -> singular "1 READ" (not "1 READS") (BRIEF-092)', async () => {
