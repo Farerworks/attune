@@ -521,11 +521,18 @@ function KeyboardPannedTop({ active, topOffset, children }: { active: boolean; t
   const [height, setHeight] = useState(0);
 
   useEffect(() => {
-    if (ref.current) setHeight(ref.current.offsetHeight);
+    // Inactive: `ref` is the `display: contents` wrapper, which has no box of its own
+    // (offsetHeight 0) — measure its real child (TabTopBar's own div) instead.
+    // Active: `ref` is the fixed wrapper itself, which is a real box.
+    const measured = active ? ref.current : ref.current?.firstElementChild;
+    if (measured instanceof HTMLElement) setHeight(measured.offsetHeight);
   });
 
   if (!active) {
-    return <div ref={ref}>{children}</div>;
+    // `display: contents` renders no box — TabTopBar's own `position: sticky` div sticks to
+    // its real parent (the page's flex container) instead of this wrapper (BRIEF-094C-FIX2:
+    // a plain wrapping <div> here gave sticky a zero-height box to stick within, breaking it).
+    return <div ref={ref} style={{ display: 'contents' }}>{children}</div>;
   }
 
   return (

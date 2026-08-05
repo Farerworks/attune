@@ -177,6 +177,31 @@ describe('AskPage', () => {
     expect(stickyAncestor).not.toBeNull();
   });
 
+  it('keyboard closed: the sticky top bar sits directly in the page flex flow (no boxed wrapper to break sticky) (BRIEF-094C-FIX2)', async () => {
+    localStorage.setItem('attune.profile', JSON.stringify({
+      date: '1990-06-15', time: '14:30', gender: 'other', createdAt: new Date().toISOString(),
+    }));
+
+    const { default: AskPage } = await import('./page');
+    render(<AskPage />);
+
+    const quotaEl = await waitFor(() => screen.getByText(/QUESTIONS LEFT TODAY/));
+    let stickyEl: HTMLElement | null = quotaEl;
+    while (stickyEl && getComputedStyle(stickyEl).position !== 'sticky') {
+      stickyEl = stickyEl.parentElement;
+    }
+    expect(stickyEl).not.toBeNull();
+
+    // A boxed intermediate wrapper (any height, even 0-margin) gives `sticky` nothing to
+    // stick within — its parent must either be the page's own flex container (`.ask-full`)
+    // or a `display: contents` pass-through with no box of its own.
+    const parent = stickyEl!.parentElement;
+    expect(parent).not.toBeNull();
+    const isRootFlexContainer = parent!.classList.contains('ask-full');
+    const isPassThrough = getComputedStyle(parent!).display === 'contents';
+    expect(isRootFlexContainer || isPassThrough).toBe(true);
+  });
+
   it('the composer sits inside a sticky (closed) or fixed (keyboard open) positioned ancestor (BRIEF-094C)', async () => {
     localStorage.setItem('attune.profile', JSON.stringify({
       date: '1990-06-15', time: '14:30', gender: 'other', createdAt: new Date().toISOString(),
