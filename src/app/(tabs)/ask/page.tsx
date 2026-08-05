@@ -10,7 +10,6 @@ import type { BriefingData } from '@/lib/store';
 import type { TenStem } from '@/lib/saju';
 import { GlyphAvatar } from '@/components/ArchetypeGlyph';
 import { TabTopBar } from '@/components/TabTopBar';
-import { TabHeader } from '@/components/TabHeader';
 import { AccountAvatar } from '@/components/AccountAvatar';
 import { pickVariant, localDateStr } from '@/lib/today';
 import { friendlyError } from '@/lib/errorCopy';
@@ -343,24 +342,30 @@ export default function AskPage() {
   return (
     <div className="ask-full" style={{ background: 'var(--c-paper)', display: 'flex', flexDirection: 'column' }}>
 
-      {/* ── Fixed top: TabTopBar + quota/chip row, one sticky unit (BRIEF-094C) ── */}
+      {/* ── Fixed top: TabTopBar + title/quota + chip row, one sticky unit ──────
+          Unified with the other tabs' ATTUNE-bar → title header rhythm (BRIEF-094E):
+          "Ask" now lives in this same fixed block instead of a separate TabHeader
+          that scrolled away — same t-h2 typography, just sharing its row with quota. */}
       {/* Keyboard-open panning fix (BRIEF-094C-FIX): iOS shifts the visual viewport down without
           scrolling the layout viewport, so a plain `sticky top:0` gets panned off-screen. */}
       <KeyboardPannedTop active={keyboardOpen && topOffset > 0} topOffset={topOffset}>
         <TabTopBar right={<AccountAvatar />}>
           <div>
-            <p style={{
-              margin: '0 0 10px', textAlign: 'right',
-              fontFamily: "var(--font-space-mono,'Courier New')", fontSize: 11, letterSpacing: '0.08em', color: 'var(--c-muted)',
-            }}>
-              {left} QUESTIONS LEFT TODAY
-            </p>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <h1 className="t-h2" style={{ margin: 0 }}>Ask</h1>
+              <p style={{
+                margin: 0,
+                fontFamily: "var(--font-space-mono,'Courier New')", fontSize: 11, letterSpacing: '0.08em', color: 'var(--c-muted)',
+              }}>
+                {left} QUESTIONS LEFT TODAY
+              </p>
+            </div>
             <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 12, scrollbarWidth: 'none', alignItems: 'flex-start' }}>
               <style>{`::-webkit-scrollbar{display:none}`}</style>
-              {/* Me + Person chips */}
+              {/* Me + Person chips — slim once a conversation exists (BRIEF-094E) */}
               {chips.filter(c => c.id !== 'general').map(chip => (
                 <div key={chip.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, flexShrink: 0 }}>
-                  <ChipButton chip={chip} active={selected === chip.id} onClick={() => setSelected(chip.id)} />
+                  <ChipButton chip={chip} active={selected === chip.id} onClick={() => setSelected(chip.id)} size={hasAnyThread ? 'slim' : 'default'} />
                   {!hasAnyThread && chip.id === 'me' && (
                     <span style={{ fontFamily: "var(--font-space-mono,'Courier New')", fontSize: 8.5, letterSpacing: '0.1em', color: 'var(--c-muted)', textTransform: 'uppercase' }}>YOU · TIMING · ANYTHING</span>
                   )}
@@ -370,11 +375,13 @@ export default function AskPage() {
               {!hasPersonChips && (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, flexShrink: 0 }}>
                   <Link href="/new" style={{
-                    display: 'flex', alignItems: 'center', padding: '12px 18px',
-                    borderRadius: 20, border: '1.5px dashed #C9C0AD',
+                    display: 'flex', alignItems: 'center',
+                    padding: hasAnyThread ? '8px 14px' : '12px 18px',
+                    borderRadius: hasAnyThread ? 16 : 20,
+                    border: '1.5px dashed #C9C0AD',
                     background: 'transparent', color: 'var(--c-muted)',
                     textDecoration: 'none', fontFamily: "var(--font-inter,system-ui)", fontSize: 13,
-                    whiteSpace: 'nowrap', minHeight: 48, boxSizing: 'border-box',
+                    whiteSpace: 'nowrap', minHeight: hasAnyThread ? 34 : 48, boxSizing: 'border-box',
                   }}>
                     + Someone
                   </Link>
@@ -387,7 +394,6 @@ export default function AskPage() {
           </div>
         </TabTopBar>
       </KeyboardPannedTop>
-      <TabHeader title="Ask" />
 
       {/* ── Scrollable middle: conversation only (BRIEF-094C) ────────────────── */}
       <div style={{ flex: 1, padding: '20px 20px 8px', display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -564,8 +570,9 @@ function DateDivider({ isoStr }: { isoStr: string }) {
   );
 }
 
-function ChipButton({ chip, active, onClick }: { chip: Chip; active: boolean; onClick: () => void }) {
+function ChipButton({ chip, active, onClick, size = 'default' }: { chip: Chip; active: boolean; onClick: () => void; size?: 'default' | 'slim' }) {
   const elC = chip.element ? ELEMENT_COLORS[chip.element.toLowerCase()] : null;
+  const slim = size === 'slim';
 
   return (
     <button
@@ -574,7 +581,9 @@ function ChipButton({ chip, active, onClick }: { chip: Chip; active: boolean; on
       className="pressable"
       style={{
         display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
-        padding: '12px 18px 12px 10px', borderRadius: 20, minHeight: 48,
+        padding: slim ? '6px 12px 6px 8px' : '12px 18px 12px 10px',
+        borderRadius: slim ? 16 : 20,
+        minHeight: slim ? 34 : 48,
         border: active ? '1px solid rgba(196,80,46,0.35)' : '1px solid var(--c-hairline)',
         background: active ? '#FFF2EE' : 'var(--c-card)',
         cursor: 'pointer',
@@ -594,7 +603,7 @@ function ChipButton({ chip, active, onClick }: { chip: Chip; active: boolean; on
         </div>
       )}
       <span style={{
-        fontFamily: "var(--font-inter,system-ui)", fontSize: 13,
+        fontFamily: "var(--font-inter,system-ui)", fontSize: slim ? 12 : 13,
         color: active ? '#A83E20' : 'var(--c-ink)',
         fontWeight: active ? 500 : 400,
       }}>

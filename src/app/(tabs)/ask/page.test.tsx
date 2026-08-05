@@ -33,7 +33,9 @@ describe('AskPage', () => {
     });
     const link = screen.getByLabelText('Settings');
     expect(link.getAttribute('href')).toBe('/settings');
-    expect(container.querySelector('header')?.contains(link)).toBe(false);
+    // No standalone <header> (TabHeader) exists on this page since BRIEF-094E folded the
+    // "Ask" title into the fixed top bar itself — so there's nothing for Settings to be inside.
+    expect(container.querySelector('header')?.contains(link) ?? false).toBe(false);
   });
 
   it('includes an "at" date field (from createdAt) in each serialized history entry (BRIEF-078)', async () => {
@@ -286,5 +288,64 @@ describe('AskPage', () => {
     const textarea = screen.getByPlaceholderText('Ask anything…');
     expect(scrollContainer!.contains(quotaEl)).toBe(false);
     expect(scrollContainer!.contains(textarea)).toBe(false);
+  });
+
+  it('"Ask" renders exactly once, inside the fixed/sticky top block (BRIEF-094E)', async () => {
+    localStorage.setItem('attune.profile', JSON.stringify({
+      date: '1990-06-15', time: '14:30', gender: 'other', createdAt: new Date().toISOString(),
+    }));
+
+    const { default: AskPage } = await import('./page');
+    render(<AskPage />);
+
+    const titles = await waitFor(() => screen.getAllByText('Ask'));
+    expect(titles).toHaveLength(1);
+
+    let el: HTMLElement | null = titles[0];
+    let fixedOrSticky: HTMLElement | null = null;
+    while (el) {
+      const pos = getComputedStyle(el).position;
+      if (pos === 'sticky' || pos === 'fixed') { fixedOrSticky = el; break; }
+      el = el.parentElement;
+    }
+    expect(fixedOrSticky).not.toBeNull();
+  });
+
+  it('the quota text sits in the same row container as the "Ask" title (BRIEF-094E)', async () => {
+    localStorage.setItem('attune.profile', JSON.stringify({
+      date: '1990-06-15', time: '14:30', gender: 'other', createdAt: new Date().toISOString(),
+    }));
+
+    const { default: AskPage } = await import('./page');
+    render(<AskPage />);
+
+    const title = await waitFor(() => screen.getByText('Ask'));
+    const quotaEl = screen.getByText(/QUESTIONS LEFT TODAY/);
+    expect(title.parentElement).not.toBeNull();
+    expect(title.parentElement!.contains(quotaEl)).toBe(true);
+  });
+
+  it('chips are small once a conversation exists, and full-size on the empty first visit (BRIEF-094E)', async () => {
+    // Empty first visit — chips stay full-size (minHeight 48), onboarding captions intact.
+    localStorage.setItem('attune.profile', JSON.stringify({
+      date: '1990-06-15', time: '14:30', gender: 'other', createdAt: new Date().toISOString(),
+    }));
+    const { default: AskPageEmpty } = await import('./page');
+    const { unmount } = render(<AskPageEmpty />);
+
+    await waitFor(() => expect(screen.getByText('YOU · TIMING · ANYTHING')).toBeTruthy());
+    const meChipEmpty = screen.getByText('Me').closest('button') as HTMLElement;
+    expect(meChipEmpty.style.minHeight).toBe('48px');
+    unmount();
+
+    // With a saved thread — chips shrink to slim (minHeight 34).
+    localStorage.setItem('attune.ask.threads', JSON.stringify({
+      me: [{ id: 'u1', role: 'user', text: 'hi', createdAt: new Date().toISOString() }],
+    }));
+    const { default: AskPageWithThread } = await import('./page');
+    render(<AskPageWithThread />);
+
+    const meChip = await waitFor(() => screen.getByText('Me').closest('button') as HTMLElement);
+    expect(meChip.style.minHeight).toBe('34px');
   });
 });
