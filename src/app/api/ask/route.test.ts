@@ -1,9 +1,27 @@
 import { describe, it, expect, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
+vi.mock('@/lib/rateLimit', () => ({
+  checkRateLimit: () => ({ allowed: true, retryAfterMs: 0 }),
+}));
 
-const { buildAskTurns, buildAskSystem, hasTodayIntroduced } = await import('./route');
+const mockGenerateJsonChat = vi.fn();
+vi.mock('@/lib/llm', () => ({
+  createLlmProvider: () => ({
+    generateJsonChat: (...args: unknown[]) => mockGenerateJsonChat(...args),
+  }),
+}));
+
+const { buildAskTurns, buildAskSystem, hasTodayIntroduced, POST } = await import('./route');
 const { calculateSaju, getDailyPillars, pillarLabel, friendlyPillarName } = await import('@/lib/saju');
+
+function makeAskRequest(body: unknown): Request {
+  return new Request('http://localhost/api/ask', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
 
 function countMarkers(text: string): number {
   return (text.match(/\[new day — \d{4}-\d{2}-\d{2}\]\n/g) ?? []).length;
@@ -242,5 +260,62 @@ describe('buildAskSystem — Korean archetype name injection (BRIEF-090)', () =>
   it('includes the Korean-archetype-naming rule', () => {
     const system = buildAskSystem('me', meChart, null, undefined, daily, 'Alex');
     expect(system).toContain('never mix the English archetype name into Korean prose');
+  });
+});
+
+describe('buildAskSystem — SAFETY block (BRIEF-096)', () => {
+  const meChart = calculateSaju({ date: '1990-06-15', time: '14:30' });
+
+  it('includes the SAFETY instruction block, verbatim, for all 3 modes', () => {
+    for (const mode of ['me', 'person', 'general'] as const) {
+      const themChart = mode === 'person' ? calculateSaju({ date: '1988-03-02', time: '09:00' }) : null;
+      const system = buildAskSystem(mode, meChart, themChart, undefined, []);
+      expect(system).toContain(
+        'SAFETY: You are not a crisis service. If the user mentions self-harm, suicide, or harming anyone, do not give relationship advice in that reply — acknowledge briefly; the app routes to human support. Never explain distress or danger through saju, elements, charts, or compatibility. Never tell someone to immediately break up; offer options, not verdicts.',
+      );
+    }
+  });
+});
+
+describe('POST /api/ask — safety gate (BRIEF-096 §3)', () => {
+  const baseBody = {
+    mode: 'me' as const,
+    me: { date: '1990-06-15', time: '14:30' },
+    history: [],
+  };
+
+  it('trigger + no safetyAck -> no LLM call, returns { safety: category }', async () => {
+    mockGenerateJsonChat.mockClear();
+
+    const res = await POST(makeAskRequest({ ...baseBody, question: '나 진짜 죽고 싶어' }));
+    const data = await res.json() as { safety?: string; answer?: unknown };
+
+    expect(data.safety).toBe('self');
+    expect(data.answer).toBeUndefined();
+    expect(mockGenerateJsonChat).not.toHaveBeenCalled();
+  });
+
+  it('trigger + safetyAck:true -> gate is skipped, LLM is called normally', async () => {
+    mockGenerateJsonChat.mockClear();
+    mockGenerateJsonChat.mockResolvedValue(JSON.stringify({ text: 'a normal answer' }));
+
+    const res = await POST(makeAskRequest({ ...baseBody, question: '나 진짜 죽고 싶어', safetyAck: true }));
+    const data = await res.json() as { safety?: string; answer?: { text?: string } };
+
+    expect(mockGenerateJsonChat).toHaveBeenCalledTimes(1);
+    expect(data.safety).toBeUndefined();
+    expect(data.answer?.text).toBe('a normal answer');
+  });
+
+  it('no trigger -> proceeds normally regardless of safetyAck', async () => {
+    mockGenerateJsonChat.mockClear();
+    mockGenerateJsonChat.mockResolvedValue(JSON.stringify({ text: 'fine' }));
+
+    const res = await POST(makeAskRequest({ ...baseBody, question: 'What should I focus on this week?' }));
+    const data = await res.json() as { safety?: string; answer?: { text?: string } };
+
+    expect(mockGenerateJsonChat).toHaveBeenCalledTimes(1);
+    expect(data.safety).toBeUndefined();
+    expect(data.answer?.text).toBe('fine');
   });
 });

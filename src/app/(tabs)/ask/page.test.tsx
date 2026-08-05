@@ -17,6 +17,7 @@ afterEach(() => {
   mockReplace.mockReset();
   window.history.pushState({}, '', '/ask');
   Object.defineProperty(window, 'visualViewport', { value: undefined, configurable: true });
+  Object.defineProperty(navigator, 'language', { value: 'en-US', configurable: true });
 });
 
 describe('AskPage', () => {
@@ -347,5 +348,121 @@ describe('AskPage', () => {
 
     const meChip = await waitFor(() => screen.getByText('Me').closest('button') as HTMLElement);
     expect(meChip.style.minHeight).toBe('34px');
+  });
+});
+
+describe('AskPage — safety flow (BRIEF-096)', () => {
+  function seedProfile() {
+    localStorage.setItem('attune.profile', JSON.stringify({
+      date: '1990-06-15', time: '14:30', gender: 'other', createdAt: new Date().toISOString(),
+    }));
+  }
+
+  async function sendText(text: string) {
+    const textarea = await waitFor(() => screen.getByPlaceholderText('Ask anything…')) as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: text } });
+    fireEvent.click(screen.getByLabelText('Send'));
+  }
+
+  it('a triggering message shows the S1 card instead of sending — no fetch, quota unchanged', async () => {
+    Object.defineProperty(navigator, 'language', { value: 'ko-KR', configurable: true });
+    seedProfile();
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { default: AskPage } = await import('./page');
+    render(<AskPage />);
+
+    const quotaBefore = await waitFor(() => screen.getByText(/QUESTIONS LEFT TODAY/).textContent);
+
+    await sendText('나 진짜 죽고 싶어');
+
+    // S1 confirmation card: the fixed acknowledgment line + 4 choice buttons, textarea gone.
+    await waitFor(() => expect(screen.getByText('많이 힘들거나 화가 난 상태로 들려요.')).toBeTruthy());
+    expect(screen.getByText('아니요, 힘들다는 표현이었어요')).toBeTruthy();
+    expect(screen.getByText('답하기 어려워요')).toBeTruthy();
+    expect(screen.queryByPlaceholderText('Ask anything…')).toBeNull();
+
+    // fetch may still be called for unrelated things (e.g. NextAuth's own session check) —
+    // what matters is that /api/ask specifically was never hit.
+    expect(fetchMock.mock.calls.some(([url]) => url === '/api/ask')).toBe(false);
+    expect(screen.getByText(/QUESTIONS LEFT TODAY/).textContent).toBe(quotaBefore);
+  });
+
+  it('"It\'s hard to answer" routes to S2 with contacts — 988 (US default), 109 after switching to KR', async () => {
+    // Default (non-Korean) locale -> default country is US per BRIEF-096 §2 ("국가 v1").
+    seedProfile();
+    vi.stubGlobal('fetch', vi.fn());
+
+    const { default: AskPage } = await import('./page');
+    render(<AskPage />);
+
+    await sendText('I just want to die');
+    await waitFor(() => screen.getByText("It's hard to answer"));
+    fireEvent.click(screen.getByText("It's hard to answer"));
+
+    // S2: stop notice + imminence question + contacts for the default country (en-US -> US).
+    // '988' appears twice (call row + text row), so check at least one match rather than a unique one.
+    await waitFor(() => expect(screen.getByText(/beyond what Attune can help with/)).toBeTruthy());
+    expect(screen.getAllByText('988').length).toBeGreaterThan(0);
+
+    // Switch country -> KR contacts appear.
+    fireEvent.click(screen.getByText('Not in the US?'));
+    await waitFor(() => expect(screen.getByText('109')).toBeTruthy());
+  });
+
+  it('S1_NO shows the re-entry line and restores the input — does not auto-send', async () => {
+    Object.defineProperty(navigator, 'language', { value: 'ko-KR', configurable: true });
+    seedProfile();
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { default: AskPage } = await import('./page');
+    render(<AskPage />);
+
+    await sendText('나 진짜 죽고 싶어');
+    await waitFor(() => screen.getByText('아니요, 힘들다는 표현이었어요'));
+    fireEvent.click(screen.getByText('아니요, 힘들다는 표현이었어요'));
+
+    // Re-entry line shown as a bubble; composer is back; original text is restored, not sent.
+    await waitFor(() => expect(screen.getByText(/알려줘서 고마워요/)).toBeTruthy());
+    const textarea = await waitFor(() => screen.getByPlaceholderText('Ask anything…')) as HTMLTextAreaElement;
+    expect(textarea.value).toBe('나 진짜 죽고 싶어');
+    expect(fetchMock.mock.calls.some(([url]) => url === '/api/ask')).toBe(false);
+  });
+
+  it('S3 (Korean, "위험할 수 있어요") shows 112 and 119 as tel: links', async () => {
+    Object.defineProperty(navigator, 'language', { value: 'ko-KR', configurable: true });
+    seedProfile();
+    vi.stubGlobal('fetch', vi.fn());
+
+    const { default: AskPage } = await import('./page');
+    render(<AskPage />);
+
+    await sendText('나 진짜 죽고 싶어');
+    await waitFor(() => screen.getByText('지금 위험할 수 있어요'));
+    fireEvent.click(screen.getByText('지금 위험할 수 있어요'));
+
+    const link112 = await waitFor(() => screen.getByText('112 전화하기'));
+    const link119 = screen.getByText('119 전화하기');
+    expect(link112.closest('a')?.getAttribute('href')).toBe('tel:112');
+    expect(link119.closest('a')?.getAttribute('href')).toBe('tel:119');
+  });
+
+  it('none of the safety flow (card, S2, S3, choices) is ever written to the thread/localStorage', async () => {
+    Object.defineProperty(navigator, 'language', { value: 'ko-KR', configurable: true });
+    seedProfile();
+    vi.stubGlobal('fetch', vi.fn());
+
+    const { default: AskPage } = await import('./page');
+    render(<AskPage />);
+
+    await sendText('나 진짜 죽고 싶어');
+    await waitFor(() => screen.getByText('지금 위험할 수 있어요'));
+    fireEvent.click(screen.getByText('지금 위험할 수 있어요'));
+    await waitFor(() => expect(screen.getAllByRole('link').length).toBeGreaterThan(0));
+
+    const stored = localStorage.getItem('attune.ask.threads');
+    expect(stored === null || !stored.includes('죽고 싶')).toBe(true);
   });
 });

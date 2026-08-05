@@ -5,6 +5,7 @@ import { getArchetype, getElementRelationship, localeVoiceBlock, ARCHETYPE_LOCAL
 import { formatChart } from '@/lib/briefing';
 import { createLlmProvider, type ChatTurn } from '@/lib/llm';
 import { checkRateLimit } from '@/lib/rateLimit';
+import { detectSafetyTrigger } from '@/lib/safety';
 
 export const maxDuration = 60;
 
@@ -12,7 +13,10 @@ const LLM_TIMEOUT = 55_000;
 const RATE_LIMIT  = 30;
 const RATE_WINDOW = 60 * 60 * 1000;
 
-const BANNED = ['weakness', 'exploit', 'leverage against', 'manipulate', 'vulnerable to', '약점', '조종', '공략'];
+const BANNED = ['weakness', 'exploit', 'leverage against', 'manipulate', 'vulnerable to', '약점', '조종', '공략', '사주상 충동적인', 'impulsive day in your chart'];
+
+// SAFETY (BRIEF-096 §3 — verbatim, byte-for-byte):
+const SAFETY_RULES = `SAFETY: You are not a crisis service. If the user mentions self-harm, suicide, or harming anyone, do not give relationship advice in that reply — acknowledge briefly; the app routes to human support. Never explain distress or danger through saju, elements, charts, or compatibility. Never tell someone to immediately break up; offer options, not verdicts.`;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -226,6 +230,8 @@ If today was already named earlier in this conversation, never cold-open with th
 
 ${mode === 'person' ? PERSON_RULES : SELF_RULES}
 
+${SAFETY_RULES}
+
 ${PREDICTION_RULES}
 
 ${IDENTITY_MENTIONS_RULES}
@@ -348,6 +354,7 @@ const RequestSchema = z.object({
   question: z.string().min(1).max(500),
   todayLocal: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   memory: z.array(z.string().max(200)).max(10).optional(),
+  safetyAck: z.boolean().optional(),
 }).refine(
   data => !(data.mode === 'person' && !data.them),
   { message: '"them" is required when mode is "person"', path: ['them'] },
@@ -377,6 +384,15 @@ export async function POST(request: Request) {
   }
 
   const { mode, me: meInput, them: themInput, briefing, history, question } = parsed.data;
+
+  // Safety gate (BRIEF-096 §3) — bypass defense: independent of the client's own pre-check.
+  // Triggered + no safetyAck (the client's one-time "already confirmed safe" flag) -> no LLM call, no quota impact.
+  if (!parsed.data.safetyAck) {
+    const trigger = detectSafetyTrigger(question);
+    if (trigger) {
+      return Response.json({ safety: trigger });
+    }
+  }
 
   // Saju calculations (server-side only, never LLM)
   const meChart   = calculateSaju(meInput);

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import type { ReactNode } from 'react';
+import type { ReactNode, CSSProperties } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getProfile, getReadings, ELEMENT_COLORS } from '@/lib/store';
@@ -15,6 +15,22 @@ import { pickVariant, localDateStr } from '@/lib/today';
 import { friendlyError } from '@/lib/errorCopy';
 import { getQuickPrompts } from '@/lib/askPrompts';
 import { useKeyboardOpen, useKeyboardInset } from '@/lib/keyboard';
+import {
+  detectWithContext,
+  enterSafetyState,
+  routeSafetyAnswer,
+  getSafetyContacts,
+  SAFETY_COPY_KO,
+  SAFETY_COPY_EN,
+} from '@/lib/safety';
+import type {
+  SafetyTriggerCategory,
+  SafetyAwaitingAnswerState,
+  SafetyChoiceIndex,
+  SafetyCountry,
+  SafetySituation,
+  SafetyContact,
+} from '@/lib/safety';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -83,6 +99,17 @@ const EXHAUSTED = [
   "Done for today. Come back tomorrow.",
 ];
 
+// ── Safety copy — this BRIEF (096 §2) is the source of truth for these, not safety.ts ──
+
+const SAFETY_ACK_KO = '많이 힘들거나 화가 난 상태로 들려요.';
+const SAFETY_ACK_EN = 'That sounds really heavy or really frustrating.';
+const SAFETY_COUNTRY_TOGGLE_KO = '한국이 아닌가요?';
+const SAFETY_COUNTRY_TOGGLE_EN = 'Not in the US?';
+// S2's imminence question has 3 buttons; SAFETY-SPEC/BRIEF-096 give the KO labels literally
+// but not EN ones — EN below matches the tone of the existing EN "hard to answer" option.
+const IMMINENCE_CHOICES_KO: [string, string, string] = ['예', '아니요, 생각만이에요', '답하기 어려워요'];
+const IMMINENCE_CHOICES_EN: [string, string, string] = ['Yes', 'No, just thoughts', "It's hard to answer"];
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function AskPage() {
@@ -100,6 +127,17 @@ export default function AskPage() {
   const [loading,   setLoading]   = useState(false);
   const [input,     setInput]     = useState('');
   const [myProfile, setMyProfile] = useState<{ date: string; time?: string; name?: string } | null>(null);
+
+  // ── Safety flow state (BRIEF-096) — never written to `threads`/localStorage; component state only. ──
+  const [safetyCardState, setSafetyCardState] = useState<SafetyAwaitingAnswerState | 'S2' | 'S3' | null>(null);
+  const [safetyTrigger,   setSafetyTrigger]   = useState<SafetyTriggerCategory | null>(null);
+  const [pendingText,     setPendingText]     = useState('');
+  const [safetyReentryText, setSafetyReentryText] = useState<string | null>(null);
+  const [recentUserTexts, setRecentUserTexts] = useState<string[]>([]); // session-only window, for repeat detection only
+  const [ackNextSend,     setAckNextSend]     = useState(false); // one-time skip after an S1_NO resend
+  const [safetyCountry,   setSafetyCountry]   = useState<SafetyCountry>(
+    () => (typeof navigator !== 'undefined' && navigator.language.startsWith('ko')) ? 'KR' : 'US',
+  );
 
   // ── Init ──────────────────────────────────────────────────────────────────────
 
@@ -178,10 +216,37 @@ export default function AskPage() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [threads, selected, loading]);
 
+  // Switching who you're talking to exits any in-progress safety flow (BRIEF-096).
+  useEffect(() => {
+    setSafetyCardState(null);
+    setSafetyTrigger(null);
+    setPendingText('');
+    setSafetyReentryText(null);
+    setAckNextSend(false);
+  }, [selected]);
+
   // ── Send handler ──────────────────────────────────────────────────────────────
 
   async function handleSend(text = input.trim()) {
     if (!text || loading || left <= 0 || !myProfile) return;
+
+    // Safety pre-check (BRIEF-096 §2) — before anything is sent or stored. Skipped exactly once
+    // right after an S1_NO resend (`ackNextSend`), so the user's own confirmed-safe resend goes through.
+    const safetyWindow = [...recentUserTexts.slice(-3), text];
+    setRecentUserTexts(safetyWindow.slice(-4));
+
+    if (!ackNextSend) {
+      const { trigger } = detectWithContext(safetyWindow);
+      if (trigger) {
+        setPendingText(text);
+        setSafetyTrigger(trigger);
+        setSafetyCardState(enterSafetyState(trigger));
+        return; // no fetch, no quota decrement, no thread write
+      }
+    }
+    const sendingWithAck = ackNextSend;
+    setAckNextSend(false);
+    setSafetyReentryText(null);
     setInput('');
 
     const prevThread   = threads[selected] ?? [];
@@ -217,6 +282,7 @@ export default function AskPage() {
         history,
         question: text,
         todayLocal: localDateStr(),
+        ...(sendingWithAck ? { safetyAck: true } : {}),
       };
 
       if (mode === 'person' && chip) {
@@ -237,11 +303,25 @@ export default function AskPage() {
         answer?: { text?: string; parts?: Array<{ label: string; text: string }>; timing?: string; followUp?: string; memory?: string[] };
         error?: string;
         retryAfterMinutes?: number;
+        safety?: SafetyTriggerCategory;
       };
 
       if (!res.ok) {
         console.error('[ask] request failed:', data.error);
         throw new DisplayError(friendlyError(res.status, data.retryAfterMinutes));
+      }
+
+      if (data.safety) {
+        // Defense-in-depth (BRIEF-096 §3): the server caught something the client pre-check
+        // missed. Un-write the optimistic thread entry — nothing risky stays in stored history —
+        // and show the same S1 card the client-side path would have shown.
+        setThreads(threads);
+        saveThreads(threads);
+        setPendingText(text);
+        setSafetyTrigger(data.safety);
+        setSafetyCardState(enterSafetyState(data.safety));
+        setLoading(false);
+        return;
       }
 
       const newLeft = incrementQuotaUsed();
@@ -278,6 +358,46 @@ export default function AskPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  // ── Safety flow handlers (BRIEF-096) ────────────────────────────────────────────
+
+  function handleSafetyChoice(choiceIndex: SafetyChoiceIndex) {
+    // Only S1_SELF/S1_OTHER/S1_NARROW have this 4-choice flow — S2/S3 use handleImminenceAnswer/onClose.
+    if (safetyCardState !== 'S1_SELF' && safetyCardState !== 'S1_OTHER' && safetyCardState !== 'S1_NARROW') return;
+    const next = routeSafetyAnswer(safetyCardState, choiceIndex);
+
+    if (next === 'S1_NO') {
+      setSafetyReentryText(korean ? SAFETY_COPY_KO.reentry : SAFETY_COPY_EN.reentry);
+      setInput(pendingText);
+      setAckNextSend(true); // the user's manual resend of this exact text skips re-checking, once
+      setSafetyCardState(null);
+      setSafetyTrigger(null);
+      setPendingText('');
+      return;
+    }
+
+    if (next === 'S1_SELF' || next === 'S1_OTHER') {
+      // S1_NARROW resolved into a specific concern — show that confirmation card next.
+      setSafetyTrigger(next === 'S1_SELF' ? 'self' : 'other');
+      setSafetyCardState(next);
+      return;
+    }
+
+    // S2 or S3 (the routing table never actually produces S0/S1_NARROW here, but TS doesn't know that).
+    if (next === 'S2' || next === 'S3') setSafetyCardState(next);
+  }
+
+  /** S2's own 1-question imminence check — not part of the S1 4-choice state machine. */
+  function handleImminenceAnswer(answer: 'yes' | 'no' | 'unsure') {
+    if (answer === 'yes') setSafetyCardState('S3');
+    // 'no' / 'unsure' -> stay on S2, contacts stay visible (SAFETY-SPEC 5-5: 생각만=S2, 답하기 어려움=S2).
+  }
+
+  function closeSafetyFlow() {
+    setSafetyCardState(null);
+    setSafetyTrigger(null);
+    setPendingText('');
   }
 
   // ── Derived ───────────────────────────────────────────────────────────────────
@@ -414,6 +534,15 @@ export default function AskPage() {
 
         {loading && <LoadingBubble />}
 
+        {/* S1_NO re-entry line — shown as an assistant bubble but NEVER added to `threads`
+            (BRIEF-096 §2 "낙인 최소화" — safety interactions are never persisted). */}
+        {safetyReentryText && (
+          <MessageBubble
+            msg={{ id: 'safety-reentry', role: 'assistant', mode: 'me', text: safetyReentryText }}
+            chipColor={chipColor}
+          />
+        )}
+
         <div ref={bottomRef} />
       </div>
 
@@ -430,7 +559,18 @@ export default function AskPage() {
         // to clear above the keyboard, so it would just double up the bottom gap.
         paddingBottom: 10,
       }}>
-        {left <= 0 ? (
+        {safetyCardState ? (
+          <SafetyPanel
+            state={safetyCardState}
+            trigger={safetyTrigger}
+            korean={korean}
+            country={safetyCountry}
+            onCountryToggle={() => setSafetyCountry(c => (c === 'KR' ? 'US' : 'KR'))}
+            onChoice={handleSafetyChoice}
+            onImminenceAnswer={handleImminenceAnswer}
+            onClose={closeSafetyFlow}
+          />
+        ) : left <= 0 ? (
           <div style={{ textAlign: 'center', padding: '12px 0 4px' }}>
             <p style={{
               fontFamily: "var(--font-fraunces,Georgia,serif)",
@@ -505,10 +645,12 @@ export default function AskPage() {
           </>
         )}
 
-        {/* Disclaimer */}
-        <p style={{ margin: '8px 0 0', textAlign: 'center', fontFamily: "var(--font-inter,system-ui)", fontSize: 11, color: 'var(--c-muted)' }}>
-          Attune is for understanding and self-reflection, not a verdict on anyone.
-        </p>
+        {/* Disclaimer — hidden during the safety flow (S1-S3 screens stay minimal, BRIEF-096) */}
+        {!safetyCardState && (
+          <p style={{ margin: '8px 0 0', textAlign: 'center', fontFamily: "var(--font-inter,system-ui)", fontSize: 11, color: 'var(--c-muted)' }}>
+            Attune is for understanding and self-reflection, not a verdict on anyone.
+          </p>
+        )}
       </div>
     </div>
   );
@@ -548,6 +690,183 @@ function KeyboardPannedTop({ active, topOffset, children }: { active: boolean; t
         {children}
       </div>
     </>
+  );
+}
+
+/**
+ * S1 confirmation card / S2 stop-notice+imminence / S3 emergency screen (BRIEF-096).
+ * Replaces the normal composer entirely while a safety flow is in progress — the textarea
+ * doesn't render at all, satisfying "카드 표시 중 입력창 비활성". Sans-serif only, no glyphs —
+ * S3 in particular must stay minimal (SAFETY-SPEC §2/§8).
+ */
+function SafetyPanel({
+  state, trigger, korean, country, onCountryToggle, onChoice, onImminenceAnswer, onClose,
+}: {
+  state: SafetyAwaitingAnswerState | 'S2' | 'S3';
+  trigger: SafetyTriggerCategory | null;
+  korean: boolean;
+  country: SafetyCountry;
+  onCountryToggle: () => void;
+  onChoice: (choiceIndex: SafetyChoiceIndex) => void;
+  onImminenceAnswer: (answer: 'yes' | 'no' | 'unsure') => void;
+  onClose: () => void;
+}) {
+  const copy = korean ? SAFETY_COPY_KO : SAFETY_COPY_EN;
+  const countryToggleLabel = korean ? SAFETY_COUNTRY_TOGGLE_KO : SAFETY_COUNTRY_TOGGLE_EN;
+  const backLabel = korean ? '뒤로' : 'Back';
+
+  if (state === 'S1_SELF' || state === 'S1_OTHER' || state === 'S1_NARROW') {
+    const card = state === 'S1_SELF' ? copy.confirmSelf : state === 'S1_OTHER' ? copy.confirmOther : copy.narrowDown;
+    return (
+      <div style={{ padding: '4px 0 8px' }}>
+        <p style={{ margin: '0 0 8px', fontFamily: "var(--font-inter,system-ui)", fontSize: 14, color: 'var(--c-ink-body)' }}>
+          {korean ? SAFETY_ACK_KO : SAFETY_ACK_EN}
+        </p>
+        <p style={{ margin: '0 0 14px', fontFamily: "var(--font-inter,system-ui)", fontSize: 15, fontWeight: 500, color: 'var(--c-ink)', lineHeight: 1.5 }}>
+          {card.question}
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {card.choices.map((choice, i) => (
+            <button
+              key={choice}
+              type="button"
+              onClick={() => onChoice(i as SafetyChoiceIndex)}
+              className="pressable"
+              style={{
+                textAlign: 'left', padding: '12px 14px', borderRadius: 12,
+                border: '1px solid var(--c-hairline)', background: 'var(--c-card)',
+                fontFamily: "var(--font-inter,system-ui)", fontSize: 14, color: 'var(--c-ink)',
+                cursor: 'pointer',
+              }}
+            >
+              {choice}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  const situation: SafetySituation = trigger === 'self' ? 'suicide' : 'violence';
+
+  if (state === 'S2') {
+    const imminenceQuestion = trigger === 'self' ? copy.imminenceSelf : copy.imminenceOther;
+    const buttons = korean ? IMMINENCE_CHOICES_KO : IMMINENCE_CHOICES_EN;
+    const contacts = getSafetyContacts(country, situation);
+    return (
+      <div style={{ padding: '4px 0 8px' }}>
+        <p style={{ margin: '0 0 10px', fontFamily: "var(--font-inter,system-ui)", fontSize: 14, color: 'var(--c-ink-body)', lineHeight: 1.5 }}>
+          {copy.stopNotice}
+        </p>
+        <p style={{ margin: '0 0 12px', fontFamily: "var(--font-inter,system-ui)", fontSize: 15, fontWeight: 500, color: 'var(--c-ink)', lineHeight: 1.5 }}>
+          {imminenceQuestion}
+        </p>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+          <button type="button" onClick={() => onImminenceAnswer('yes')} className="pressable" style={imminenceButtonStyle(true)}>{buttons[0]}</button>
+          <button type="button" onClick={() => onImminenceAnswer('no')} className="pressable" style={imminenceButtonStyle(false)}>{buttons[1]}</button>
+          <button type="button" onClick={() => onImminenceAnswer('unsure')} className="pressable" style={imminenceButtonStyle(false)}>{buttons[2]}</button>
+        </div>
+        <SafetyContactList contacts={contacts} korean={korean} />
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 12 }}>
+          <button type="button" onClick={onClose} className="pressable" style={textLinkStyle}>{backLabel}</button>
+          <button type="button" onClick={onCountryToggle} className="pressable" style={textLinkStyle}>{countryToggleLabel}</button>
+        </div>
+      </div>
+    );
+  }
+
+  // S3 — minimal, emergency-first.
+  const immediate = getSafetyContacts(country, 'immediate');
+  const secondary = getSafetyContacts(country, situation);
+  return (
+    <div style={{ padding: '4px 0 8px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
+        {immediate.filter(c => c.channel === 'call').map(c => (
+          <a
+            key={c.value}
+            href={`tel:${c.value}`}
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              padding: '16px', borderRadius: 12, background: '#C4502E', color: '#fff',
+              textDecoration: 'none', fontFamily: "var(--font-inter,system-ui)", fontSize: 17, fontWeight: 700,
+            }}
+          >
+            {korean ? `${c.value} 전화하기` : `Call ${c.value}`}
+          </a>
+        ))}
+      </div>
+      <SafetyContactList contacts={secondary} korean={korean} />
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 12 }}>
+        <button type="button" onClick={onClose} className="pressable" style={textLinkStyle}>{backLabel}</button>
+        <button type="button" onClick={onCountryToggle} className="pressable" style={textLinkStyle}>{countryToggleLabel}</button>
+      </div>
+    </div>
+  );
+}
+
+function imminenceButtonStyle(primary: boolean): CSSProperties {
+  return {
+    padding: '9px 14px', borderRadius: 10,
+    border: primary ? 'none' : '1px solid var(--c-hairline)',
+    background: primary ? '#C4502E' : 'var(--c-card)',
+    color: primary ? '#fff' : 'var(--c-ink)',
+    fontFamily: "var(--font-inter,system-ui)", fontSize: 13, fontWeight: primary ? 600 : 400,
+    cursor: 'pointer',
+  };
+}
+
+const textLinkStyle: CSSProperties = {
+  background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+  fontFamily: "var(--font-inter,system-ui)", fontSize: 12, color: 'var(--c-muted)', textDecoration: 'underline',
+};
+
+function SafetyContactList({ contacts, korean }: { contacts: SafetyContact[]; korean: boolean }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {contacts.map(c => (
+        <SafetyContactRow key={`${c.channel}-${c.value}`} contact={c} korean={korean} />
+      ))}
+    </div>
+  );
+}
+
+function SafetyContactRow({ contact, korean }: { contact: SafetyContact; korean: boolean }) {
+  const label = korean ? contact.labelKo : contact.labelEn;
+  const rowStyle: CSSProperties = {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+    padding: '10px 12px', borderRadius: 10, border: '1px solid var(--c-hairline)',
+    background: 'var(--c-card)', textDecoration: 'none',
+  };
+  const valueStyle: CSSProperties = { fontFamily: "var(--font-space-mono,'Courier New')", fontSize: 14, color: 'var(--c-ink)' };
+  const labelStyle: CSSProperties = { fontFamily: "var(--font-inter,system-ui)", fontSize: 12, color: 'var(--c-muted)' };
+
+  if (contact.channel === 'call') {
+    return (
+      <a href={`tel:${contact.value}`} style={rowStyle}>
+        <span style={valueStyle}>{contact.value}</span>
+        <span style={labelStyle}>{label}</span>
+      </a>
+    );
+  }
+
+  if (contact.channel === 'text') {
+    const href = contact.textCode ? `sms:${contact.value}?&body=${encodeURIComponent(contact.textCode)}` : `sms:${contact.value}`;
+    const displayValue = contact.textCode ? `${contact.textCode} → ${contact.value}` : contact.value;
+    return (
+      <a href={href} style={rowStyle}>
+        <span style={valueStyle}>{displayValue}</span>
+        <span style={labelStyle}>{label}</span>
+      </a>
+    );
+  }
+
+  // web
+  const href = contact.sourceUrl || `https://${contact.value}`;
+  return (
+    <a href={href} target="_blank" rel="noreferrer" style={rowStyle}>
+      <span style={valueStyle}>{contact.value}</span>
+      <span style={labelStyle}>{label}</span>
+    </a>
   );
 }
 
