@@ -152,6 +152,8 @@ export default function HomePage() {
             fontSize: isKo(todaySentence) ? 31 : 34,
             lineHeight: 1.22,
             color: 'var(--c-ink)',
+            wordBreak: 'keep-all',
+            overflowWrap: 'break-word',
           }}>
             {todaySentence}
           </p>
@@ -256,6 +258,7 @@ export default function HomePage() {
                 <p style={{
                   margin: '0 0 10px', fontFamily: 'var(--font-inter)', fontSize: 15, color: 'var(--c-ink)', lineHeight: 1.5,
                   display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+                  wordBreak: 'keep-all', overflowWrap: 'break-word',
                 }}>
                   {day.line}
                 </p>
@@ -276,7 +279,7 @@ export default function HomePage() {
             {quickPrompts.slice(0, 4).map(q => (
               <Link
                 key={q}
-                href="/ask"
+                href={`/ask?prefill=${encodeURIComponent(q)}`}
                 className="pressable"
                 style={{
                   display: 'flex', alignItems: 'center', minHeight: 44, padding: '0 14px',

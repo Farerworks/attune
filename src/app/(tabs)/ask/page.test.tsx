@@ -5,10 +5,17 @@ import { cleanup, render, screen, waitFor, fireEvent } from '@testing-library/re
 // jsdom doesn't implement scrollIntoView — the page calls it on new messages.
 Element.prototype.scrollIntoView = vi.fn();
 
+const mockReplace = vi.fn();
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ replace: mockReplace, push: vi.fn() }),
+}));
+
 afterEach(() => {
   cleanup();
   localStorage.clear();
   vi.restoreAllMocks();
+  mockReplace.mockReset();
+  window.history.pushState({}, '', '/ask');
 });
 
 describe('AskPage', () => {
@@ -117,5 +124,37 @@ describe('AskPage', () => {
     expect(screen.getByText('Why the slow replies?')).toBeTruthy();
     expect(screen.getByText('How do I raise a hard topic?')).toBeTruthy();
     expect(screen.queryByText("What's today like for me?")).toBeNull();
+  });
+
+  it('?prefill=... fills the composer with the phrase and does not auto-send (BRIEF-094B)', async () => {
+    localStorage.setItem('attune.profile', JSON.stringify({
+      date: '1990-06-15', time: '14:30', gender: 'other', createdAt: new Date().toISOString(),
+    }));
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ answer: { text: 'x' } }) });
+    vi.stubGlobal('fetch', fetchMock);
+
+    window.history.pushState({}, '', `/ask?prefill=${encodeURIComponent('Is today good for a big ask?')}`);
+
+    const { default: AskPage } = await import('./page');
+    render(<AskPage />);
+
+    await waitFor(() => {
+      const textarea = screen.getByPlaceholderText('Ask anything…') as HTMLTextAreaElement;
+      expect(textarea.value).toBe('Is today good for a big ask?');
+    });
+
+    expect(fetchMock.mock.calls.some(([url]) => url === '/api/ask')).toBe(false);
+  });
+
+  it('?prefill=... strips the param from the URL after consuming it (BRIEF-094B)', async () => {
+    localStorage.setItem('attune.profile', JSON.stringify({
+      date: '1990-06-15', time: '14:30', gender: 'other', createdAt: new Date().toISOString(),
+    }));
+    window.history.pushState({}, '', `/ask?prefill=${encodeURIComponent('Is today good for a big ask?')}`);
+
+    const { default: AskPage } = await import('./page');
+    render(<AskPage />);
+
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/ask'));
   });
 });

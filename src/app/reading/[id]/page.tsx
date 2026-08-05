@@ -314,6 +314,7 @@ export default function ReadingPage({ params }: { params: Promise<{ id: string }
             fontFamily: "var(--font-fraunces,Georgia,serif)",
             fontSize: HEADLINE_FONT_SIZE[headlineScale(b.headline)], lineHeight: HEADLINE_LINE_HEIGHT, letterSpacing: '-0.02em',
             color: 'var(--c-ink)', marginBottom: 20,
+            wordBreak: 'keep-all', overflowWrap: 'break-word',
           }}>
             <ItalicLast text={b.headline} />
           </h1>

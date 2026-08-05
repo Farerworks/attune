@@ -195,4 +195,37 @@ describe('HomePage', () => {
     await waitFor(() => expect(screen.getByText('＋ Add someone on your mind')).toBeTruthy());
     expect(screen.getByText('You can start without a birth time')).toBeTruthy();
   });
+
+  it("today's core sentence has word-break: keep-all (BRIEF-094B)", async () => {
+    seedProfile();
+    mockGetFlowDays.mockReturnValue(FLOW_NO_GOOD);
+
+    const { default: HomePage } = await import('./page');
+    render(<HomePage />);
+
+    const el = await waitFor(() => screen.getByText('Test today core sentence.'));
+    expect(el.style.wordBreak).toBe('keep-all');
+  });
+
+  it('AHEAD card body has word-break: keep-all (BRIEF-094B)', async () => {
+    seedProfile();
+    mockGetFlowDays.mockReturnValue(FLOW_TWO_GOOD);
+
+    const { default: HomePage } = await import('./page');
+    render(<HomePage />);
+
+    const els = await waitFor(() => screen.getAllByText('Ahead line — same.'));
+    expect(els[0].style.wordBreak).toBe('keep-all');
+  });
+
+  it('Ask chips link to /ask with a URL-encoded prefill param (BRIEF-094B)', async () => {
+    seedProfile();
+    mockGetFlowDays.mockReturnValue(FLOW_NO_GOOD);
+
+    const { default: HomePage } = await import('./page');
+    render(<HomePage />);
+
+    const link = await waitFor(() => screen.getByText('Quick prompt one').closest('a'));
+    expect(link?.getAttribute('href')).toBe(`/ask?prefill=${encodeURIComponent('Quick prompt one')}`);
+  });
 });

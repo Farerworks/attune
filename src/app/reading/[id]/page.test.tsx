@@ -87,4 +87,19 @@ describe('ReadingPage — headline length-adaptive scale (BRIEF-093)', () => {
     expect(h1).toBeTruthy();
     expect(h1.style.fontSize).toBe('44px');
   });
+
+  it('headline has word-break: keep-all (BRIEF-094B)', async () => {
+    const headline = '재촉하기보다 기다려주는 편이 낫겠다는 생각';
+    localStorage.setItem('attune.readings', JSON.stringify([makeReading(headline)]));
+
+    const { default: ReadingPage } = await import('./page');
+    await act(async () => {
+      render(<Suspense fallback={null}><ReadingPage params={Promise.resolve({ id: 'r1' })} /></Suspense>);
+      await new Promise(r => setTimeout(r, 100));
+    });
+
+    const h1 = document.querySelector('h1') as HTMLElement;
+    expect(h1).toBeTruthy();
+    expect(h1.style.wordBreak).toBe('keep-all');
+  });
 });

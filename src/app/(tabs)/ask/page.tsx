@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { getProfile, getReadings, ELEMENT_COLORS } from '@/lib/store';
 import { getQuotaLeft, incrementQuotaUsed, DAILY_QUOTA_MAX, loadMemory, appendMemory } from '@/lib/askQuota';
 import type { BriefingData } from '@/lib/store';
@@ -84,7 +85,9 @@ const EXHAUSTED = [
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function AskPage() {
+  const router = useRouter();
   const bottomRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const [initialized, setInitialized] = useState(false);
   const [chips,     setChips]     = useState<Chip[]>([]);
@@ -149,6 +152,21 @@ export default function AskPage() {
 
       setInitialized(true);
     }).catch(() => setInitialized(true));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Prefill the composer from a Home Ask-chip (?prefill=...) — never auto-sends.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const prefill = params.get('prefill');
+    if (!prefill) return;
+
+    setInput(prefill);
+    textareaRef.current?.focus();
+
+    params.delete('prefill');
+    const query = params.toString();
+    router.replace(query ? `/ask?${query}` : '/ask');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -424,6 +442,7 @@ export default function AskPage() {
             {/* Input row */}
             <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
               <textarea
+                ref={textareaRef}
                 rows={1}
                 placeholder="Ask anything…"
                 value={input}
