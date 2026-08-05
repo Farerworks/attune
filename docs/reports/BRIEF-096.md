@@ -74,4 +74,4 @@
 ## 8. 커밋 해시
 
 - 저장소: https://github.com/Farerworks/attune
-- 커밋 해시: (커밋 후 갱신 예정)
+- 커밋 해시: `cc8c25d`
