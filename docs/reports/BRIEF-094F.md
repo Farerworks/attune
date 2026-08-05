@@ -56,4 +56,4 @@ Ask·홈은 이번 브리프에서 전혀 손대지 않았다.
 ## 7. 커밋 해시
 
 - 저장소: https://github.com/Farerworks/attune
-- 커밋 해시: (커밋 후 갱신 예정)
+- 커밋 해시: `a8b30de`
