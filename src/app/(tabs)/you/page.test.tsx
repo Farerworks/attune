@@ -43,4 +43,63 @@ describe('YouPage', () => {
     expect(links[0].getAttribute('href')).toBe('/settings');
     expect(container.querySelector('header')?.contains(links[0])).toBe(false);
   });
+
+  it('stats line: 1 reading -> singular "1 READ" (not "1 READS") (BRIEF-092)', async () => {
+    localStorage.setItem('attune.profile', JSON.stringify({
+      date: '1990-06-15', time: '14:30', gender: 'other', createdAt: new Date().toISOString(),
+    }));
+    localStorage.setItem('attune.readings', JSON.stringify([
+      { id: 'r1', name: 'Sam', date: '1988-03-02', time: '09:00', createdAt: new Date().toISOString() },
+    ]));
+
+    const { default: YouPage } = await import('./page');
+    const { container } = render(<YouPage />);
+
+    await waitFor(() => expect(container.textContent).toContain('READ'));
+    expect(container.textContent).toContain('1 READ ·');
+    expect(container.textContent).not.toContain('1 READS');
+  });
+
+  it('stats line: 2 readings -> plural "2 READS" (BRIEF-092)', async () => {
+    localStorage.setItem('attune.profile', JSON.stringify({
+      date: '1990-06-15', time: '14:30', gender: 'other', createdAt: new Date().toISOString(),
+    }));
+    localStorage.setItem('attune.readings', JSON.stringify([
+      { id: 'r1', name: 'Sam', date: '1988-03-02', time: '09:00', createdAt: new Date().toISOString() },
+      { id: 'r2', name: 'Alex', date: '1992-01-01', time: '10:00', createdAt: new Date().toISOString() },
+    ]));
+
+    const { default: YouPage } = await import('./page');
+    const { container } = render(<YouPage />);
+
+    await waitFor(() => expect(container.textContent).toContain('READ'));
+    expect(container.textContent).toContain('2 READS ·');
+  });
+
+  it('stats line: 1 day in -> singular "1 DAY IN" (not "1 DAYS IN") (BRIEF-092)', async () => {
+    localStorage.setItem('attune.profile', JSON.stringify({
+      date: '1990-06-15', time: '14:30', gender: 'other', createdAt: new Date().toISOString(),
+    }));
+
+    const { default: YouPage } = await import('./page');
+    const { container } = render(<YouPage />);
+
+    await waitFor(() => expect(container.textContent).toContain('DAY'));
+    expect(container.textContent).toContain('1 DAY IN');
+    expect(container.textContent).not.toContain('1 DAYS IN');
+  });
+
+  it('Share button has no emoji and renders ShareIcon (BRIEF-092)', async () => {
+    localStorage.setItem('attune.profile', JSON.stringify({
+      date: '1990-06-15', time: '14:30', gender: 'other', createdAt: new Date().toISOString(),
+    }));
+
+    const { default: YouPage } = await import('./page');
+    render(<YouPage />);
+
+    const button = await screen.findByText('Share my card');
+    const container2 = button.closest('button') as HTMLElement;
+    expect(container2.textContent).not.toContain('↗️');
+    expect(container2.querySelector('svg')).toBeTruthy();
+  });
 });

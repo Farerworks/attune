@@ -16,6 +16,7 @@ import { SpectrumBar } from '@/components/SpectrumBar';
 import { TabTopBar } from '@/components/TabTopBar';
 import { TabHeader } from '@/components/TabHeader';
 import { AccountAvatar } from '@/components/AccountAvatar';
+import { ShareIcon } from '@/components/icons/ShareIcon';
 
 interface ChartData {
   stem:     string;
@@ -42,6 +43,10 @@ interface MySpectrums {
   decisions: number;
   pace: number;
   stress: number;
+}
+
+function plural(n: number, singular: string): string {
+  return n === 1 ? singular : `${singular}S`;
 }
 
 export default function YouPage() {
@@ -207,7 +212,7 @@ export default function YouPage() {
                 fontSize: 10.5, letterSpacing: '0.08em', textTransform: 'uppercase',
                 color: 'var(--c-muted)',
               }}>
-                {reads} READS · {daysIn} DAYS IN · {strong} STRONG CURRENTS
+                {reads} {plural(reads, 'READ')} · {daysIn} {plural(daysIn, 'DAY')} IN · {strong} {plural(strong, 'STRONG CURRENT')}
               </div>
             </div>
 
@@ -226,7 +231,10 @@ export default function YouPage() {
                 marginBottom: 12, cursor: 'pointer',
               }}
             >
-              Share my card ↗️
+              <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                Share my card
+                <ShareIcon width={17} height={17} style={{ color: 'currentColor' }} />
+              </span>
             </button>
 
             {/* ── Element insight ──────────────────────────────────────────── */}

@@ -36,21 +36,8 @@ function radarPts(
   });
 }
 
-function smoothPath(pts: Array<{ x: number; y: number }>): string {
-  const n = pts.length;
-  let d = `M ${pts[0].x.toFixed(2)} ${pts[0].y.toFixed(2)}`;
-  for (let i = 0; i < n; i++) {
-    const p0 = pts[(i - 1 + n) % n];
-    const p1 = pts[i];
-    const p2 = pts[(i + 1) % n];
-    const p3 = pts[(i + 2) % n];
-    const cp1x = p1.x + (p2.x - p0.x) / 6;
-    const cp1y = p1.y + (p2.y - p0.y) / 6;
-    const cp2x = p2.x - (p3.x - p1.x) / 6;
-    const cp2y = p2.y - (p3.y - p1.y) / 6;
-    d += ` C ${cp1x.toFixed(2)} ${cp1y.toFixed(2)}, ${cp2x.toFixed(2)} ${cp2y.toFixed(2)}, ${p2.x.toFixed(2)} ${p2.y.toFixed(2)}`;
-  }
-  return d + ' Z';
+function polygonPath(pts: Array<{ x: number; y: number }>): string {
+  return pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(2)} ${p.y.toFixed(2)}`).join(' ') + ' Z';
 }
 
 function pentagonPath(cx: number, cy: number, r: number): string {
@@ -132,17 +119,24 @@ export function ElementChart({
       ))}
 
       {/* Blobs */}
-      {datasets.map((ds, di) => (
-        <path
-          key={di}
-          d={smoothPath(radarPts(ds.elements, normMax, CX, CY, R))}
-          fill={ds.color}
-          fillOpacity={fillOpacity}
-          stroke={ds.color}
-          strokeWidth={2.5}
-          strokeOpacity={0.85}
-        />
-      ))}
+      {datasets.map((ds, di) => {
+        const pts = radarPts(ds.elements, normMax, CX, CY, R);
+        return (
+          <g key={di}>
+            <path
+              d={polygonPath(pts)}
+              fill={ds.color}
+              fillOpacity={fillOpacity}
+              stroke={ds.color}
+              strokeWidth={2.5}
+              strokeOpacity={0.85}
+            />
+            {pts.map((p, pi) => (
+              <circle key={pi} cx={p.x.toFixed(2)} cy={p.y.toFixed(2)} r={3} fill={ds.color} />
+            ))}
+          </g>
+        );
+      })}
 
       {/* Axis labels */}
       {ELEMENT_ORDER.map((key, i) => {
