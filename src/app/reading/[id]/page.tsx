@@ -32,6 +32,17 @@ function elementColor(element?: string) {
 
 const isKo = (s?: string) => !!s && /[가-힣]/.test(s);
 
+/** Length-adaptive size tier for the reading headline — long headlines (esp. Korean) need to shrink to stay within ~5 lines. */
+export function headlineScale(text: string): 'lg' | 'md' | 'sm' {
+  const len = [...text].length;
+  if (len <= 48) return 'lg';
+  if (len <= 84) return 'md';
+  return 'sm';
+}
+
+const HEADLINE_FONT_SIZE: Record<ReturnType<typeof headlineScale>, number> = { lg: 44, md: 36, sm: 31 };
+const HEADLINE_LINE_HEIGHT = 1.35;
+
 function ItalicLast({ text }: { text: string }) {
   const i = text.lastIndexOf(' ');
   if (i === -1) return <>{text}</>;
@@ -301,7 +312,7 @@ export default function ReadingPage({ params }: { params: Promise<{ id: string }
         {b?.headline && (
           <h1 style={{
             fontFamily: "var(--font-fraunces,Georgia,serif)",
-            fontSize: 44, lineHeight: 1.15, letterSpacing: '-0.02em',
+            fontSize: HEADLINE_FONT_SIZE[headlineScale(b.headline)], lineHeight: HEADLINE_LINE_HEIGHT, letterSpacing: '-0.02em',
             color: 'var(--c-ink)', marginBottom: 20,
           }}>
             <ItalicLast text={b.headline} />

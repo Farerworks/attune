@@ -26,3 +26,9 @@ describe('globals.css — text-input font-size >= 16px (BRIEF-091)', () => {
     expect(fontSizeInBlock('field-textarea')).toBeGreaterThanOrEqual(16);
   });
 });
+
+describe('globals.css — font-synthesis disabled (BRIEF-093)', () => {
+  it('declares font-synthesis: none, so browsers never fake italic/bold for faces that lack them (e.g. Korean text under fontStyle: italic)', () => {
+    expect(CSS).toContain('font-synthesis: none');
+  });
+});
