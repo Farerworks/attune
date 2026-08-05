@@ -77,6 +77,7 @@ export interface FlowDay {
   dayNumber: number;
   tone: TodayTone;
   rel: Relation;
+  dayElement: Element; // 그 날 일진의 오행
 }
 
 /** 14 days starting today (or an override start date), each with its element-relation tone. */
@@ -92,6 +93,7 @@ export function getFlowDays(myElement: Element, korean: boolean, startDate?: str
       dayNumber: d.getDate(),
       tone: TONE[rel],
       rel,
+      dayElement: p.element,
     };
   });
 }

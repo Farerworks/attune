@@ -17,10 +17,13 @@ vi.mock('@/lib/homeCopy', () => ({
 }));
 
 vi.mock('@/lib/today', () => ({
-  getMyTodayCard: () => ({ note: { line: 'Test today core sentence.', tone: 'good', todayElement: 'wood', branch: 'x' }, dateLabel: 'AUG 5' }),
+  getMyTodayCard: () => ({
+    note: { line: 'Test today core sentence.', tone: 'good', todayElement: 'wood', branch: 'x', stem: 'Yang Wood' },
+    dateLabel: 'AUG 5',
+  }),
   pickVariant: (pool: string[]) => pool[0],
   ME: {
-    same: ['Ahead line — same.'], today_nurtures: ['Ahead line — nurtures.'],
+    same: ['Ahead line — same A.', 'Ahead line — same B.'], today_nurtures: ['Ahead line — nurtures.'],
     person_nurtures: ['x'], today_controls: ['x'], person_controls: ['x'],
   },
   ME_KO: {
@@ -60,11 +63,15 @@ function makeReading(id: string, name: string, element = 'fire') {
 
 const FLOW_NO_GOOD = Array.from({ length: 14 }, (_, i) => ({
   date: `2026-08-${String(5 + i).padStart(2, '0')}`, weekdayLabel: 'X', dayNumber: 5 + i,
-  tone: 'soft' as const, rel: 'today_controls' as const,
+  tone: 'soft' as const, rel: 'today_controls' as const, dayElement: 'metal' as const,
 }));
 
+// Both good days share `rel: 'same'` on purpose — exercises the variation-conflict guard
+// (mocked pickVariant always returns pool[0], so without the guard both cards would collide).
 const FLOW_TWO_GOOD = FLOW_NO_GOOD.map((d, i) => (
-  i === 1 || i === 3 ? { ...d, tone: 'good' as const, rel: 'same' as const } : d
+  i === 1 ? { ...d, tone: 'good' as const, rel: 'same' as const, dayElement: 'fire' as const }
+    : i === 3 ? { ...d, tone: 'good' as const, rel: 'same' as const, dayElement: 'water' as const }
+    : d
 ));
 
 describe('HomePage', () => {
@@ -214,7 +221,7 @@ describe('HomePage', () => {
     const { default: HomePage } = await import('./page');
     render(<HomePage />);
 
-    const els = await waitFor(() => screen.getAllByText('Ahead line — same.'));
+    const els = await waitFor(() => screen.getAllByText(/Ahead line — same/));
     expect(els[0].style.wordBreak).toBe('keep-all');
   });
 
@@ -227,5 +234,47 @@ describe('HomePage', () => {
 
     const link = await waitFor(() => screen.getByText('Quick prompt one').closest('a'));
     expect(link?.getAttribute('href')).toBe(`/ask?prefill=${encodeURIComponent('Quick prompt one')}`);
+  });
+
+  it("today's glyph watermark renders as a decorative (aria-hidden) svg (BRIEF-094D)", async () => {
+    seedProfile();
+    mockGetFlowDays.mockReturnValue(FLOW_NO_GOOD);
+
+    const { default: HomePage } = await import('./page');
+    const { container } = render(<HomePage />);
+
+    await waitFor(() => expect(screen.getByText('Test today core sentence.')).toBeTruthy());
+
+    // The Settings icon svg is also aria-hidden, so scope to a DIV wrapper specifically.
+    const hiddenWrapper = container.querySelector('div[aria-hidden="true"]');
+    expect(hiddenWrapper).toBeTruthy();
+    expect(hiddenWrapper?.querySelector('svg')).toBeTruthy();
+  });
+
+  it('AHEAD: two same-rel days never render the identical line (variation-conflict guard, BRIEF-094D)', async () => {
+    seedProfile();
+    mockGetFlowDays.mockReturnValue(FLOW_TWO_GOOD);
+
+    const { default: HomePage } = await import('./page');
+    render(<HomePage />);
+
+    await waitFor(() => expect(screen.getByText('AHEAD')).toBeTruthy());
+    const cardA = screen.getByText('Ahead line — same A.');
+    const cardB = screen.getByText('Ahead line — same B.');
+    expect(cardA).toBeTruthy();
+    expect(cardB).toBeTruthy();
+    expect(cardA.textContent).not.toBe(cardB.textContent);
+  });
+
+  it("Do/Don't line renders both the DO and DON'T icons (BRIEF-094D)", async () => {
+    seedProfile();
+    mockGetFlowDays.mockReturnValue(FLOW_NO_GOOD);
+
+    const { default: HomePage } = await import('./page');
+    render(<HomePage />);
+
+    const doLabel = await waitFor(() => screen.getByText('DO'));
+    const doDontLine = doLabel.closest('p');
+    expect(doDontLine?.querySelectorAll('svg').length).toBe(2);
   });
 });

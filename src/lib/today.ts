@@ -1,4 +1,4 @@
-import type { Element } from './saju';
+import type { Element, TenStem } from './saju';
 import { getDailyPillars } from './saju';
 import { DAY_NOTE_LOCALE } from './interpretGuide';
 
@@ -9,6 +9,7 @@ export interface TodayNote {
   line: string;
   todayElement: Element;
   branch: string; // 오늘 일진의 지지 (DAY_NOTE_LOCALE 키와 동일)
+  stem: TenStem; // 오늘 일진의 천간
 }
 
 // Mirrors interpretGuide.ts tables — do not modify saju logic here
@@ -180,7 +181,7 @@ export function getTodayNote(
   } else {
     line = THEM_NONAME[rel];
   }
-  return { tone, line, todayElement: t, branch: pillar.branch };
+  return { tone, line, todayElement: t, branch: pillar.branch, stem: pillar.stem };
 }
 
 // ── Shared "my today card" data (You tab + People tab) ─────────────────────────

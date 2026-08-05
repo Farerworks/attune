@@ -150,3 +150,19 @@ describe('date parameter', () => {
     expect(unique.size).toBeGreaterThan(1);
   });
 });
+
+// ── stem field (BRIEF-094D) ───────────────────────────────────────────────────
+
+describe('getTodayNote — stem field (BRIEF-094D)', () => {
+  it('exposes the day pillar stem, matching getDailyPillars, without changing existing fields', () => {
+    const expectedStem = getDailyPillars(TEST_DATE, 1)[0].stem;
+    const n = getTodayNote(todayEl, 'me', TEST_DATE);
+
+    expect(n.stem).toBe(expectedStem);
+    // Existing fields still present and correct.
+    expect(n.tone).toBe('good');
+    expect(n.todayElement).toBe(todayEl);
+    expect(typeof n.line).toBe('string');
+    expect(typeof n.branch).toBe('string');
+  });
+});

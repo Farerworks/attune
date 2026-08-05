@@ -57,4 +57,11 @@ describe('getFlowDays', () => {
       expect(['good', 'soft', 'neutral']).toContain(d.tone);
     }
   });
+
+  it('exposes each day\'s dayElement (BRIEF-094D)', () => {
+    const days = getFlowDays('fire', false, '2026-07-19');
+    for (const d of days) {
+      expect(['wood', 'fire', 'earth', 'metal', 'water']).toContain(d.dayElement);
+    }
+  });
 });

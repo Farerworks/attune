@@ -7,8 +7,11 @@ import type { Reading } from '@/lib/store';
 import { TabTopBar } from '@/components/TabTopBar';
 import { AccountAvatar } from '@/components/AccountAvatar';
 import { ChevronIcon } from '@/components/icons/ChevronIcon';
+import { DoIcon } from '@/components/icons/DoIcon';
+import { DontIcon } from '@/components/icons/DontIcon';
+import { ArchetypeGlyph } from '@/components/ArchetypeGlyph';
 import type { DailyDoDont } from '@/lib/homeCopy';
-import type { Element } from '@/lib/saju';
+import type { Element, TenStem } from '@/lib/saju';
 
 // Mirrors People page's per-reading language heuristic (isKo) — same rule, own copy.
 const isKo = (s?: string) => !!s && /[가-힣]/.test(s);
@@ -66,12 +69,19 @@ interface PersonRow {
 interface AheadDay {
   date: string;
   line: string;
+  dayElement: Element;
+}
+
+interface TodayGlyph {
+  stem: TenStem;
+  element: Element;
 }
 
 export default function HomePage() {
   const [readings] = useReadings();
   const [korean, setKorean] = useState(false);
   const [todaySentence, setTodaySentence] = useState<string | null>(null);
+  const [todayGlyph, setTodayGlyph] = useState<TodayGlyph | null>(null);
   const [doDont, setDoDont] = useState<DailyDoDont | null>(null);
   const [aheadDays, setAheadDays] = useState<AheadDay[]>([]);
   const [personRows, setPersonRows] = useState<PersonRow[]>([]);
@@ -94,15 +104,21 @@ export default function HomePage() {
           const element = c.dayMaster.element as Element;
           setKorean(isKorean);
 
-          setTodaySentence(getMyTodayCard(element, isKorean).note.line);
+          const myToday = getMyTodayCard(element, isKorean);
+          setTodaySentence(myToday.note.line);
+          setTodayGlyph({ stem: myToday.note.stem, element: myToday.note.todayElement });
           setDoDont(getDailyDoDont(element, isKorean));
 
           const flow = getFlowDays(element, isKorean);
           const goodAhead = flow.slice(1).filter(d => d.tone === 'good').slice(0, 2);
-          setAheadDays(goodAhead.map(d => ({
-            date: d.date,
-            line: pickVariant((isKorean ? ME_KO : ME)[d.rel], `${d.date}|me|${d.rel}`),
-          })));
+          const pools = goodAhead.map(d => (isKorean ? ME_KO : ME)[d.rel]);
+          const lines = goodAhead.map((d, i) => pickVariant(pools[i], `${d.date}|me|${d.rel}`));
+          // Variation-conflict guard: same rel + same picked line on 2 consecutive AHEAD cards -> shift the 2nd by one pool index.
+          if (goodAhead.length === 2 && goodAhead[0].rel === goodAhead[1].rel && lines[0] === lines[1]) {
+            const idx = pools[1].indexOf(lines[1]);
+            lines[1] = pools[1][(idx + 1) % pools[1].length];
+          }
+          setAheadDays(goodAhead.map((d, i) => ({ date: d.date, line: lines[i], dayElement: d.dayElement })));
 
           setQuickPrompts(getQuickPrompts('general', isKorean));
         } catch { /* chart calc failed — sections simply won't show */ }
@@ -146,24 +162,42 @@ export default function HomePage() {
 
         {/* Today's core sentence — the only large element on the screen */}
         {todaySentence && (
-          <p style={{
-            margin: '28px 0 32px',
-            fontFamily: 'var(--font-fraunces)',
-            fontSize: isKo(todaySentence) ? 31 : 34,
-            lineHeight: 1.22,
-            color: 'var(--c-ink)',
-            wordBreak: 'keep-all',
-            overflowWrap: 'break-word',
-          }}>
-            {todaySentence}
-          </p>
+          <div style={{ position: 'relative', margin: '28px 0 32px' }}>
+            {todayGlyph && (
+              <div
+                aria-hidden="true"
+                style={{
+                  position: 'absolute', top: '50%', right: -8, transform: 'translateY(-50%)',
+                  opacity: 0.07, pointerEvents: 'none', zIndex: 0,
+                  color: ELEMENT_COLORS[todayGlyph.element]?.fg ?? 'var(--c-muted)',
+                }}
+              >
+                <ArchetypeGlyph stem={todayGlyph.stem} size={180} strokeWidth={1.2} color="currentColor" />
+              </div>
+            )}
+            <p style={{
+              position: 'relative', zIndex: 1, margin: 0,
+              fontFamily: 'var(--font-fraunces)',
+              fontSize: isKo(todaySentence) ? 31 : 34,
+              lineHeight: 1.22,
+              color: 'var(--c-ink)',
+              wordBreak: 'keep-all',
+              overflowWrap: 'break-word',
+            }}>
+              {todaySentence}
+            </p>
+          </div>
         )}
 
         {/* Do / Don't — single line, no card */}
         {doDont && (
           <p style={{ margin: '0 0 28px', fontFamily: 'var(--font-inter)', fontSize: 13, color: 'var(--c-ink-body)', lineHeight: 1.6 }}>
+            <DoIcon width={14} height={14} style={{ color: ELEMENT_COLORS.wood.fg, verticalAlign: -2 }} />
+            {' '}
             <span style={{ fontFamily: 'var(--font-space-mono)', fontSize: 10, letterSpacing: '0.1em', color: ELEMENT_COLORS.wood.fg }}>DO</span>
             {' '}{doDont.dos[0]}{' · '}
+            <DontIcon width={14} height={14} style={{ color: 'var(--c-vermilion)', verticalAlign: -2 }} />
+            {' '}
             <span style={{ fontFamily: 'var(--font-space-mono)', fontSize: 10, letterSpacing: '0.1em', color: 'var(--c-vermilion)' }}>DON&apos;T</span>
             {' '}{doDont.donts[0]}
           </p>
@@ -189,7 +223,7 @@ export default function HomePage() {
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{
-                    width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+                    width: 10, height: 10, borderRadius: '50%', flexShrink: 0,
                     background: ELEMENT_COLORS[person.element]?.fg ?? 'var(--c-muted)',
                   }} />
                   <span style={{ fontFamily: 'var(--font-inter)', fontSize: 16, fontWeight: 600, color: 'var(--c-ink)' }}>
@@ -252,7 +286,15 @@ export default function HomePage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {aheadDays.map(day => (
               <div key={day.date} className="card" style={{ padding: 16 }}>
-                <p style={{ margin: '0 0 8px', fontFamily: 'var(--font-space-mono)', fontSize: 10, color: 'var(--c-muted)' }}>
+                <p style={{
+                  margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: 6,
+                  fontFamily: 'var(--font-space-mono)', fontSize: 10,
+                  color: ELEMENT_COLORS[day.dayElement]?.fg ?? 'var(--c-muted)',
+                }}>
+                  <span style={{
+                    width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+                    background: ELEMENT_COLORS[day.dayElement]?.fg ?? 'var(--c-muted)',
+                  }} />
                   {aheadDateLabel(new Date(`${day.date}T00:00:00`))}
                 </p>
                 <p style={{
