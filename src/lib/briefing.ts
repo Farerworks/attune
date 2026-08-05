@@ -284,6 +284,8 @@ Respond with ONLY a valid JSON object matching the schema below. No explanation 
   ]
 }
 
+HEADLINE LENGTH: hard limits — Korean: 60 characters max (aim 28–48). English: 90 characters max (aim 45–75). One sentence. If your draft runs long, compress it yourself before answering.
+
 LANGUAGE
 Detect the language of the user's situation text. Write ALL free-text values (headline, every takeaway, every detail, click/clash/watch, playbook tips and whys, starters) entirely in that language. Never mix languages in one sentence. If the situation is in English or empty, write in English. JSON keys stay in English. Do not translate archetype names.
 

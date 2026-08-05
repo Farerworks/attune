@@ -74,7 +74,7 @@ function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number)
   return lines;
 }
 
-function drawShareCard(
+export function drawShareCard(
   ctx: CanvasRenderingContext2D,
   reading: Reading,
   myArchetype: Archetype | null,
@@ -205,10 +205,13 @@ function drawShareCard(
   }
 
   // Quote, rotated –1.5°
+  // Fraunces has no Hangul glyphs — browsers would synthesize a fake slant for
+  // Korean text on canvas (CSS font-synthesis: none doesn't reach <canvas>).
+  // Korean quotes use upright Gowun Batang instead; English keeps real italic Fraunces.
   const quoteText = b?.dynamic?.click?.takeaway ?? b?.dynamic?.clash?.takeaway ?? '';
   if (quoteText) {
     ctx.save();
-    ctx.font = 'italic 57px Fraunces';
+    ctx.font = /[가-힣]/.test(quoteText) ? '400 57px "Gowun Batang"' : 'italic 57px Fraunces';
     ctx.fillStyle = '#CFC5B4';
     ctx.letterSpacing = '0px';
     const displayText = `“${quoteText}”`;
@@ -270,9 +273,9 @@ export function ShareModal({ reading, myArchetype, theirArchetype, onClose }: Pr
       await document.fonts.ready;
       try {
         await Promise.all([
-          document.fonts.load('500 108px Fraunces'),
-          document.fonts.load('italic 90px Fraunces'),
+          document.fonts.load('500 100px Fraunces'),
           document.fonts.load('italic 57px Fraunces'),
+          document.fonts.load('400 57px "Gowun Batang"'),
           document.fonts.load('400 33px "Space Mono"'),
           document.fonts.load('700 30px "Space Mono"'),
         ]);

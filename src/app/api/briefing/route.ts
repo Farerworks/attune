@@ -20,6 +20,24 @@ function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
   ]);
 }
 
+// ── Headline length contract (BRIEF-093B) ────────────────────────────────────
+// Server-side backstop for the HEADLINE LENGTH prompt instruction (briefing.ts) —
+// the reading page's font scale is a defense line, not the fix; this is the fix.
+
+const HEADLINE_LIMIT_KO = 60;
+const HEADLINE_LIMIT_EN = 90;
+
+function headlineCharLimit(headline: string): number {
+  return /[가-힣]/.test(headline) ? HEADLINE_LIMIT_KO : HEADLINE_LIMIT_EN;
+}
+
+function headlineTooLong(headline: string): boolean {
+  return [...headline].length > headlineCharLimit(headline);
+}
+
+const HEADLINE_RETRY_INSTRUCTION =
+  '\n\nYour headline was too long. Rewrite ONLY the headline in one shorter sentence (same language, same meaning, same non-judgmental tone), within the hard limit. Return the full JSON again with only the headline changed.';
+
 const RequestSchema = z.object({
   me: z.object({
     date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'date must be YYYY-MM-DD'),
@@ -119,6 +137,17 @@ export async function POST(request: Request) {
       briefing = retryCandidate;
     } else {
       briefing = candidate;
+    }
+
+    // Headline length contract — one compression retry, then pass through as-is (never truncate/ellipsize).
+    if (headlineTooLong(briefing.headline)) {
+      const lengthRetryPrompt = prompt + HEADLINE_RETRY_INSTRUCTION;
+      try {
+        const lengthRetryRaw = await withTimeout(llm.generateJson(lengthRetryPrompt, 4096), LLM_TIMEOUT, 'Headline length retry');
+        briefing = parseBriefing(lengthRetryRaw);
+      } catch {
+        // Retry failed (timeout / unparseable) — keep the original briefing; UI's length-adaptive scale absorbs it.
+      }
     }
   } catch (err) {
     return Response.json(

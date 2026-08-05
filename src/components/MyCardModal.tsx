@@ -156,7 +156,7 @@ function drawMyCard(
   nameLines.forEach((line, i) => ctx.fillText(line, PAD, cursor + i * nameLineHeight));
   cursor += nameLines.length * nameLineHeight + 30;
 
-  // tagline
+  // tagline (English-only today via getArchetype — a locale-aware tagline here would need the same Korean/italic split as ShareModal's quote, see BRIEF-093B)
   if (tagline) {
     ctx.font = 'italic 46px Fraunces';
     ctx.fillStyle = '#CFC5B4';

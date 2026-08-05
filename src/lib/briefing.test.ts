@@ -335,3 +335,13 @@ describe('buildBriefingPrompt — label non-leakage', () => {
     for (const label of labels) expect(prompt).not.toContain(label);
   });
 });
+
+describe('buildBriefingPrompt — HEADLINE LENGTH contract (BRIEF-093B)', () => {
+  it('contains the headline length hard-limit instruction', () => {
+    const me = makeChart({ dayStem: 'Yang Wood', year: 'Rat', month: 'Dragon', day: 'Monkey' });
+    const them = makeChart({ dayStem: 'Yang Fire', year: 'Ox', month: 'Snake', day: 'Rooster' });
+    const prompt = buildBriefingPrompt(me, them, 'friend', 'test situation');
+
+    expect(prompt).toContain('HEADLINE LENGTH: hard limits — Korean: 60 characters max (aim 28–48). English: 90 characters max (aim 45–75).');
+  });
+});

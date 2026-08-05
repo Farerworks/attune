@@ -32,7 +32,7 @@ function elementColor(element?: string) {
 
 const isKo = (s?: string) => !!s && /[가-힣]/.test(s);
 
-/** Length-adaptive size tier for the reading headline — long headlines (esp. Korean) need to shrink to stay within ~5 lines. */
+/** Length-adaptive size tier for the reading headline. Long headlines shrink to reduce excessive vertical expansion (not a hard 5-line guarantee — length is capped at generation). */
 export function headlineScale(text: string): 'lg' | 'md' | 'sm' {
   const len = [...text].length;
   if (len <= 48) return 'lg';
