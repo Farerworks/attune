@@ -157,4 +157,66 @@ describe('AskPage', () => {
 
     await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/ask'));
   });
+
+  it('the person-selection/quota region sits inside a sticky-positioned ancestor (BRIEF-094C)', async () => {
+    localStorage.setItem('attune.profile', JSON.stringify({
+      date: '1990-06-15', time: '14:30', gender: 'other', createdAt: new Date().toISOString(),
+    }));
+
+    const { default: AskPage } = await import('./page');
+    render(<AskPage />);
+
+    const quotaEl = await waitFor(() => screen.getByText(/QUESTIONS LEFT TODAY/));
+    let el: HTMLElement | null = quotaEl;
+    let stickyAncestor: HTMLElement | null = null;
+    while (el) {
+      if (getComputedStyle(el).position === 'sticky') { stickyAncestor = el; break; }
+      el = el.parentElement;
+    }
+    expect(stickyAncestor).not.toBeNull();
+  });
+
+  it('the composer sits inside a sticky (closed) or fixed (keyboard open) positioned ancestor (BRIEF-094C)', async () => {
+    localStorage.setItem('attune.profile', JSON.stringify({
+      date: '1990-06-15', time: '14:30', gender: 'other', createdAt: new Date().toISOString(),
+    }));
+
+    const { default: AskPage } = await import('./page');
+    render(<AskPage />);
+
+    const textarea = await waitFor(() => screen.getByPlaceholderText('Ask anything…'));
+    let el: HTMLElement | null = textarea;
+    let fixedOrSticky: HTMLElement | null = null;
+    while (el) {
+      const pos = getComputedStyle(el).position;
+      if (pos === 'sticky' || pos === 'fixed') { fixedOrSticky = el; break; }
+      el = el.parentElement;
+    }
+    expect(fixedOrSticky).not.toBeNull();
+  });
+
+  it('with a long thread, the quota/chip row and composer are not inside the scrolling message container (BRIEF-094C)', async () => {
+    localStorage.setItem('attune.profile', JSON.stringify({
+      date: '1990-06-15', time: '14:30', gender: 'other', createdAt: new Date().toISOString(),
+    }));
+    const messages = Array.from({ length: 20 }, (_, i) => ({
+      id: `u${i}`, role: 'user', text: `Message number ${i}`, createdAt: new Date().toISOString(),
+    }));
+    localStorage.setItem('attune.ask.threads', JSON.stringify({ me: messages }));
+
+    const { default: AskPage } = await import('./page');
+    const { container } = render(<AskPage />);
+
+    await waitFor(() => expect(screen.getByText('Message number 0')).toBeTruthy());
+
+    const messageEl = screen.getByText('Message number 0');
+    const scrollContainer = Array.from(container.querySelectorAll<HTMLElement>('div'))
+      .find(d => d.contains(messageEl) && d.getAttribute('style')?.includes('flex: 1'));
+    expect(scrollContainer).toBeTruthy();
+
+    const quotaEl = screen.getByText(/QUESTIONS LEFT TODAY/);
+    const textarea = screen.getByPlaceholderText('Ask anything…');
+    expect(scrollContainer!.contains(quotaEl)).toBe(false);
+    expect(scrollContainer!.contains(textarea)).toBe(false);
+  });
 });

@@ -14,6 +14,7 @@ import { AccountAvatar } from '@/components/AccountAvatar';
 import { pickVariant, localDateStr } from '@/lib/today';
 import { friendlyError } from '@/lib/errorCopy';
 import { getQuickPrompts } from '@/lib/askPrompts';
+import { useKeyboardOpen } from '@/lib/keyboard';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -86,6 +87,7 @@ const EXHAUSTED = [
 
 export default function AskPage() {
   const router = useRouter();
+  const keyboardOpen = useKeyboardOpen();
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -339,50 +341,49 @@ export default function AskPage() {
   return (
     <div className="ask-full" style={{ background: 'var(--c-paper)', display: 'flex', flexDirection: 'column' }}>
 
-      {/* ── Header ────────────────────────────────────────────────────────────── */}
-      <TabTopBar right={<AccountAvatar />} />
+      {/* ── Fixed top: TabTopBar + quota/chip row, one sticky unit (BRIEF-094C) ── */}
+      <TabTopBar right={<AccountAvatar />}>
+        <div>
+          <p style={{
+            margin: '0 0 10px', textAlign: 'right',
+            fontFamily: "var(--font-space-mono,'Courier New')", fontSize: 11, letterSpacing: '0.08em', color: 'var(--c-muted)',
+          }}>
+            {left} QUESTIONS LEFT TODAY
+          </p>
+          <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 12, scrollbarWidth: 'none', alignItems: 'flex-start' }}>
+            <style>{`::-webkit-scrollbar{display:none}`}</style>
+            {/* Me + Person chips */}
+            {chips.filter(c => c.id !== 'general').map(chip => (
+              <div key={chip.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, flexShrink: 0 }}>
+                <ChipButton chip={chip} active={selected === chip.id} onClick={() => setSelected(chip.id)} />
+                {!hasAnyThread && chip.id === 'me' && (
+                  <span style={{ fontFamily: "var(--font-space-mono,'Courier New')", fontSize: 8.5, letterSpacing: '0.1em', color: 'var(--c-muted)', textTransform: 'uppercase' }}>YOU · TIMING · ANYTHING</span>
+                )}
+              </div>
+            ))}
+            {/* + Someone chip — only when no saved people */}
+            {!hasPersonChips && (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, flexShrink: 0 }}>
+                <Link href="/new" style={{
+                  display: 'flex', alignItems: 'center', padding: '12px 18px',
+                  borderRadius: 20, border: '1.5px dashed #C9C0AD',
+                  background: 'transparent', color: 'var(--c-muted)',
+                  textDecoration: 'none', fontFamily: "var(--font-inter,system-ui)", fontSize: 13,
+                  whiteSpace: 'nowrap', minHeight: 48, boxSizing: 'border-box',
+                }}>
+                  + Someone
+                </Link>
+                {!hasAnyThread && (
+                  <span style={{ fontFamily: "var(--font-space-mono,'Courier New')", fontSize: 8.5, letterSpacing: '0.1em', color: 'var(--c-muted)', textTransform: 'uppercase' }}>ADD A PERSON</span>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </TabTopBar>
       <TabHeader title="Ask" />
 
-      {/* ── Quota + chip row — moved out of the sticky header (BRIEF-077) ───────── */}
-      <div style={{ padding: '12px 20px 0' }}>
-        <p style={{
-          margin: '0 0 10px', textAlign: 'right',
-          fontFamily: "var(--font-space-mono,'Courier New')", fontSize: 11, letterSpacing: '0.08em', color: 'var(--c-muted)',
-        }}>
-          {left} QUESTIONS LEFT TODAY
-        </p>
-        <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 12, scrollbarWidth: 'none', alignItems: 'flex-start' }}>
-          <style>{`::-webkit-scrollbar{display:none}`}</style>
-          {/* Me + Person chips */}
-          {chips.filter(c => c.id !== 'general').map(chip => (
-            <div key={chip.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, flexShrink: 0 }}>
-              <ChipButton chip={chip} active={selected === chip.id} onClick={() => setSelected(chip.id)} />
-              {!hasAnyThread && chip.id === 'me' && (
-                <span style={{ fontFamily: "var(--font-space-mono,'Courier New')", fontSize: 8.5, letterSpacing: '0.1em', color: 'var(--c-muted)', textTransform: 'uppercase' }}>YOU · TIMING · ANYTHING</span>
-              )}
-            </div>
-          ))}
-          {/* + Someone chip — only when no saved people */}
-          {!hasPersonChips && (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, flexShrink: 0 }}>
-              <Link href="/new" style={{
-                display: 'flex', alignItems: 'center', padding: '12px 18px',
-                borderRadius: 20, border: '1.5px dashed #C9C0AD',
-                background: 'transparent', color: 'var(--c-muted)',
-                textDecoration: 'none', fontFamily: "var(--font-inter,system-ui)", fontSize: 13,
-                whiteSpace: 'nowrap', minHeight: 48, boxSizing: 'border-box',
-              }}>
-                + Someone
-              </Link>
-              {!hasAnyThread && (
-                <span style={{ fontFamily: "var(--font-space-mono,'Courier New')", fontSize: 8.5, letterSpacing: '0.1em', color: 'var(--c-muted)', textTransform: 'uppercase' }}>ADD A PERSON</span>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* ── Chat area ─────────────────────────────────────────────────────────── */}
+      {/* ── Scrollable middle: conversation only (BRIEF-094C) ────────────────── */}
       <div style={{ flex: 1, padding: '20px 20px 8px', display: 'flex', flexDirection: 'column', gap: 12 }}>
 
         {currentThread.length === 0 && !loading && (
@@ -405,7 +406,13 @@ export default function AskPage() {
       </div>
 
       {/* ── Bottom input area ─────────────────────────────────────────────────── */}
-      <div style={{ position: 'sticky', bottom: 0, background: 'var(--c-paper)', borderTop: '1px solid var(--c-hairline)', padding: '12px 20px 10px' }}>
+      <div style={{
+        position: keyboardOpen ? 'fixed' : 'sticky', bottom: 0,
+        ...(keyboardOpen ? { left: 0, right: 0, margin: '0 auto', width: '100%', maxWidth: 480 } : {}),
+        background: 'var(--c-paper)', borderTop: '1px solid var(--c-hairline)',
+        paddingTop: 12, paddingRight: 20, paddingLeft: 20,
+        paddingBottom: keyboardOpen ? 'calc(10px + env(safe-area-inset-bottom, 0px))' : 10,
+      }}>
         {left <= 0 ? (
           <div style={{ textAlign: 'center', padding: '12px 0 4px' }}>
             <p style={{
