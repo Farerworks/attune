@@ -260,7 +260,7 @@ export default function HomePage() {
                   {day.line}
                 </p>
                 <p style={{ margin: 0, fontFamily: 'var(--font-inter)', fontSize: 11.5, color: 'var(--c-ink-body)' }}>
-                  {korean ? '화면 힌트일 뿐, 정답표가 아니에요' : 'A hint, not an answer key'}
+                  {korean ? '힌트일 뿐, 정답표가 아니에요' : 'A hint, not an answer key'}
                 </p>
               </div>
             ))}

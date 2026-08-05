@@ -41,6 +41,7 @@ afterEach(() => {
   cleanup();
   localStorage.clear();
   mockGetFlowDays.mockReset();
+  Object.defineProperty(navigator, 'language', { value: 'en-US', configurable: true });
 });
 
 function seedProfile() {
@@ -148,7 +149,8 @@ describe('HomePage', () => {
     expect(container.textContent).not.toMatch(/DAY \d+/);
   });
 
-  it('AHEAD: 2 good-tone days -> 2 cards with the disclaimer string (BRIEF-094)', async () => {
+  it('AHEAD: 2 good-tone days -> 2 cards, EN disclaimer is an exact match, no stray text (BRIEF-094-FIX)', async () => {
+    Object.defineProperty(navigator, 'language', { value: 'en-US', configurable: true });
     seedProfile();
     mockGetFlowDays.mockReturnValue(FLOW_TWO_GOOD);
 
@@ -156,7 +158,23 @@ describe('HomePage', () => {
     render(<HomePage />);
 
     await waitFor(() => expect(screen.getByText('AHEAD')).toBeTruthy());
-    expect(screen.getAllByText('A hint, not an answer key')).toHaveLength(2);
+    const nodes = screen.getAllByText('A hint, not an answer key');
+    expect(nodes).toHaveLength(2);
+    for (const n of nodes) expect(n.textContent).toBe('A hint, not an answer key');
+  });
+
+  it('AHEAD: Korean disclaimer is an exact match — "힌트일 뿐, 정답표가 아니에요", no stray prefix like "화면" (BRIEF-094-FIX)', async () => {
+    Object.defineProperty(navigator, 'language', { value: 'ko-KR', configurable: true });
+    seedProfile();
+    mockGetFlowDays.mockReturnValue(FLOW_TWO_GOOD);
+
+    const { default: HomePage } = await import('./page');
+    render(<HomePage />);
+
+    await waitFor(() => expect(screen.getByText('AHEAD')).toBeTruthy());
+    const nodes = screen.getAllByText('힌트일 뿐, 정답표가 아니에요');
+    expect(nodes).toHaveLength(2);
+    for (const n of nodes) expect(n.textContent).toBe('힌트일 뿐, 정답표가 아니에요');
   });
 
   it('AHEAD: 0 good-tone days -> the AHEAD label is absent entirely (BRIEF-094)', async () => {
