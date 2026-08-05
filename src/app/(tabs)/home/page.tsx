@@ -192,11 +192,11 @@ export default function HomePage() {
         {/* Do / Don't — single line, no card */}
         {doDont && (
           <p style={{ margin: '0 0 28px', fontFamily: 'var(--font-inter)', fontSize: 13, color: 'var(--c-ink-body)', lineHeight: 1.6 }}>
-            <DoIcon width={14} height={14} style={{ color: ELEMENT_COLORS.wood.fg, verticalAlign: -2 }} />
+            <DoIcon width={14} height={14} style={{ display: 'inline-block', color: ELEMENT_COLORS.wood.fg, verticalAlign: -2 }} />
             {' '}
             <span style={{ fontFamily: 'var(--font-space-mono)', fontSize: 10, letterSpacing: '0.1em', color: ELEMENT_COLORS.wood.fg }}>DO</span>
             {' '}{doDont.dos[0]}{' · '}
-            <DontIcon width={14} height={14} style={{ color: 'var(--c-vermilion)', verticalAlign: -2 }} />
+            <DontIcon width={14} height={14} style={{ display: 'inline-block', color: 'var(--c-vermilion)', verticalAlign: -2 }} />
             {' '}
             <span style={{ fontFamily: 'var(--font-space-mono)', fontSize: 10, letterSpacing: '0.1em', color: 'var(--c-vermilion)' }}>DON&apos;T</span>
             {' '}{doDont.donts[0]}

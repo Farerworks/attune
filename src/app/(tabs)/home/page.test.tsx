@@ -275,6 +275,12 @@ describe('HomePage', () => {
 
     const doLabel = await waitFor(() => screen.getByText('DO'));
     const doDontLine = doLabel.closest('p');
-    expect(doDontLine?.querySelectorAll('svg').length).toBe(2);
+    const icons = doDontLine?.querySelectorAll('svg');
+    expect(icons?.length).toBe(2);
+    // Tailwind preflight forces svg { display: block }, which breaks the single-line
+    // flow — each icon must override back to inline-block (BRIEF-094D-FIX).
+    icons?.forEach(icon => {
+      expect(icon.style.display).toBe('inline-block');
+    });
   });
 });
