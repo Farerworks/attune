@@ -355,7 +355,7 @@ describe('AskPage', () => {
     expect(title.parentElement!.contains(quotaEl)).toBe(true);
   });
 
-  it('empty first visit keeps full-size chips (minHeight 48) — unchanged by BRIEF-094G', async () => {
+  it('empty first visit now uses the slim tab chip too, not the large pill (BRIEF-094I §1 — supersedes 094G\'s "keeps full-size" expectation)', async () => {
     localStorage.setItem('attune.profile', JSON.stringify({
       date: '1990-06-15', time: '14:30', gender: 'other', createdAt: new Date().toISOString(),
     }));
@@ -364,7 +364,23 @@ describe('AskPage', () => {
 
     await waitFor(() => expect(screen.getByText('YOU · TIMING · ANYTHING')).toBeTruthy());
     const meChipEmpty = screen.getByText('Me').closest('button') as HTMLElement;
-    expect(meChipEmpty.style.minHeight).toBe('48px');
+    expect(meChipEmpty.style.minHeight).toBe('44px');
+    expect(meChipEmpty.style.background).toBe('transparent');
+    expect(meChipEmpty.getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByText('ADD A PERSON')).toBeTruthy();
+  });
+
+  it('"+ Someone" has no dashed pill border on first visit either (BRIEF-094I §1)', async () => {
+    localStorage.setItem('attune.profile', JSON.stringify({
+      date: '1990-06-15', time: '14:30', gender: 'other', createdAt: new Date().toISOString(),
+    }));
+    const { default: AskPageEmpty } = await import('./page');
+    render(<AskPageEmpty />);
+
+    await waitFor(() => expect(screen.getByText('YOU · TIMING · ANYTHING')).toBeTruthy());
+    const someoneLink = screen.getByText('+ Someone').closest('a') as HTMLElement;
+    expect(someoneLink.style.border).not.toContain('dashed');
+    expect(someoneLink.style.minHeight).toBe('44px');
   });
 
   it('with a conversation, person chips render as tabs: no background/border, and the selected one is underlined in vermilion, not the element color (BRIEF-094G v2)', async () => {

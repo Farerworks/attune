@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Suspense, act } from 'react';
 import { cleanup, render, screen, waitFor, fireEvent } from '@testing-library/react';
 import * as storeModule from '@/lib/store';
@@ -15,6 +15,13 @@ vi.mock('@/lib/sync', () => ({
   getSyncSession: () => mockGetSyncSession(),
   pushBackup: () => mockPushBackup(),
 }));
+
+// TabTopBar now renders AccountAvatar on this page (BRIEF-094I §2), which calls
+// getSyncSession() itself on mount — give the mock a resolvable default so tests that don't
+// care about sync state (most of them) don't crash on `.then()` of undefined.
+beforeEach(() => {
+  mockGetSyncSession.mockResolvedValue(null);
+});
 
 afterEach(() => {
   cleanup();
@@ -152,23 +159,41 @@ describe('PersonHubPage (BRIEF-097)', () => {
     expect(cta.closest('a')?.getAttribute('href')).toBe('/ask?person=r-new');
   });
 
-  it('§3 (BRIEF-094H): the identity header clears the status bar via the same calc() as TabTopBar — not clipped at y:0', async () => {
+  // Supersedes 094H §3's own test — that fix (safe-area padding directly on the identity row)
+  // is now replaced by an actual ATTUNE wordmark bar (BRIEF-094I §2), same grammar as Home.
+  it('§2 (BRIEF-094I): a fixed ATTUNE wordmark bar exists above the identity row (People→hub no longer drops it)', async () => {
+    localStorage.setItem('attune.readings', JSON.stringify([makeReading({ id: 'r1' })]));
+    await renderHub('r1');
+
+    await waitFor(() => expect(screen.getByText('ATTUNE')).toBeTruthy());
+  });
+
+  it('§2 (BRIEF-094I): the ATTUNE bar (not the identity row) carries the safe-area-inset-top clearance', async () => {
+    localStorage.setItem('attune.readings', JSON.stringify([makeReading({ id: 'r1' })]));
+    await renderHub('r1');
+
+    const wordmark = await waitFor(() => screen.getByText('ATTUNE'));
+    let el: HTMLElement | null = wordmark;
+    let bar: HTMLElement | null = null;
+    while (el) {
+      // jsdom's cssstyle garbles a bare `env(x, y)` inside calc() (documented quirk, harmless
+      // in real browsers) — checking for the still-present substrings rather than exact string.
+      const pt = el.style.paddingTop;
+      if (pt && pt.includes('12px') && pt.includes('safe-area-inset-top')) { bar = el; break; }
+      el = el.parentElement;
+    }
+    expect(bar).not.toBeNull();
+  });
+
+  it('§2 (BRIEF-094I): the identity row itself no longer carries a calc()/safe-area paddingTop', async () => {
     localStorage.setItem('attune.readings', JSON.stringify([makeReading({ id: 'r1' })]));
     await renderHub('r1');
 
     const backButton = await waitFor(() => screen.getByLabelText('Back'));
-    let el: HTMLElement | null = backButton;
-    let header: HTMLElement | null = null;
-    while (el) {
-      // jsdom's cssstyle parses (and garbles the argument order of) a bare `env(x, y)` inside
-      // calc() — unlike `calc(var(--x) + env(...))`, which it leaves opaque — so this checks
-      // for the still-present pieces rather than an exact string (documented jsdom quirk,
-      // harmless in real browsers).
-      const pt = el.style.paddingTop;
-      if (pt && pt.includes('12px') && pt.includes('safe-area-inset-top')) { header = el; break; }
-      el = el.parentElement;
-    }
-    expect(header).not.toBeNull();
+    const identityRow = backButton.parentElement as HTMLElement;
+    expect(identityRow.style.paddingTop).toBe('8px');
+    expect(identityRow.style.paddingTop).not.toContain('calc');
+    expect(identityRow.style.paddingTop).not.toContain('safe-area');
   });
 });
 

@@ -517,8 +517,8 @@ export default function AskPage() {
                 ref={chipRowRef}
                 onScroll={updateChipFade}
                 style={{
-                  display: 'flex', gap: hasAnyThread ? 16 : 8, overflowX: 'auto', paddingBottom: 12,
-                  scrollbarWidth: 'none', alignItems: hasAnyThread ? 'center' : 'flex-start',
+                  display: 'flex', gap: 16, overflowX: 'auto', paddingBottom: 12,
+                  scrollbarWidth: 'none', alignItems: 'center',
                 }}
               >
                 <style>{`::-webkit-scrollbar{display:none}`}</style>
@@ -531,7 +531,10 @@ export default function AskPage() {
                       ref={isActive ? selectedChipRef : undefined}
                       style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, flexShrink: 0 }}
                     >
-                      <ChipButton chip={chip} active={isActive} onClick={() => setSelected(chip.id)} size={hasAnyThread ? 'tab' : 'default'} />
+                      {/* Always the slim tab size (BRIEF-094I §1) — the large pill was only
+                          for first-visit (0 threads), but that made every tester's actual first
+                          impression an inconsistent, "뚱뚱" one relative to 094G v2's slim tabs. */}
+                      <ChipButton chip={chip} active={isActive} onClick={() => setSelected(chip.id)} size="tab" />
                       {!hasAnyThread && chip.id === 'me' && (
                         <span style={{ fontFamily: "var(--font-space-mono,'Courier New')", fontSize: 8.5, letterSpacing: '0.1em', color: 'var(--c-ink-body)', textTransform: 'uppercase' }}>YOU · TIMING · ANYTHING</span>
                       )}
@@ -543,18 +546,13 @@ export default function AskPage() {
                     which lost the add-another-person path). First-visit gating is unchanged. */}
                 {(hasAnyThread || !hasPersonChips) && (
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, flexShrink: 0 }}>
-                    <Link href="/new" style={hasAnyThread ? {
+                    {/* Always the slim text-link style (BRIEF-094I §1) — the dashed pill was
+                        only for first-visit, dropped for the same "뚱뚱" reason as the chips. */}
+                    <Link href="/new" style={{
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       padding: '9px 2px', minHeight: 44,
                       color: 'var(--c-ink-body)', textDecoration: 'none',
                       fontFamily: "var(--font-inter,system-ui)", fontSize: 13, whiteSpace: 'nowrap',
-                    } : {
-                      display: 'flex', alignItems: 'center',
-                      padding: '12px 18px', borderRadius: 20,
-                      border: '1.5px dashed #C9C0AD',
-                      background: 'transparent', color: 'var(--c-muted)',
-                      textDecoration: 'none', fontFamily: "var(--font-inter,system-ui)", fontSize: 13,
-                      whiteSpace: 'nowrap', minHeight: 48, boxSizing: 'border-box',
                     }}>
                       + Someone
                     </Link>

@@ -15,6 +15,8 @@ import { IljuSheet } from '@/components/IljuSheet';
 import { formatDate } from '@/lib/format';
 import { BackIcon } from '@/components/icons/BackIcon';
 import { getSyncSession, pushBackup } from '@/lib/sync';
+import { TabTopBar } from '@/components/TabTopBar';
+import { AccountAvatar } from '@/components/AccountAvatar';
 
 const SECTION_LABEL_STYLE = {
   fontFamily: "var(--font-space-mono,'Courier New')",
@@ -246,15 +248,22 @@ export default function PersonHubPage({ params }: { params: Promise<{ id: string
         />
       )}
 
+      {/* ── ATTUNE wordmark bar (BRIEF-094I §2) ─────────────────────────────────
+          People→hub used to drop the ATTUNE bar entirely, breaking the fixed-bar grammar
+          every other tab has (094E/094F). Wordmark-only (no title), same as Home — the hub
+          isn't a tab root, so it doesn't get a title row. This also now owns the safe-area
+          clearance that used to live on the identity row below (094H §3's own fix — superseded
+          here since the bar handles it the same way TabTopBar always has, 091-FIX). */}
+      <TabTopBar right={<AccountAvatar />} />
+
       {/* ── Identity ─────────────────────────────────────────────────────────── */}
-      {/* Other tabs' TabTopBar clears the status bar with the same calc() (BRIEF-091 전례) —
-          this header has no TabTopBar, so without it the back/avatar/name row starts at y:0
-          and gets clipped under the status bar (BRIEF-094H §3, YS 실기기 발견). */}
+      {/* Scrolls with content (not fixed) — only the ATTUNE bar above stays put, same as
+          Home's own identity content below its wordmark bar. */}
       <div style={{
         display: 'flex', alignItems: 'flex-start', gap: 12,
         // Individual longhands, not the `padding` shorthand — mixing shorthand+longhand in one
         // style object is a known jsdom cssstyle bug that garbles env() (project precedent).
-        paddingTop: 'calc(12px + env(safe-area-inset-top, 0px))',
+        paddingTop: 8,
         paddingRight: 20, paddingBottom: 0, paddingLeft: 20,
       }}>
         <button
