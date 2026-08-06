@@ -162,6 +162,34 @@ describe('AskPage', () => {
     await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/ask'));
   });
 
+  it('?person=<id>&prefill=<text> — both applied in one pass: person selected, input prefilled, URL cleaned to /ask (BRIEF-097 §4)', async () => {
+    localStorage.setItem('attune.profile', JSON.stringify({
+      date: '1990-06-15', time: '14:30', gender: 'other', createdAt: new Date().toISOString(),
+    }));
+    localStorage.setItem('attune.readings', JSON.stringify([
+      { id: 'r1', name: 'Sam', date: '1988-03-02', time: '09:00', createdAt: new Date().toISOString() },
+    ]));
+    // A non-empty thread puts the chip row in tab mode (aria-pressed), which is the most
+    // direct way to assert which chip ended up selected.
+    localStorage.setItem('attune.ask.threads', JSON.stringify({
+      me: [{ id: 'u1', role: 'user', text: 'hi', createdAt: new Date().toISOString() }],
+    }));
+    window.history.pushState({}, '', `/ask?person=r1&prefill=${encodeURIComponent('Is today good for a big ask?')}`);
+
+    const { default: AskPage } = await import('./page');
+    render(<AskPage />);
+
+    const samChip = await waitFor(() => screen.getByText('Sam').closest('button') as HTMLElement);
+    expect(samChip.getAttribute('aria-pressed')).toBe('true');
+
+    const textarea = screen.getByPlaceholderText('Ask anything…') as HTMLTextAreaElement;
+    expect(textarea.value).toBe('Is today good for a big ask?');
+
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/ask'));
+    // A single replace call — not one for each param.
+    expect(mockReplace).toHaveBeenCalledTimes(1);
+  });
+
   it('the person-selection/quota region sits inside a sticky-positioned ancestor (BRIEF-094C)', async () => {
     localStorage.setItem('attune.profile', JSON.stringify({
       date: '1990-06-15', time: '14:30', gender: 'other', createdAt: new Date().toISOString(),

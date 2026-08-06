@@ -1,34 +1,47 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useReadings, ELEMENT_COLORS } from '@/lib/store';
+import { useReadings } from '@/lib/store';
 import { TabTopBar } from '@/components/TabTopBar';
 import { AccountAvatar } from '@/components/AccountAvatar';
-import { getArchetype, ARCHETYPE_LOCALE } from '@/lib/interpretGuide';
-import type { TenStem, Element } from '@/lib/saju';
+import type { TenStem } from '@/lib/saju';
 import { GlyphAvatar } from '@/components/ArchetypeGlyph';
-import { formatDate } from '@/lib/format';
-import type { TodayNote } from '@/lib/today';
+import { loadAskThreads } from '@/lib/askThreads';
+import type { AskThreads } from '@/lib/askThreads';
+import { buildPeople } from '@/lib/people';
 
-const isKo = (s?: string) => !!s && /[가-힣]/.test(s);
+// Ledger-row copy (BRIEF-097 §2) has no separate EN string in the spec — this is a judgment
+// call, matching the bilingual pattern already used elsewhere (Ask, safety flow).
+function relativeTime(iso: string, korean: boolean): string {
+  const days = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86400000));
+  if (korean) {
+    if (days === 0) return '오늘';
+    if (days === 1) return '어제';
+    if (days < 7) return `${days}일 전`;
+    if (days < 30) return `${Math.floor(days / 7)}주 전`;
+    if (days < 365) return `${Math.floor(days / 30)}개월 전`;
+    return `${Math.floor(days / 365)}년 전`;
+  }
+  if (days === 0) return 'today';
+  if (days === 1) return 'yesterday';
+  if (days < 7) return `${days}d ago`;
+  if (days < 30) return `${Math.floor(days / 7)}w ago`;
+  if (days < 365) return `${Math.floor(days / 30)}mo ago`;
+  return `${Math.floor(days / 365)}y ago`;
+}
 
 export default function PeoplePage() {
   const [readings] = useReadings();
-  const [todayNotes, setTodayNotes] = useState<Record<string, TodayNote>>({});
+  const [threads, setThreads] = useState<AskThreads>({});
+  const [korean, setKorean] = useState(false);
 
   useEffect(() => {
-    if (readings.length === 0) return;
-    import('@/lib/today').then(({ getTodayNote, localDateStr }) => {
-      const ds = localDateStr();
-      const notes: Record<string, TodayNote> = {};
-      for (const r of readings) {
-        const rEl = r.themChart?.dayMaster?.element?.toLowerCase() as Element | undefined;
-        if (rEl) notes[r.id] = getTodayNote(rEl, 'them', ds, r.name);
-      }
-      setTodayNotes(notes);
-    });
-  }, [readings]);
+    setThreads(loadAskThreads());
+    setKorean(typeof navigator !== 'undefined' && navigator.language.startsWith('ko'));
+  }, []);
+
+  const people = useMemo(() => buildPeople(readings, threads), [readings, threads]);
 
   return (
     <div style={{ minHeight: '100%', background: 'var(--c-paper)' }}>
@@ -136,152 +149,73 @@ export default function PeoplePage() {
         </div>
       ) : (
         <>
-          {/* Reading list */}
+          {/* Ledger: one row per person, buildPeople's lastActiveAt descending (BRIEF-097 §2) */}
           <ul className="stagger" style={{ listStyle: 'none', margin: 0, padding: '8px 0' }}>
-          {readings.map((reading, i) => {
-            const element  = reading.themChart?.dayMaster?.element?.toLowerCase();
-            const stem     = reading.themChart?.dayMaster?.stem;
-            const colors   = element ? ELEMENT_COLORS[element] : undefined;
-            const korean   = isKo(reading.briefing?.headline || reading.situation);
-            const L        = stem ? ARCHETYPE_LOCALE[stem] : undefined;
-            const archName = stem ? (korean && L ? L.name_ko : getArchetype(stem as TenStem).name) : null;
-            const todayNote = todayNotes[reading.id];
-            return (
-              <li key={reading.id} style={{ animationDelay: `${Math.min(i, 8) * 45}ms` }}>
-                <Link
-                  href={`/reading/${reading.id}`}
-                  className="pressable"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: 14,
-                    padding: '16px 20px',
-                    textDecoration: 'none',
-                    borderBottom: '1px solid var(--c-hairline)',
-                    background: 'var(--c-card)',
-                  }}
-                >
-                  {/* Glyph avatar */}
-                  {stem && element ? (
-                    <GlyphAvatar stem={stem as TenStem} element={element} size={44} />
-                  ) : (
-                    <div style={{
-                      width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
-                      background: element ? (ELEMENT_COLORS[element]?.bg ?? 'var(--c-surface-alt)') : 'var(--c-surface-alt)',
-                      color: element ? (ELEMENT_COLORS[element]?.fg ?? 'var(--c-muted)') : 'var(--c-muted)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}>?</div>
-                  )}
+          {people.map((person, i) => (
+            <li key={person.key} style={{ animationDelay: `${Math.min(i, 8) * 45}ms` }}>
+              <Link
+                href={`/person/${person.anchorReadingId}`}
+                className="pressable"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 13,
+                  padding: '14px 20px',
+                  textDecoration: 'none',
+                  borderBottom: '1px solid var(--c-hairline)',
+                  background: 'var(--c-card)',
+                }}
+              >
+                {person.stem && person.element ? (
+                  <GlyphAvatar stem={person.stem as TenStem} element={person.element} size={44} />
+                ) : (
+                  <div style={{
+                    width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
+                    background: 'var(--c-surface-alt)', color: 'var(--c-muted)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>?</div>
+                )}
 
-                  {/* Content */}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    {/* Name row */}
-                    <div
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 8,
-                        marginBottom: 4,
-                        flexWrap: 'wrap',
-                      }}
-                    >
-                      <span
-                        style={{
-                          fontFamily: 'var(--font-inter)',
-                          fontSize: 17,
-                          fontWeight: 600,
-                          color: 'var(--c-ink)',
-                        }}
-                      >
-                        {reading.name ?? 'Unknown'}
-                      </span>
-                      {(archName ?? element) && colors && (
-                        <span
-                          style={{
-                            fontFamily: "var(--font-fraunces,Georgia,serif)",
-                            fontSize: 13.5,
-                            fontStyle: 'italic',
-                            color: colors.fg,
-                          }}
-                        >
-                          {archName ?? element}
-                        </span>
-                      )}
-                      <span
-                        style={{
-                          fontFamily: 'var(--font-inter)',
-                          fontSize: 11,
-                          color: 'var(--c-muted)',
-                          background: 'var(--c-surface-alt)',
-                          border: '1px solid var(--c-hairline)',
-                          padding: '1px 8px',
-                          borderRadius: 10,
-                        }}
-                      >
-                        {reading.relationship}
-                      </span>
-                    </div>
-
-                    {/* Headline */}
-                    {reading.briefing?.headline && (
-                      <p
-                        style={{
-                          fontFamily: "var(--font-fraunces,Georgia,serif)",
-                          fontSize: 18,
-                          color: 'var(--c-ink-body)',
-                          marginBottom: 8,
-                          lineHeight: 1.3,
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                        }}
-                      >
-                        {reading.briefing.headline}
-                      </p>
-                    )}
-
-                    {/* Dates */}
-                    <div
-                      style={{
-                        fontFamily: 'var(--font-space-mono)',
-                        fontSize: 11,
-                        letterSpacing: '0.04em',
-                        color: 'var(--c-muted)',
-                      }}
-                    >
-                      READ {formatDate(reading.createdAt)} · BORN {formatDate(reading.date)}
-                    </div>
-
-                    {/* Today line — skipped when themChart data is missing */}
-                    {todayNote && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
-                        <div style={{
-                          width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
-                          background: todayNote.tone === 'good'
-                            ? '#C4502E'
-                            : (ELEMENT_COLORS[todayNote.todayElement]?.fg ?? '#948B7C'),
-                        }} />
-                        <span style={{
-                          fontFamily: "var(--font-space-mono,'Courier New')",
-                          fontSize: 9, letterSpacing: '0.12em',
-                          color: 'var(--c-muted)', textTransform: 'uppercase', flexShrink: 0,
-                        }}>TODAY</span>
-                        <span style={{
-                          fontFamily: "var(--font-inter,system-ui)",
-                          fontSize: 12.5, color: 'var(--c-ink-body)', lineHeight: 1.4,
-                        }}>{todayNote.line}</span>
-                      </div>
-                    )}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  {/* Row 1: name (ellipsis) + N READS */}
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                    <span style={{
+                      fontFamily: 'var(--font-inter)', fontSize: 17, fontWeight: 650,
+                      color: 'var(--c-ink)', overflow: 'hidden', textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap', minWidth: 0,
+                    }}>
+                      {person.name}
+                    </span>
+                    <span style={{
+                      fontFamily: 'var(--font-space-mono)', fontSize: 10.5,
+                      color: 'var(--c-muted)', flexShrink: 0, marginLeft: 'auto',
+                    }}>
+                      {person.readings.length} {person.readings.length === 1 ? 'READ' : 'READS'}
+                    </span>
                   </div>
 
-                  {/* Chevron */}
-                  <svg width={16} height={16} viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0, marginTop: 4 }}>
-                    <path stroke="var(--c-hairline)" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" d="M9 18l6-6-6-6" />
-                  </svg>
-                </Link>
-              </li>
-            );
-          })}
+                  {/* Row 2: relationship · relative time — no pill/badge box */}
+                  <p style={{
+                    margin: '2px 0 0', fontFamily: 'var(--font-inter)', fontSize: 13,
+                    color: 'var(--c-ink-body)',
+                  }}>
+                    {korean
+                      ? `${person.relationship} · 최근 이야기 ${relativeTime(person.lastActiveAt, true)}`
+                      : `${person.relationship} · Last talked ${relativeTime(person.lastActiveAt, false)}`}
+                  </p>
+
+                  {/* Row 3: latest excerpt — always present (a person only exists once a reading does) */}
+                  <p style={{
+                    margin: '4px 0 0', fontFamily: 'var(--font-inter)', fontSize: 14, lineHeight: 1.45,
+                    color: 'var(--c-ink-body)', overflow: 'hidden', textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}>
+                    {person.latestExcerpt}
+                  </p>
+                </div>
+              </Link>
+            </li>
+          ))}
           </ul>
         </>
       )}

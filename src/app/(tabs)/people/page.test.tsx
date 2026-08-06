@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 
 afterEach(() => {
   cleanup();
@@ -34,5 +34,37 @@ describe('PeoplePage', () => {
       el = el.parentElement;
     }
     expect(stickyAncestor).not.toBeNull();
+  });
+});
+
+describe('PeoplePage — ledger rows (BRIEF-097)', () => {
+  it('two readings for the same person collapse into one row, showing "2 READS", linking to the anchor reading', async () => {
+    localStorage.setItem('attune.readings', JSON.stringify([
+      { id: 'r-old', name: 'Sam', date: '1988-03-02', relationship: 'Friend', situation: 'x', createdAt: '2026-07-01T00:00:00.000Z' },
+      { id: 'r-new', name: 'Sam', date: '1988-03-02', relationship: 'Friend', situation: 'y', createdAt: '2026-08-01T00:00:00.000Z' },
+    ]));
+
+    const { default: PeoplePage } = await import('./page');
+    render(<PeoplePage />);
+
+    await waitFor(() => expect(screen.getByText('Sam')).toBeTruthy());
+    expect(screen.getAllByText('Sam')).toHaveLength(1);
+    expect(screen.getByText('2 READS')).toBeTruthy();
+
+    const row = screen.getByText('Sam').closest('a') as HTMLAnchorElement;
+    expect(row.getAttribute('href')).toBe('/person/r-new');
+  });
+
+  it('does not render a "today" line for any person (getTodayNote removed, BRIEF-097 §2)', async () => {
+    localStorage.setItem('attune.readings', JSON.stringify([
+      { id: 'r1', name: 'Sam', date: '1988-03-02', relationship: 'Friend', situation: 'x', createdAt: '2026-08-01T00:00:00.000Z',
+        themChart: { dayMaster: { element: 'fire', stem: 'Yang Fire', polarity: 'Yang' }, elements: { wood: 1, fire: 1, earth: 1, metal: 1, water: 1 }, pillarsKnown: 8, pillars: {} } },
+    ]));
+
+    const { default: PeoplePage } = await import('./page');
+    render(<PeoplePage />);
+
+    await waitFor(() => expect(screen.getByText('Sam')).toBeTruthy());
+    expect(screen.queryByText('TODAY')).toBeNull();
   });
 });

@@ -15,6 +15,8 @@ import { pickVariant, localDateStr } from '@/lib/today';
 import { friendlyError } from '@/lib/errorCopy';
 import { getQuickPrompts } from '@/lib/askPrompts';
 import { useKeyboardOpen, useKeyboardInset } from '@/lib/keyboard';
+import { loadAskThreads } from '@/lib/askThreads';
+import type { AskUserMsg, AskAssistantMsg, AskMessage, AskThreads } from '@/lib/askThreads';
 import {
   detectWithContext,
   enterSafetyState,
@@ -45,26 +47,12 @@ interface Chip {
   briefing?: BriefingData;
 }
 
-interface UserMsg {
-  id: string;
-  role: 'user';
-  text: string;
-  createdAt?: string;
-}
-
-interface AssistantMsg {
-  id: string;
-  role: 'assistant';
-  mode: 'me' | 'person' | 'general';
-  text?: string;
-  parts?: Array<{ label: string; text: string }>;
-  timing?: string;
-  followUp?: string;
-  createdAt?: string;
-}
-
-type Msg = UserMsg | AssistantMsg;
-type Threads = Record<string, Msg[]>;
+// Read adapter extracted to @/lib/askThreads (BRIEF-097 §1) — same storage key/format,
+// so `people.ts` can read Ask threads too. Local aliases keep the rest of this file unchanged.
+type UserMsg = AskUserMsg;
+type AssistantMsg = AskAssistantMsg;
+type Msg = AskMessage;
+type Threads = AskThreads;
 
 // ── localStorage helpers ──────────────────────────────────────────────────────
 
@@ -72,11 +60,7 @@ const LS_THREADS      = 'attune.ask.threads';
 const MAX_THREAD_MSGS = 40;
 
 function loadThreads(): Threads {
-  if (typeof window === 'undefined') return {};
-  try {
-    const raw = localStorage.getItem(LS_THREADS);
-    return raw ? (JSON.parse(raw) as Threads) : {};
-  } catch { return {}; }
+  return loadAskThreads();
 }
 
 function saveThreads(threads: Threads): void {
@@ -187,30 +171,30 @@ export default function AskPage() {
       setThreads(loadThreads());
       setLeft(getQuotaLeft());
 
-      // Auto-select from URL ?person=
+      // Single pass over the URL (BRIEF-097 §4): ?person= (auto-select, e.g. from the person
+      // hub's CTA) and ?prefill= (compose text, e.g. from a Home Ask chip) are both read and
+      // applied here, with exactly one router.replace() cleaning up whichever were present —
+      // two independent effects each doing their own replace() could race and clobber each other.
       const params   = new URLSearchParams(window.location.search);
       const personId = params.get('person');
+      const prefill  = params.get('prefill');
+
       if (personId && readings.some(r => r.id === personId)) {
         setSelected(personId);
+      }
+      if (prefill) {
+        setInput(prefill);
+        textareaRef.current?.focus();
+      }
+      if (personId || prefill) {
+        params.delete('person');
+        params.delete('prefill');
+        const query = params.toString();
+        router.replace(query ? `/ask?${query}` : '/ask');
       }
 
       setInitialized(true);
     }).catch(() => setInitialized(true));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Prefill the composer from a Home Ask-chip (?prefill=...) — never auto-sends.
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const prefill = params.get('prefill');
-    if (!prefill) return;
-
-    setInput(prefill);
-    textareaRef.current?.focus();
-
-    params.delete('prefill');
-    const query = params.toString();
-    router.replace(query ? `/ask?${query}` : '/ask');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

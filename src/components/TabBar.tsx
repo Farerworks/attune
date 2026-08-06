@@ -67,7 +67,11 @@ export function TabBar() {
     >
       {/* First two tabs: People, Ask */}
       {TABS.slice(0, 2).map((tab) => {
-        const active = pathname === tab.href;
+        // People stays active on the person hub too — it's reached from People and is still
+        // "the people space" (BRIEF-097 §3, the one explicitly allowed exception here).
+        const active = tab.href === '/people'
+          ? (pathname === '/people' || (pathname?.startsWith('/person/') ?? false))
+          : pathname === tab.href;
         return (
           <Link
             key={tab.href}
