@@ -83,7 +83,7 @@ export function TabBar() {
               alignItems: 'center',
               justifyContent: 'center',
               gap: 3,
-              color: active ? 'var(--c-ink)' : 'var(--c-muted)',
+              color: active ? 'var(--c-ink)' : 'var(--c-ink-body)',
               textDecoration: 'none',
             }}
           >
@@ -140,7 +140,7 @@ export function TabBar() {
               alignItems: 'center',
               justifyContent: 'center',
               gap: 3,
-              color: active ? 'var(--c-ink)' : 'var(--c-muted)',
+              color: active ? 'var(--c-ink)' : 'var(--c-ink-body)',
               textDecoration: 'none',
             }}
           >

@@ -250,11 +250,13 @@ export default function PersonHubPage({ params }: { params: Promise<{ id: string
 
       {/* ── ATTUNE wordmark bar (BRIEF-094I §2) ─────────────────────────────────
           People→hub used to drop the ATTUNE bar entirely, breaking the fixed-bar grammar
-          every other tab has (094E/094F). Wordmark-only (no title), same as Home — the hub
-          isn't a tab root, so it doesn't get a title row. This also now owns the safe-area
-          clearance that used to live on the identity row below (094H §3's own fix — superseded
-          here since the bar handles it the same way TabTopBar always has, 091-FIX). */}
-      <TabTopBar right={<AccountAvatar />} />
+          every other tab has (094E/094F). title="People" (BRIEF-101 §4.5, YS 결재) makes the
+          ATTUNE > People > person hierarchy visible even after drilling into a hub — same
+          syntax as the People tab itself, so the title row + its sticky behavior come from
+          TabTopBar's existing branch, unmodified. This bar also owns the safe-area clearance
+          that used to live on the identity row below (094H §3's own fix — superseded here
+          since the bar handles it the same way TabTopBar always has, 091-FIX). */}
+      <TabTopBar right={<AccountAvatar />} title="People" />
 
       {/* ── Identity ─────────────────────────────────────────────────────────── */}
       {/* Scrolls with content (not fixed) — only the ATTUNE bar above stays put, same as
@@ -263,7 +265,7 @@ export default function PersonHubPage({ params }: { params: Promise<{ id: string
         display: 'flex', alignItems: 'flex-start', gap: 12,
         // Individual longhands, not the `padding` shorthand — mixing shorthand+longhand in one
         // style object is a known jsdom cssstyle bug that garbles env() (project precedent).
-        paddingTop: 8,
+        paddingTop: 16,
         paddingRight: 20, paddingBottom: 0, paddingLeft: 20,
       }}>
         <button

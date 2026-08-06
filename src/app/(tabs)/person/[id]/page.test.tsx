@@ -185,15 +185,23 @@ describe('PersonHubPage (BRIEF-097)', () => {
     expect(bar).not.toBeNull();
   });
 
-  it('§2 (BRIEF-094I): the identity row itself no longer carries a calc()/safe-area paddingTop', async () => {
+  it('§2 (BRIEF-094I): the identity row itself no longer carries a calc()/safe-area paddingTop (BRIEF-101 §4: restored to 16px)', async () => {
     localStorage.setItem('attune.readings', JSON.stringify([makeReading({ id: 'r1' })]));
     await renderHub('r1');
 
     const backButton = await waitFor(() => screen.getByLabelText('Back'));
     const identityRow = backButton.parentElement as HTMLElement;
-    expect(identityRow.style.paddingTop).toBe('8px');
+    expect(identityRow.style.paddingTop).toBe('16px');
     expect(identityRow.style.paddingTop).not.toContain('calc');
     expect(identityRow.style.paddingTop).not.toContain('safe-area');
+  });
+
+  it('§4.5 (BRIEF-101, YS 결재): the ATTUNE bar shows a "People" heading, coexisting with the person\'s own name heading', async () => {
+    localStorage.setItem('attune.readings', JSON.stringify([makeReading({ id: 'r1' })]));
+    await renderHub('r1');
+
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'People' })).toBeTruthy());
+    expect(screen.getByRole('heading', { name: 'Sam' })).toBeTruthy();
   });
 });
 

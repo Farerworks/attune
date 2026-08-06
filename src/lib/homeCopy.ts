@@ -66,6 +66,42 @@ export function getDailyDoDont(myElement: Element, korean: boolean, date?: strin
   };
 }
 
+// ── AHEAD line rotation (BRIEF-101 §2) ──────────────────────────────────────────
+
+/**
+ * Picks one line per date from its own pool, deterministically rotating by date so
+ * consecutive same-relation days don't repeat the same variant, and never picking a line
+ * already in `avoid` or already chosen earlier in this same call (so AHEAD cards never repeat
+ * each other or the TODAY sentence on one screen). Pure function of its arguments only — no
+ * Math.random/Date.now/no-arg `new Date()` — so re-rendering with the same input is stable and
+ * there's no SSR/client hydration mismatch risk.
+ *
+ * Correctness rests on a production premise (locked by a dedicated test, §2 test ⑥): every
+ * `ME`/`ME_KO` relation pool has exactly 3 distinct sentences. With `avoid` capped at 1 sentence
+ * (today's line) and at most 1 already-chosen sentence ahead of any given date (AHEAD is ≤2
+ * cards), the blocking set is at most 2 out of 3 — so a free candidate is always reachable
+ * within `len-1` forward steps. The "exhausted -> accept the last candidate anyway" branch below
+ * is a defensive fallback for a pool shape this premise rules out; it should be unreachable.
+ */
+export function pickAheadLines(dates: string[], pools: string[][], avoid: string[]): string[] {
+  const chosen: string[] = [];
+  for (let i = 0; i < dates.length; i++) {
+    const pool = pools[i];
+    const len = pool.length;
+    const dayIndex = Math.floor(Date.parse(`${dates[i]}T00:00:00Z`) / 86400000);
+    let idx = ((dayIndex % len) + len) % len;
+    let candidate = pool[idx];
+    let attempts = 0;
+    while ((avoid.includes(candidate) || chosen.includes(candidate)) && attempts < len - 1) {
+      idx = (idx + 1) % len;
+      candidate = pool[idx];
+      attempts++;
+    }
+    chosen.push(candidate);
+  }
+  return chosen;
+}
+
 // ── 14-day flow strip ──────────────────────────────────────────────────────────
 
 const WEEKDAY_EN = ['S', 'M', 'T', 'W', 'T', 'F', 'S']; // Date#getDay(): 0=Sun..6=Sat

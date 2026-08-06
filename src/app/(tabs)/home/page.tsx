@@ -97,7 +97,7 @@ export default function HomePage() {
       import('@/lib/homeCopy'),
       import('@/lib/askPrompts'),
     ])
-      .then(([{ calculateSaju }, { getMyTodayCard, pickVariant, ME, ME_KO }, { getDailyDoDont, getFlowDays }, { getQuickPrompts }]) => {
+      .then(([{ calculateSaju }, { getMyTodayCard, ME, ME_KO }, { getDailyDoDont, getFlowDays, pickAheadLines }, { getQuickPrompts }]) => {
         try {
           const c = calculateSaju({ date: profile.date, time: profile.time });
           const isKorean = typeof navigator !== 'undefined' && navigator.language.startsWith('ko');
@@ -112,12 +112,7 @@ export default function HomePage() {
           const flow = getFlowDays(element, isKorean);
           const goodAhead = flow.slice(1).filter(d => d.tone === 'good').slice(0, 2);
           const pools = goodAhead.map(d => (isKorean ? ME_KO : ME)[d.rel]);
-          const lines = goodAhead.map((d, i) => pickVariant(pools[i], `${d.date}|me|${d.rel}`));
-          // Variation-conflict guard: same rel + same picked line on 2 consecutive AHEAD cards -> shift the 2nd by one pool index.
-          if (goodAhead.length === 2 && goodAhead[0].rel === goodAhead[1].rel && lines[0] === lines[1]) {
-            const idx = pools[1].indexOf(lines[1]);
-            lines[1] = pools[1][(idx + 1) % pools[1].length];
-          }
+          const lines = pickAheadLines(goodAhead.map(d => d.date), pools, [myToday.note.line]);
           setAheadDays(goodAhead.map((d, i) => ({ date: d.date, line: lines[i], dayElement: d.dayElement })));
 
           setQuickPrompts(getQuickPrompts('general', isKorean));

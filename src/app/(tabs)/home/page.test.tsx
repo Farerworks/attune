@@ -8,27 +8,47 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react';
 
 vi.mock('@/lib/saju', () => ({
   calculateSaju: () => ({ dayMaster: { element: 'wood', stem: 'Yang Wood', polarity: 'Yang' } }),
+  // Real homeCopy.ts (loaded via importActual below, BRIEF-101 §2) imports this at module
+  // scope for getDailyDoDont/getFlowDays — unused here since those two stay overridden below,
+  // but the binding must exist for the real module's own `import { getDailyPillars } from
+  // './saju'` to resolve against this mock.
+  getDailyPillars: () => [],
 }));
 
 const mockGetFlowDays = vi.fn();
-vi.mock('@/lib/homeCopy', () => ({
-  getDailyDoDont: () => ({ dos: ['Do first pick.', 'Do second pick.'], donts: ['Dont first pick.', 'Dont second pick.'] }),
-  getFlowDays: () => mockGetFlowDays(),
-}));
+vi.mock('@/lib/homeCopy', async () => {
+  // pickAheadLines (BRIEF-101 §2) is loaded for real — Home now calls the actual rotation
+  // logic, not a mock, so its date-driven behavior is exercised here. getDailyDoDont/getFlowDays
+  // stay overridden with this file's own deterministic fixtures.
+  const actual = await vi.importActual<typeof import('@/lib/homeCopy')>('@/lib/homeCopy');
+  return {
+    ...actual,
+    getDailyDoDont: () => ({ dos: ['Do first pick.', 'Do second pick.'], donts: ['Dont first pick.', 'Dont second pick.'] }),
+    getFlowDays: () => mockGetFlowDays(),
+  };
+});
 
 vi.mock('@/lib/today', () => ({
   getMyTodayCard: () => ({
     note: { line: 'Test today core sentence.', tone: 'good', todayElement: 'wood', branch: 'x', stem: 'Yang Wood' },
     dateLabel: 'AUG 5',
   }),
-  pickVariant: (pool: string[]) => pool[0],
+  // Real homeCopy.ts's own `import { getRelation, TONE, ... } from './today'` needs these
+  // bindings to exist (import-resolution only — pickAheadLines itself never calls them).
+  getRelation: () => 'same',
+  TONE: { same: 'good', today_nurtures: 'good', person_nurtures: 'soft', today_controls: 'soft', person_controls: 'neutral' },
+  // ME.same[0] is deliberately identical to the note.line above — exercised by the
+  // "never render TODAY's own line" test (BRIEF-101 §2), which relies on pickAheadLines'
+  // `avoid` parameter to skip it. 3 entries each, matching the real ME/ME_KO pool length.
   ME: {
-    same: ['Ahead line — same A.', 'Ahead line — same B.'], today_nurtures: ['Ahead line — nurtures.'],
-    person_nurtures: ['x'], today_controls: ['x'], person_controls: ['x'],
+    same: ['Test today core sentence.', 'Ahead line — same B.', 'Ahead line — same C.'],
+    today_nurtures: ['Ahead line — nurtures A.', 'Ahead line — nurtures B.', 'Ahead line — nurtures C.'],
+    person_nurtures: ['x', 'x2', 'x3'], today_controls: ['x', 'x2', 'x3'], person_controls: ['x', 'x2', 'x3'],
   },
   ME_KO: {
-    same: ['한글 어헤드 — same.'], today_nurtures: ['한글 어헤드 — nurtures.'],
-    person_nurtures: ['x'], today_controls: ['x'], person_controls: ['x'],
+    same: ['한글 어헤드 — same A.', '한글 어헤드 — same B.', '한글 어헤드 — same C.'],
+    today_nurtures: ['한글 어헤드 — nurtures A.', '한글 어헤드 — nurtures B.', '한글 어헤드 — nurtures C.'],
+    person_nurtures: ['x', 'x2', 'x3'], today_controls: ['x', 'x2', 'x3'], person_controls: ['x', 'x2', 'x3'],
   },
   getTodayNote: (_el: string, _mode: string, date?: string, name?: string) => ({
     tone: 'good', line: `${name ?? 'them'} today-note for ${date}`, todayElement: 'wood', branch: 'x',
@@ -251,7 +271,7 @@ describe('HomePage', () => {
     expect(hiddenWrapper?.querySelector('svg')).toBeTruthy();
   });
 
-  it('AHEAD: two same-rel days never render the identical line (variation-conflict guard, BRIEF-094D)', async () => {
+  it('AHEAD: two same-rel days never render the identical line, and never TODAY\'s own line either (BRIEF-101 §2, replaces the old variation-conflict-guard test)', async () => {
     seedProfile();
     mockGetFlowDays.mockReturnValue(FLOW_TWO_GOOD);
 
@@ -259,11 +279,14 @@ describe('HomePage', () => {
     render(<HomePage />);
 
     await waitFor(() => expect(screen.getByText('AHEAD')).toBeTruthy());
-    const cardA = screen.getByText('Ahead line — same A.');
-    const cardB = screen.getByText('Ahead line — same B.');
-    expect(cardA).toBeTruthy();
-    expect(cardB).toBeTruthy();
-    expect(cardA.textContent).not.toBe(cardB.textContent);
+    // ME.same[0] === the TODAY mock's note.line ('Test today core sentence.') on purpose —
+    // real pickAheadLines' `avoid` param must steer both AHEAD cards away from it.
+    const cards = screen.getAllByText(/Ahead line — same/);
+    expect(cards).toHaveLength(2);
+    expect(cards[0].textContent).not.toBe(cards[1].textContent);
+    expect(cards[0].textContent).not.toBe('Test today core sentence.');
+    expect(cards[1].textContent).not.toBe('Test today core sentence.');
+    expect(screen.getAllByText('Test today core sentence.')).toHaveLength(1); // only the TODAY line itself
   });
 
   it("Do/Don't line renders both the DO and DON'T icons (BRIEF-094D)", async () => {
