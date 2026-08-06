@@ -338,7 +338,7 @@ describe('AskPage', () => {
     expect(meChipEmpty.style.minHeight).toBe('48px');
   });
 
-  it('with a conversation, person chips render as tabs: no background/border, and the selected one is underlined (BRIEF-094G)', async () => {
+  it('with a conversation, person chips render as tabs: no background/border, and the selected one is underlined in vermilion, not the element color (BRIEF-094G v2)', async () => {
     localStorage.setItem('attune.profile', JSON.stringify({
       date: '1990-06-15', time: '14:30', gender: 'other', createdAt: new Date().toISOString(),
     }));
@@ -353,28 +353,38 @@ describe('AskPage', () => {
     render(<AskPage />);
 
     // Selected by default: "Me". (jsdom's cssstyle serializer drops explicit `border-*: none`
-    // longhands from the style text entirely, so background/radius/underline are what's
-    // reliably testable here — the "no box" look itself is confirmed in the render screenshots.)
+    // longhands from the style text entirely, so background/radius are what's reliably
+    // testable here — the "no box" look itself is confirmed in the render screenshots.)
     const meChip = await waitFor(() => screen.getByText('Me').closest('button') as HTMLElement);
     expect(meChip.style.background).toBe('transparent');
-    expect(meChip.style.borderRadius).toBe('0');
-    expect(meChip.style.borderBottom).toContain('2px solid');
-    expect(meChip.style.borderBottom).not.toContain('transparent');
+    expect(meChip.style.minHeight).toBe('44px');
+    expect(meChip.getAttribute('aria-pressed')).toBe('true');
 
-    // Unselected: Sam — no underline, and the name is ink-body, never muted (contrast requirement).
+    // The underline lives on an inner span wrapping the dot+name, not the button itself
+    // (button padding is what supplies the 44px hit area; the underline sits tight under
+    // the visibly-smaller dot+text row).
+    const meUnderline = screen.getByText('Me').parentElement as HTMLElement;
+    expect(meUnderline.style.borderBottom).toBe('2px solid var(--c-vermilion)');
+
+    // Unselected: Sam — underline is transparent (not Sam's fire element color), name is
+    // ink-body (never muted — contrast requirement), aria-pressed is false.
     const samChip = screen.getByText('Sam').closest('button') as HTMLElement;
-    expect(samChip.style.borderBottom).toContain('transparent');
+    expect(samChip.getAttribute('aria-pressed')).toBe('false');
+    const samUnderline = screen.getByText('Sam').parentElement as HTMLElement;
+    expect(samUnderline.style.borderBottom).toBe('2px solid transparent');
+    expect(samUnderline.style.borderBottom).not.toContain('var(--c-vermilion)');
     const samLabel = screen.getByText('Sam');
     expect(samLabel.style.color).toBe('var(--c-ink-body)');
     expect(samLabel.style.color).not.toBe('var(--c-muted)');
   });
 
-  it('changing the selected person scrolls that tab into view (BRIEF-094G)', async () => {
+  it('"+ Someone" still appears at the end of the row even with people already saved, once a conversation exists (BRIEF-094G v2)', async () => {
     localStorage.setItem('attune.profile', JSON.stringify({
       date: '1990-06-15', time: '14:30', gender: 'other', createdAt: new Date().toISOString(),
     }));
     localStorage.setItem('attune.readings', JSON.stringify([
       { id: 'r1', name: 'Sam', date: '1988-03-02', time: '09:00', createdAt: new Date().toISOString() },
+      { id: 'r2', name: 'Alex', date: '1990-01-01', time: '10:00', createdAt: new Date().toISOString() },
     ]));
     localStorage.setItem('attune.ask.threads', JSON.stringify({
       me: [{ id: 'u1', role: 'user', text: 'hi', createdAt: new Date().toISOString() }],
@@ -382,14 +392,58 @@ describe('AskPage', () => {
     const { default: AskPage } = await import('./page');
     render(<AskPage />);
 
-    const samChip = await waitFor(() => screen.getByText('Sam').closest('button') as HTMLElement);
-    (Element.prototype.scrollIntoView as ReturnType<typeof vi.fn>).mockClear();
-    fireEvent.click(samChip);
+    await waitFor(() => expect(screen.getByText('Alex')).toBeTruthy());
+    expect(screen.getByText('+ Someone')).toBeTruthy();
+  });
 
-    await waitFor(() => {
-      const calls = (Element.prototype.scrollIntoView as ReturnType<typeof vi.fn>).mock.calls;
-      expect(calls.some(([opts]) => opts?.inline === 'nearest')).toBe(true);
-    });
+  it('switching the selected person shows that person\'s own thread (BRIEF-094G v2 — behavior regression guard)', async () => {
+    localStorage.setItem('attune.profile', JSON.stringify({
+      date: '1990-06-15', time: '14:30', gender: 'other', createdAt: new Date().toISOString(),
+    }));
+    localStorage.setItem('attune.readings', JSON.stringify([
+      { id: 'r1', name: 'Sam', date: '1988-03-02', time: '09:00', createdAt: new Date().toISOString() },
+    ]));
+    localStorage.setItem('attune.ask.threads', JSON.stringify({
+      me: [{ id: 'u1', role: 'user', text: 'hello from me', createdAt: new Date().toISOString() }],
+      r1: [{ id: 'u2', role: 'user', text: 'hello about sam', createdAt: new Date().toISOString() }],
+    }));
+    const { default: AskPage } = await import('./page');
+    render(<AskPage />);
+
+    await waitFor(() => expect(screen.getByText('hello from me')).toBeTruthy());
+    expect(screen.queryByText('hello about sam')).toBeNull();
+
+    fireEvent.click(screen.getByText('Sam'));
+
+    await waitFor(() => expect(screen.getByText('hello about sam')).toBeTruthy());
+    expect(screen.queryByText('hello from me')).toBeNull();
+  });
+
+  it('switching the selected person clears an in-progress safety flow (BRIEF-094G v2 — behavior regression guard)', async () => {
+    Object.defineProperty(navigator, 'language', { value: 'ko-KR', configurable: true });
+    localStorage.setItem('attune.profile', JSON.stringify({
+      date: '1990-06-15', time: '14:30', gender: 'other', createdAt: new Date().toISOString(),
+    }));
+    localStorage.setItem('attune.readings', JSON.stringify([
+      { id: 'r1', name: 'Sam', date: '1988-03-02', time: '09:00', createdAt: new Date().toISOString() },
+    ]));
+    vi.stubGlobal('fetch', vi.fn());
+
+    const { default: AskPage } = await import('./page');
+    render(<AskPage />);
+
+    const textarea = await waitFor(() => screen.getByPlaceholderText('Ask anything…')) as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: '나 진짜 죽고 싶어' } });
+    fireEvent.click(screen.getByLabelText('Send'));
+
+    await waitFor(() => expect(screen.getByText('많이 힘들거나 화가 난 상태로 들려요.')).toBeTruthy());
+
+    fireEvent.click(screen.getByText('Sam'));
+
+    await waitFor(() => expect(screen.getByPlaceholderText('Ask anything…')).toBeTruthy());
+    expect(screen.queryByText('많이 힘들거나 화가 난 상태로 들려요.')).toBeNull();
+
+    Object.defineProperty(navigator, 'language', { value: 'en-US', configurable: true });
   });
 });
 

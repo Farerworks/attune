@@ -119,8 +119,10 @@ export default function AskPage() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const selectedChipRef = useRef<HTMLDivElement>(null);
+  const chipRowRef = useRef<HTMLDivElement>(null);
 
   const [initialized, setInitialized] = useState(false);
+  const [chipFade, setChipFade] = useState({ left: false, right: false });
   const [chips,     setChips]     = useState<Chip[]>([]);
   const [selected,  setSelected]  = useState<string>('me');
   const [threads,   setThreads]   = useState<Threads>({});
@@ -226,11 +228,43 @@ export default function AskPage() {
     setAckNextSend(false);
   }, [selected]);
 
+  // Which edge(s) of the chip row currently have more content scrolled out of view —
+  // drives the fade overlay(s) (BRIEF-094G v2 §2: conditional on real overflow, edge-aware).
+  function updateChipFade() {
+    const el = chipRowRef.current;
+    if (!el) { setChipFade({ left: false, right: false }); return; }
+    const { scrollLeft, scrollWidth, clientWidth } = el;
+    if (scrollWidth <= clientWidth + 1) { setChipFade({ left: false, right: false }); return; }
+    setChipFade({
+      left: scrollLeft > 1,
+      right: scrollLeft + clientWidth < scrollWidth - 1,
+    });
+  }
+
   // Keep the selected person's tab in view — chips can scroll off-screen once several
-  // people exist (BRIEF-094G). Also fires once `chips` finishes its async load, so a
-  // ?person= deep link that lands far down the list scrolls into view too.
+  // people exist. Scrolls only the horizontal chip row itself (never the page/scrollIntoView —
+  // BRIEF-094G v2 §2), and only when the chip is actually outside the visible range. Also fires
+  // once `chips` finishes its async load, so a ?person= deep link scrolls into view too.
   useEffect(() => {
-    selectedChipRef.current?.scrollIntoView({ inline: 'nearest' });
+    const container = chipRowRef.current;
+    const chipEl = selectedChipRef.current;
+    if (container && chipEl) {
+      const chipLeft  = chipEl.offsetLeft;
+      const chipRight = chipLeft + chipEl.offsetWidth;
+      const visibleLeft  = container.scrollLeft;
+      const visibleRight = visibleLeft + container.clientWidth;
+
+      let target: number | null = null;
+      if (chipLeft < visibleLeft) target = chipLeft;
+      else if (chipRight > visibleRight) target = chipRight - container.clientWidth;
+
+      if (target !== null) {
+        const reduceMotion = typeof window !== 'undefined'
+          && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+        container.scrollTo({ left: target, behavior: reduceMotion ? 'auto' : 'smooth' });
+      }
+    }
+    updateChipFade();
   }, [selected, chips]);
 
   // ── Send handler ──────────────────────────────────────────────────────────────
@@ -489,13 +523,16 @@ export default function AskPage() {
               </p>
             </div>
             <div style={{ position: 'relative' }}>
-              <div style={{
-                display: 'flex', gap: hasAnyThread ? 16 : 8, overflowX: 'auto', paddingBottom: 12,
-                scrollbarWidth: 'none', alignItems: hasAnyThread ? 'center' : 'flex-start',
-                minHeight: hasAnyThread ? 44 : undefined,
-              }}>
+              <div
+                ref={chipRowRef}
+                onScroll={updateChipFade}
+                style={{
+                  display: 'flex', gap: hasAnyThread ? 16 : 8, overflowX: 'auto', paddingBottom: 12,
+                  scrollbarWidth: 'none', alignItems: hasAnyThread ? 'center' : 'flex-start',
+                }}
+              >
                 <style>{`::-webkit-scrollbar{display:none}`}</style>
-                {/* Me + Person chips — newspaper-section tabs once a conversation exists (BRIEF-094G) */}
+                {/* Me + Person chips — newspaper-section tabs once a conversation exists (BRIEF-094G v2) */}
                 {chips.filter(c => c.id !== 'general').map(chip => {
                   const isActive = selected === chip.id;
                   return (
@@ -511,12 +548,14 @@ export default function AskPage() {
                     </div>
                   );
                 })}
-                {/* + Someone chip — only when no saved people */}
-                {!hasPersonChips && (
+                {/* + Someone — while a conversation exists, always at the row's end regardless of
+                    how many people are already saved (BRIEF-094G v2 — v1 hid it once 1+ existed,
+                    which lost the add-another-person path). First-visit gating is unchanged. */}
+                {(hasAnyThread || !hasPersonChips) && (
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, flexShrink: 0 }}>
                     <Link href="/new" style={hasAnyThread ? {
-                      display: 'flex', alignItems: 'center',
-                      padding: '6px 2px', minHeight: 32,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      padding: '9px 2px', minHeight: 44,
                       color: 'var(--c-ink-body)', textDecoration: 'none',
                       fontFamily: "var(--font-inter,system-ui)", fontSize: 13, whiteSpace: 'nowrap',
                     } : {
@@ -535,8 +574,17 @@ export default function AskPage() {
                   </div>
                 )}
               </div>
-              {/* Right-edge fade — signals more chips off-screen when several people exist (BRIEF-094G) */}
-              {hasAnyThread && (
+              {/* Edge fades — only while the row actually overflows, and only on the edge(s)
+                  with more content scrolled out of view (BRIEF-094G v2 §2: overlay, not mask —
+                  a mask would cut into the chip text itself instead of just fading behind it). */}
+              {chipFade.left && (
+                <div aria-hidden="true" style={{
+                  position: 'absolute', top: 0, left: 0, bottom: 0, width: 20,
+                  background: 'linear-gradient(to left, transparent, rgba(250,248,244,0.92))',
+                  pointerEvents: 'none',
+                }} />
+              )}
+              {chipFade.right && (
                 <div aria-hidden="true" style={{
                   position: 'absolute', top: 0, right: 0, bottom: 0, width: 20,
                   background: 'linear-gradient(to right, transparent, rgba(250,248,244,0.92))',
@@ -925,38 +973,44 @@ function DateDivider({ isoStr }: { isoStr: string }) {
 function ChipButton({ chip, active, onClick, size = 'default' }: { chip: Chip; active: boolean; onClick: () => void; size?: 'default' | 'tab' }) {
   const elC = chip.element ? ELEMENT_COLORS[chip.element.toLowerCase()] : null;
 
-  // Tab style once a conversation exists (BRIEF-094G) — newspaper-section tabs, not pills:
-  // no box (background/border/radius), identity carried by the element-color dot + underline.
+  // Tab style once a conversation exists (BRIEF-094G v2) — newspaper-section tabs, not pills:
+  // no box (background/border/radius). Color roles are split: the dot carries identity (element
+  // color, always), the underline carries selection state (vermilion, never element color) —
+  // an outside review flagged v1 for reusing the element color for both roles.
   if (size === 'tab') {
     const dotColor = elC?.fg ?? 'var(--c-ink-body)';
     return (
       <button
         type="button"
         onClick={onClick}
+        aria-pressed={active}
         className="pressable"
         style={{
-          display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
-          padding: '6px 2px', minHeight: 32,
-          background: 'transparent',
-          // Fully expanded (no `border` shorthand mixed with `borderBottom`) — mixing them
-          // triggers a React dev warning and unreliable style reads (BRIEF-094D-FIX precedent).
-          borderTop: 'none', borderLeft: 'none', borderRight: 'none',
-          borderBottom: active ? `2px solid ${dotColor}` : '2px solid transparent',
-          borderRadius: 0,
-          cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+          // Visible content is short (~28-32px); the button's own hit area is padded out to the
+          // 44px touch-target minimum instead of relying on the row's height (v1 did the latter —
+          // an outside review flagged that as fragile once row layout changes).
+          padding: '9px 2px', minHeight: 44,
+          background: 'transparent', border: 'none', cursor: 'pointer',
         }}
       >
         <span style={{
-          width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
-          background: dotColor, opacity: active ? 1 : 0.55,
-        }} />
-        <span style={{
-          fontFamily: "var(--font-inter,system-ui)", fontSize: 13,
-          // muted fails 4.5:1 contrast — ink-body is the non-active color here (BRIEF-094G §1).
-          color: active ? 'var(--c-ink)' : 'var(--c-ink-body)',
-          fontWeight: active ? 600 : 400,
+          display: 'flex', alignItems: 'center', gap: 6,
+          paddingBottom: 3,
+          borderBottom: active ? '2px solid var(--c-vermilion)' : '2px solid transparent',
         }}>
-          {chip.label}
+          <span style={{
+            width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+            background: dotColor, opacity: active ? 1 : 0.55,
+          }} />
+          <span style={{
+            fontFamily: "var(--font-inter,system-ui)", fontSize: 13,
+            // muted fails 4.5:1 contrast — ink-body is the non-active color here (BRIEF-094G §1).
+            color: active ? 'var(--c-ink)' : 'var(--c-ink-body)',
+            fontWeight: active ? 600 : 400,
+          }}>
+            {chip.label}
+          </span>
         </span>
       </button>
     );
