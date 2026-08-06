@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { LS_THREADS_KEY, LS_MEMORY_KEY } from './askQuota';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -147,6 +148,78 @@ export function getDaysIn(): number {
 
 export function deleteReading(id: string): void {
   safeSet(READINGS_KEY, getReadings().filter(r => r.id !== id));
+}
+
+export interface DeletePersonDataResult {
+  ok: boolean;
+  deletedReadingIds: string[];
+  deletedThreads: string[];
+  deletedMemories: string[];
+  error?: string;
+}
+
+/**
+ * Deletes every reading in `readingIds` — and that reading's Ask thread + relationship
+ * memory — as one atomic group operation (BRIEF-098 §1). Does NOT call `deleteReading()`
+ * in a loop (that would re-read/re-write the readings array once per id); reads each of
+ * the three storage keys once, filters, writes once, then re-reads to verify the targets
+ * are actually gone and nothing else moved. Uses direct localStorage calls (not `safeSet`,
+ * which fails silently) — a delete that silently didn't happen is exactly the failure mode
+ * the caller needs to know about.
+ */
+export function deletePersonData(readingIds: string[]): DeletePersonDataResult {
+  if (typeof window === 'undefined') {
+    return { ok: false, deletedReadingIds: [], deletedThreads: [], deletedMemories: [], error: 'no-window' };
+  }
+
+  try {
+    const idSet = new Set(readingIds);
+
+    const beforeReadings = getReadings();
+    const remainingReadings = beforeReadings.filter(r => !idSet.has(r.id));
+    localStorage.setItem(READINGS_KEY, JSON.stringify(remainingReadings));
+
+    const threadsRaw = localStorage.getItem(LS_THREADS_KEY);
+    const threads: Record<string, unknown> = threadsRaw ? JSON.parse(threadsRaw) : {};
+    const deletedThreads: string[] = [];
+    for (const id of readingIds) {
+      if (Object.prototype.hasOwnProperty.call(threads, id)) {
+        delete threads[id];
+        deletedThreads.push(id);
+      }
+    }
+    localStorage.setItem(LS_THREADS_KEY, JSON.stringify(threads));
+
+    const memoryRaw = localStorage.getItem(LS_MEMORY_KEY);
+    const memory: Record<string, unknown> = memoryRaw ? JSON.parse(memoryRaw) : {};
+    const deletedMemories: string[] = [];
+    for (const id of readingIds) {
+      if (Object.prototype.hasOwnProperty.call(memory, id)) {
+        delete memory[id];
+        deletedMemories.push(id);
+      }
+    }
+    localStorage.setItem(LS_MEMORY_KEY, JSON.stringify(memory));
+
+    // Only ids that actually existed count as "deleted" — echoing back the whole input
+    // regardless of whether it matched anything would be misleading.
+    const deletedReadingIds = beforeReadings.filter(r => idSet.has(r.id)).map(r => r.id);
+
+    // Verify: re-query — targets gone, everyone else's reading count intact.
+    const afterReadings = getReadings();
+    const stillPresent = readingIds.some(id => afterReadings.some(r => r.id === id));
+    const expectedCount = beforeReadings.length - deletedReadingIds.length;
+    if (stillPresent || afterReadings.length !== expectedCount) {
+      return { ok: false, deletedReadingIds: [], deletedThreads: [], deletedMemories: [], error: 'verification-failed' };
+    }
+
+    return { ok: true, deletedReadingIds, deletedThreads, deletedMemories };
+  } catch (err) {
+    return {
+      ok: false, deletedReadingIds: [], deletedThreads: [], deletedMemories: [],
+      error: err instanceof Error ? err.message : 'unknown-error',
+    };
+  }
 }
 
 export function clearAllData(): void {

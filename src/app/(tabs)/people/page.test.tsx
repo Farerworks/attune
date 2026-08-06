@@ -1,10 +1,17 @@
 // @vitest-environment jsdom
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
+
+const mockRouter = { replace: vi.fn(), push: vi.fn(), back: vi.fn() };
+vi.mock('next/navigation', () => ({
+  useRouter: () => mockRouter,
+}));
 
 afterEach(() => {
   cleanup();
   localStorage.clear();
+  mockRouter.replace.mockReset();
+  window.history.replaceState(null, '', '/people');
 });
 
 describe('PeoplePage', () => {
@@ -66,5 +73,28 @@ describe('PeoplePage — ledger rows (BRIEF-097)', () => {
 
     await waitFor(() => expect(screen.getByText('Sam')).toBeTruthy());
     expect(screen.queryByText('TODAY')).toBeNull();
+  });
+});
+
+describe('PeoplePage — backupPending status line (BRIEF-098 §2)', () => {
+  it('?backupPending=1 shows the quiet status line and strips the param via a single router.replace', async () => {
+    window.history.replaceState(null, '', '/people?backupPending=1');
+    const { default: PeoplePage } = await import('./page');
+    render(<PeoplePage />);
+
+    await waitFor(() => expect(screen.getByText(
+      'Deleted on this device. Backup will update automatically when back online.'
+    )).toBeTruthy());
+    expect(mockRouter.replace).toHaveBeenCalledTimes(1);
+    expect(mockRouter.replace).toHaveBeenCalledWith('/people');
+  });
+
+  it('without the param, no status line renders', async () => {
+    const { default: PeoplePage } = await import('./page');
+    render(<PeoplePage />);
+
+    await waitFor(() => expect(screen.getByText('People')).toBeTruthy());
+    expect(screen.queryByText(/Backup will update automatically/)).toBeNull();
+    expect(mockRouter.replace).not.toHaveBeenCalled();
   });
 });

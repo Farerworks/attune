@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useReadings } from '@/lib/store';
 import { TabTopBar } from '@/components/TabTopBar';
 import { AccountAvatar } from '@/components/AccountAvatar';
@@ -32,20 +33,46 @@ function relativeTime(iso: string, korean: boolean): string {
 }
 
 export default function PeoplePage() {
+  const router = useRouter();
   const [readings] = useReadings();
   const [threads, setThreads] = useState<AskThreads>({});
   const [korean, setKorean] = useState(false);
+  const [backupPending, setBackupPending] = useState(false);
 
   useEffect(() => {
     setThreads(loadAskThreads());
     setKorean(typeof navigator !== 'undefined' && navigator.language.startsWith('ko'));
-  }, []);
+
+    // Single pass (same pattern as Ask's ?person/?prefill, BRIEF-097 §4): read once, apply,
+    // strip via one router.replace() — set after a person-record delete whose backup push
+    // failed (BRIEF-098 §2), so the local deletion is real but the server copy is stale.
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('backupPending') === '1') {
+      setBackupPending(true);
+      params.delete('backupPending');
+      const query = params.toString();
+      router.replace(query ? `/people?${query}` : '/people');
+    }
+  }, [router]);
 
   const people = useMemo(() => buildPeople(readings, threads), [readings, threads]);
 
   return (
     <div style={{ minHeight: '100%', background: 'var(--c-paper)' }}>
       <TabTopBar right={<AccountAvatar />} title="People" />
+
+      {backupPending && (
+        <p aria-live="polite" style={{
+          margin: 0, padding: '12px 20px',
+          fontFamily: 'var(--font-inter)', fontSize: 13, lineHeight: 1.5,
+          color: 'var(--c-ink-body)', background: 'var(--c-surface-alt)',
+          borderBottom: '1px solid var(--c-hairline)',
+        }}>
+          {korean
+            ? '지워졌어요. 백업 반영은 연결되면 자동으로 다시 시도돼요.'
+            : 'Deleted on this device. Backup will update automatically when back online.'}
+        </p>
+      )}
 
       {readings.length === 0 ? (
         /* Empty state */

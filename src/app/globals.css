@@ -20,6 +20,9 @@
   --c-vermilion:    #C4502E;
   --c-vermilion-hv: #A83E20;
   --c-vermilion-bg: #FCEEE9;
+  /* Destructive — confirm-delete fill only, never a state/hover color elsewhere (BRIEF-098) */
+  --c-destructive:          #9E1B1B;
+  --c-destructive-disabled: rgba(158,27,27,0.35);
   /* Elements */
   --c-wood:         #4E8A52;
   --c-wood-bg:      #E4EEE4;

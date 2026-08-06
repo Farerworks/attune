@@ -1,11 +1,19 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { Suspense, act } from 'react';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, fireEvent } from '@testing-library/react';
+import * as storeModule from '@/lib/store';
 
 const mockRouter = { replace: vi.fn(), push: vi.fn(), back: vi.fn() };
 vi.mock('next/navigation', () => ({
   useRouter: () => mockRouter,
+}));
+
+const mockGetSyncSession = vi.fn();
+const mockPushBackup = vi.fn();
+vi.mock('@/lib/sync', () => ({
+  getSyncSession: () => mockGetSyncSession(),
+  pushBackup: () => mockPushBackup(),
 }));
 
 afterEach(() => {
@@ -14,6 +22,9 @@ afterEach(() => {
   mockRouter.replace.mockReset();
   mockRouter.push.mockReset();
   mockRouter.back.mockReset();
+  mockGetSyncSession.mockReset();
+  mockPushBackup.mockReset();
+  vi.restoreAllMocks();
   Object.defineProperty(navigator, 'language', { value: 'en-US', configurable: true });
 });
 
@@ -139,5 +150,168 @@ describe('PersonHubPage (BRIEF-097)', () => {
 
     const cta = await waitFor(() => screen.getByText('Ask about this relationship →'));
     expect(cta.closest('a')?.getAttribute('href')).toBe('/ask?person=r-new');
+  });
+});
+
+describe('PersonHubPage — delete records (BRIEF-098)', () => {
+  async function openConfirmSheet() {
+    const entry = await waitFor(() => screen.getByText("Delete this person's records"));
+    fireEvent.click(entry);
+    return waitFor(() => screen.getByText("Delete Sam's records"));
+  }
+
+  it('UI: confirm button uses --c-destructive, not vermilion', async () => {
+    mockGetSyncSession.mockResolvedValue(null);
+    localStorage.setItem('attune.readings', JSON.stringify([makeReading({ id: 'r1' })]));
+    await renderHub('r1');
+
+    const confirmBtn = await openConfirmSheet();
+    expect(confirmBtn.style.background).toBe('var(--c-destructive)');
+    expect(confirmBtn.style.background).not.toBe('var(--c-vermilion)');
+  });
+
+  it('UI: EN body text pluralizes — 1 reading (singular) vs. 2 readings (plural)', async () => {
+    mockGetSyncSession.mockResolvedValue(null);
+    localStorage.setItem('attune.readings', JSON.stringify([makeReading({ id: 'r1' })]));
+    await renderHub('r1');
+    await openConfirmSheet();
+    expect(screen.getByText(/1 reading, conversation history/)).toBeTruthy();
+    cleanup();
+
+    mockRouter.replace.mockReset();
+    localStorage.clear();
+    localStorage.setItem('attune.readings', JSON.stringify([
+      makeReading({ id: 'r1', createdAt: '2026-07-01T00:00:00.000Z' }),
+      makeReading({ id: 'r2', createdAt: '2026-08-01T00:00:00.000Z' }),
+    ]));
+    await renderHub('r2');
+    await openConfirmSheet();
+    expect(screen.getByText(/2 readings, conversation history/)).toBeTruthy();
+  });
+
+  it('UI: recomputes the group fresh at confirm time — a reading added after the sheet opened is deleted too', async () => {
+    mockGetSyncSession.mockResolvedValue(null);
+    localStorage.setItem('attune.readings', JSON.stringify([makeReading({ id: 'r1' })]));
+    await renderHub('r1');
+    const confirmBtn = await openConfirmSheet();
+
+    // A second reading for the same person appears after the sheet was opened (e.g. another tab).
+    localStorage.setItem('attune.readings', JSON.stringify([
+      makeReading({ id: 'r1' }), makeReading({ id: 'r2' }),
+    ]));
+
+    await act(async () => { fireEvent.click(confirmBtn); await Promise.resolve(); });
+    await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/people'));
+
+    const remaining = JSON.parse(localStorage.getItem('attune.readings')!);
+    expect(remaining).toEqual([]);
+  });
+
+  it('backup: logged in — pushBackup is called and success navigates to /people', async () => {
+    mockGetSyncSession.mockResolvedValue({ sub: 'user-1' });
+    mockPushBackup.mockResolvedValue({ ok: true, updatedAt: '2026-08-06T00:00:00.000Z' });
+    localStorage.setItem('attune.readings', JSON.stringify([makeReading({ id: 'r1' })]));
+    await renderHub('r1');
+    const confirmBtn = await openConfirmSheet();
+
+    await act(async () => { fireEvent.click(confirmBtn); await Promise.resolve(); await Promise.resolve(); });
+    await waitFor(() => expect(mockPushBackup).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/people'));
+  });
+
+  it('backup: push failure redirects with ?backupPending=1 instead of a bare /people', async () => {
+    mockGetSyncSession.mockResolvedValue({ sub: 'user-1' });
+    mockPushBackup.mockResolvedValue({ ok: false, status: 500 });
+    localStorage.setItem('attune.readings', JSON.stringify([makeReading({ id: 'r1' })]));
+    await renderHub('r1');
+    const confirmBtn = await openConfirmSheet();
+
+    await act(async () => { fireEvent.click(confirmBtn); await Promise.resolve(); await Promise.resolve(); });
+    await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/people?backupPending=1'));
+  });
+
+  it('backup: not logged in — pushBackup is never called', async () => {
+    mockGetSyncSession.mockResolvedValue(null);
+    localStorage.setItem('attune.readings', JSON.stringify([makeReading({ id: 'r1' })]));
+    await renderHub('r1');
+    const confirmBtn = await openConfirmSheet();
+
+    await act(async () => { fireEvent.click(confirmBtn); await Promise.resolve(); });
+    await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/people'));
+    expect(mockPushBackup).not.toHaveBeenCalled();
+  });
+
+  it('failure: a local delete failure keeps the sheet open, shows an error, and never navigates', async () => {
+    mockGetSyncSession.mockResolvedValue(null);
+    localStorage.setItem('attune.readings', JSON.stringify([makeReading({ id: 'r1' })]));
+    await renderHub('r1');
+    const confirmBtn = await openConfirmSheet();
+
+    const original = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (key: string) {
+      if (key === 'attune.readings') throw new Error('quota exceeded');
+      return original.apply(this, arguments as unknown as [string, string]);
+    };
+    try {
+      await act(async () => { fireEvent.click(confirmBtn); await Promise.resolve(); });
+    } finally {
+      Storage.prototype.setItem = original;
+    }
+
+    expect((await screen.findByRole('alert')).textContent).toBe("Couldn't delete. Please try again.");
+    expect(mockRouter.replace).not.toHaveBeenCalled();
+    // still open — the confirm button is still present.
+    expect(screen.getByText("Delete Sam's records")).toBeTruthy();
+  });
+
+  it('failure: a partial write failure (readings ok, threads throws) also reports ok:false and blocks navigation', async () => {
+    mockGetSyncSession.mockResolvedValue(null);
+    localStorage.setItem('attune.readings', JSON.stringify([makeReading({ id: 'r1' })]));
+    await renderHub('r1');
+    const confirmBtn = await openConfirmSheet();
+
+    const original = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (key: string, value: string) {
+      if (key === 'attune.ask.threads') throw new Error('write failed');
+      return original.call(this, key, value);
+    };
+    try {
+      await act(async () => { fireEvent.click(confirmBtn); await Promise.resolve(); });
+    } finally {
+      Storage.prototype.setItem = original;
+    }
+
+    expect(await screen.findByRole('alert')).toBeTruthy();
+    expect(mockRouter.replace).not.toHaveBeenCalled();
+  });
+
+  it('failure: rapid double-tap on confirm only deletes once', async () => {
+    mockGetSyncSession.mockResolvedValue(null);
+    const spy = vi.spyOn(storeModule, 'deletePersonData');
+    localStorage.setItem('attune.readings', JSON.stringify([makeReading({ id: 'r1' })]));
+    await renderHub('r1');
+    const confirmBtn = await openConfirmSheet();
+
+    await act(async () => {
+      fireEvent.click(confirmBtn);
+      fireEvent.click(confirmBtn);
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/people'));
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it('failure: confirming when the data is already gone completes safely (no error, navigates on)', async () => {
+    mockGetSyncSession.mockResolvedValue(null);
+    localStorage.setItem('attune.readings', JSON.stringify([makeReading({ id: 'r1' })]));
+    await renderHub('r1');
+    const confirmBtn = await openConfirmSheet();
+
+    // Simulate the reading having been removed elsewhere before the confirm click lands.
+    localStorage.setItem('attune.readings', JSON.stringify([]));
+
+    await act(async () => { fireEvent.click(confirmBtn); await Promise.resolve(); });
+    await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/people'));
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 });

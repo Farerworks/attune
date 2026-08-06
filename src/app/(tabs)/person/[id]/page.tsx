@@ -1,9 +1,9 @@
 'use client';
 
-import { use, useEffect, useState } from 'react';
+import { use, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { getReadings } from '@/lib/store';
+import { getReadings, deletePersonData } from '@/lib/store';
 import { loadAskThreads } from '@/lib/askThreads';
 import type { AskThreads } from '@/lib/askThreads';
 import { buildPeople, personKey } from '@/lib/people';
@@ -14,6 +14,7 @@ import { getIljuProfile } from '@/lib/iljuProfiles';
 import { IljuSheet } from '@/components/IljuSheet';
 import { formatDate } from '@/lib/format';
 import { BackIcon } from '@/components/icons/BackIcon';
+import { getSyncSession, pushBackup } from '@/lib/sync';
 
 const SECTION_LABEL_STYLE = {
   fontFamily: "var(--font-space-mono,'Courier New')",
@@ -27,12 +28,135 @@ function pluralEn(n: number, singular: string): string {
   return n === 1 ? `1 ${singular}` : `${n} ${singular}S`;
 }
 
+function DeleteConfirmSheet({
+  name, readingCount, korean, onCancel, onConfirm,
+}: {
+  name: string;
+  readingCount: number;
+  korean: boolean;
+  onCancel: () => void;
+  onConfirm: () => Promise<{ ok: boolean; error?: string }>;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(false);
+  const cancelRef = useRef<HTMLButtonElement>(null);
+  const restoreFocusTo = useRef<HTMLElement | null>(null);
+  const titleId = 'delete-confirm-title';
+  const descId = 'delete-confirm-desc';
+
+  useEffect(() => {
+    restoreFocusTo.current = document.activeElement as HTMLElement | null;
+    cancelRef.current?.focus();
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      restoreFocusTo.current?.focus?.();
+    };
+  }, []);
+
+  async function handleConfirm() {
+    if (busy) return;
+    setBusy(true);
+    setError(false);
+    const result = await onConfirm();
+    if (!result.ok) {
+      setBusy(false);
+      setError(true);
+    }
+    // on ok:true the caller navigates away and this sheet unmounts — nothing left to reset here.
+  }
+
+  const bodyText = korean
+    ? `리딩 ${readingCount}개와 대화 기록, 이 관계를 위해 저장된 정보가 삭제돼요. 되돌릴 수 없어요.`
+    : `${readingCount === 1 ? '1 reading' : `${readingCount} readings`}, conversation history, and saved information about this relationship will be deleted. This can't be undone.`;
+
+  return (
+    <div
+      onClick={() => { if (!busy) onCancel(); }}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 200,
+        background: 'rgba(26,24,21,0.48)',
+        display: 'flex', alignItems: 'flex-end',
+        animation: 'fade-in 200ms ease backwards',
+      }}
+    >
+      <div
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={descId}
+        onClick={e => e.stopPropagation()}
+        style={{
+          width: '100%',
+          background: 'var(--c-card)',
+          borderRadius: '20px 20px 0 0',
+          padding: '28px 24px 48px',
+          animation: 'sheet-up var(--dur-slow) var(--ease-sheet) backwards',
+        }}
+      >
+        <h2 id={titleId} style={{
+          fontFamily: 'var(--font-inter)', fontSize: 18, fontWeight: 650,
+          color: 'var(--c-ink)', margin: '0 0 12px',
+        }}>
+          {korean ? `${name}의 기록을 삭제할까요?` : `Delete ${name}'s records?`}
+        </h2>
+        <p id={descId} style={{
+          fontFamily: 'var(--font-inter)', fontSize: 14, lineHeight: 1.6,
+          color: 'var(--c-ink-body)', margin: '0 0 24px',
+        }}>
+          {bodyText}
+        </p>
+
+        {error && (
+          <p role="alert" style={{
+            fontFamily: 'var(--font-inter)', fontSize: 13,
+            color: 'var(--c-destructive)', margin: '0 0 16px',
+          }}>
+            {korean ? '삭제하지 못했어요. 잠시 후 다시 시도해주세요.' : "Couldn't delete. Please try again."}
+          </p>
+        )}
+
+        <button
+          type="button"
+          onClick={handleConfirm}
+          disabled={busy}
+          style={{
+            width: '100%', height: 48, borderRadius: 999, border: 'none', marginBottom: 12,
+            background: busy ? 'var(--c-destructive-disabled)' : 'var(--c-destructive)',
+            color: '#fff', fontFamily: 'var(--font-inter)', fontSize: 15, fontWeight: 650,
+            cursor: busy ? 'not-allowed' : 'pointer',
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}
+        >
+          {korean ? `${name}의 기록 삭제` : `Delete ${name}'s records`}
+        </button>
+        <button
+          type="button"
+          ref={cancelRef}
+          onClick={onCancel}
+          disabled={busy}
+          style={{
+            width: '100%', height: 48, borderRadius: 999,
+            background: 'var(--c-surface-alt)', border: '1px solid var(--c-hairline)',
+            fontFamily: 'var(--font-inter)', fontSize: 15, color: 'var(--c-ink)',
+            cursor: busy ? 'not-allowed' : 'pointer',
+          }}
+        >
+          {korean ? '취소' : 'Cancel'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function PersonHubPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
   const [state, setState] = useState<{ person: PersonView; threads: AskThreads } | null | undefined>(undefined);
   const [korean, setKorean] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [deleteSheetOpen, setDeleteSheetOpen] = useState(false);
 
   useEffect(() => {
     setKorean(typeof navigator !== 'undefined' && navigator.language.startsWith('ko'));
@@ -60,6 +184,32 @@ export default function PersonHubPage({ params }: { params: Promise<{ id: string
     }
   }
 
+  // Recomputes the group fresh at the moment of confirmation (BRIEF-098 §3 "확정 시점 그룹
+  // 재계산") rather than trusting the group captured when the sheet was opened.
+  async function handleDeleteConfirm(): Promise<{ ok: boolean; error?: string }> {
+    if (!state) return { ok: false, error: 'no-state' };
+    const freshReadings = getReadings();
+    const freshThreads = loadAskThreads();
+    const freshPerson = buildPeople(freshReadings, freshThreads).find(p => p.key === state.person.key);
+    const idsToDelete = freshPerson ? freshPerson.readings.map(r => r.id) : [];
+
+    if (idsToDelete.length > 0) {
+      const result = deletePersonData(idsToDelete);
+      if (!result.ok) return { ok: false, error: result.error };
+    }
+    // idsToDelete.length === 0 means the data is already gone (e.g. deleted elsewhere) —
+    // nothing left to delete locally, so this still proceeds to the backup step as a no-op.
+
+    const session = await getSyncSession();
+    if (!session) {
+      router.replace('/people');
+      return { ok: true };
+    }
+    const push = await pushBackup();
+    router.replace(push.ok ? '/people' : '/people?backupPending=1');
+    return { ok: true };
+  }
+
   if (state === undefined) return null;
   if (state === null) return null; // redirecting to /people
 
@@ -84,6 +234,15 @@ export default function PersonHubPage({ params }: { params: Promise<{ id: string
           stemElement={person.element}
           branchElement={person.element}
           onClose={() => setSheetOpen(false)}
+        />
+      )}
+      {deleteSheetOpen && (
+        <DeleteConfirmSheet
+          name={person.name}
+          readingCount={person.readings.length}
+          korean={korean}
+          onCancel={() => setDeleteSheetOpen(false)}
+          onConfirm={handleDeleteConfirm}
         />
       )}
 
@@ -184,7 +343,7 @@ export default function PersonHubPage({ params }: { params: Promise<{ id: string
       {/* ── Record (thread) ─────────────────────────────────────────────────── */}
       <div style={{ padding: '28px 20px 0' }}>
         <p style={{ ...SECTION_LABEL_STYLE, marginBottom: 16 }}>
-          {korean ? '기록' : 'RECORD'}
+          RECORD
         </p>
         <div style={{ position: 'relative' }}>
           {/* Connecting line — spans from the first dot to (approximately) the last; a pure-CSS
@@ -277,6 +436,18 @@ export default function PersonHubPage({ params }: { params: Promise<{ id: string
         }}>
           {korean ? '새로 읽기' : 'Read again'}
         </Link>
+        <button
+          type="button"
+          onClick={() => setDeleteSheetOpen(true)}
+          className="pressable"
+          style={{
+            display: 'block', width: '100%', minHeight: 44, lineHeight: '44px', textAlign: 'center',
+            fontFamily: 'var(--font-inter)', fontSize: 13, color: 'var(--c-ink-body)',
+            background: 'none', border: 'none', cursor: 'pointer',
+          }}
+        >
+          {korean ? '이 사람의 기록 삭제' : "Delete this person's records"}
+        </button>
       </div>
     </div>
   );
