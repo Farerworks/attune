@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { act, cleanup, render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { PERSON_EN, GENERAL_EN } from '@/lib/askPrompts';
 
 // jsdom doesn't implement scrollIntoView — the page calls it on new messages.
 Element.prototype.scrollIntoView = vi.fn();
@@ -588,5 +589,101 @@ describe('AskPage — safety flow (BRIEF-096)', () => {
 
     const stored = localStorage.getItem('attune.ask.threads');
     expect(stored === null || !stored.includes('죽고 싶')).toBe(true);
+  });
+});
+
+describe('AskPage — 출시 차단 3건 (BRIEF-094H)', () => {
+  function seedProfile() {
+    localStorage.setItem('attune.profile', JSON.stringify({
+      date: '1990-06-15', time: '14:30', gender: 'other', createdAt: new Date().toISOString(),
+    }));
+  }
+
+  it('§1: while a safety card (S1) is showing, the composer reserves the fixed TabBar\'s own height below it', async () => {
+    Object.defineProperty(navigator, 'language', { value: 'ko-KR', configurable: true });
+    seedProfile();
+    vi.stubGlobal('fetch', vi.fn());
+
+    const { default: AskPage } = await import('./page');
+    render(<AskPage />);
+
+    const textarea = await waitFor(() => screen.getByPlaceholderText('Ask anything…')) as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: '나 진짜 죽고 싶어' } });
+    fireEvent.click(screen.getByLabelText('Send'));
+
+    const lastChoice = await waitFor(() => screen.getByText('답하기 어려워요'));
+    let el: HTMLElement | null = lastChoice;
+    let reservedAncestor: HTMLElement | null = null;
+    while (el) {
+      if (el.style.paddingBottom?.includes('var(--tab-bar-height)')) { reservedAncestor = el; break; }
+      el = el.parentElement;
+    }
+    expect(reservedAncestor).not.toBeNull();
+    expect(reservedAncestor!.style.paddingBottom).toBe(
+      'calc(var(--tab-bar-height) + env(safe-area-inset-bottom, 0px) + 16px)'
+    );
+  });
+
+  it('§1: S1\'s 4th choice ("답하기 어려워요") is present with no clipping (overflow: hidden) ancestor', async () => {
+    Object.defineProperty(navigator, 'language', { value: 'ko-KR', configurable: true });
+    seedProfile();
+    vi.stubGlobal('fetch', vi.fn());
+
+    const { default: AskPage } = await import('./page');
+    render(<AskPage />);
+
+    const textarea = await waitFor(() => screen.getByPlaceholderText('Ask anything…')) as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: '나 진짜 죽고 싶어' } });
+    fireEvent.click(screen.getByLabelText('Send'));
+
+    const lastChoice = await waitFor(() => screen.getByText('답하기 어려워요'));
+    let el: HTMLElement | null = lastChoice;
+    while (el && el !== document.body) {
+      expect(getComputedStyle(el).overflow).not.toBe('hidden');
+      el = el.parentElement;
+    }
+  });
+
+  it('§2: quota text ("N QUESTIONS LEFT TODAY") uses ink-body, not muted', async () => {
+    seedProfile();
+    const { default: AskPage } = await import('./page');
+    render(<AskPage />);
+
+    const quotaEl = await waitFor(() => screen.getByText(/QUESTIONS LEFT TODAY/));
+    expect(quotaEl.style.color).toBe('var(--c-ink-body)');
+  });
+
+  it('§2: first-visit captions ("YOU · TIMING · ANYTHING", "ADD A PERSON") use ink-body, not muted', async () => {
+    seedProfile();
+    const { default: AskPage } = await import('./page');
+    render(<AskPage />);
+
+    const caption1 = await waitFor(() => screen.getByText('YOU · TIMING · ANYTHING'));
+    expect(caption1.style.color).toBe('var(--c-ink-body)');
+    const caption2 = screen.getByText('ADD A PERSON');
+    expect(caption2.style.color).toBe('var(--c-ink-body)');
+  });
+
+  it('§2: a quick-prompt chip uses ink-body, not muted', async () => {
+    seedProfile();
+    const { default: AskPage } = await import('./page');
+    render(<AskPage />);
+
+    await waitFor(() => screen.getByPlaceholderText('Ask anything…'));
+    const pool = [...PERSON_EN, ...GENERAL_EN];
+    const promptButton = screen.getAllByRole('button').find(b => pool.includes(b.textContent ?? ''));
+    expect(promptButton).toBeTruthy();
+    expect(promptButton!.style.color).toBe('var(--c-ink-body)');
+  });
+
+  it('§2: the bottom disclaimer uses ink-body, not muted', async () => {
+    seedProfile();
+    const { default: AskPage } = await import('./page');
+    render(<AskPage />);
+
+    const disclaimer = await waitFor(() => screen.getByText(
+      'Attune is for understanding and self-reflection, not a verdict on anyone.'
+    ));
+    expect(disclaimer.style.color).toBe('var(--c-ink-body)');
   });
 });

@@ -247,7 +247,16 @@ export default function PersonHubPage({ params }: { params: Promise<{ id: string
       )}
 
       {/* ── Identity ─────────────────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '16px 20px 0' }}>
+      {/* Other tabs' TabTopBar clears the status bar with the same calc() (BRIEF-091 전례) —
+          this header has no TabTopBar, so without it the back/avatar/name row starts at y:0
+          and gets clipped under the status bar (BRIEF-094H §3, YS 실기기 발견). */}
+      <div style={{
+        display: 'flex', alignItems: 'flex-start', gap: 12,
+        // Individual longhands, not the `padding` shorthand — mixing shorthand+longhand in one
+        // style object is a known jsdom cssstyle bug that garbles env() (project precedent).
+        paddingTop: 'calc(12px + env(safe-area-inset-top, 0px))',
+        paddingRight: 20, paddingBottom: 0, paddingLeft: 20,
+      }}>
         <button
           type="button"
           onClick={goBack}

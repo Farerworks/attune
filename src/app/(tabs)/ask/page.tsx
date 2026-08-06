@@ -94,6 +94,12 @@ const SAFETY_COUNTRY_TOGGLE_EN = 'Not in the US?';
 const IMMINENCE_CHOICES_KO: [string, string, string] = ['예', '아니요, 생각만이에요', '답하기 어려워요'];
 const IMMINENCE_CHOICES_EN: [string, string, string] = ['Yes', 'No, just thoughts', "It's hard to answer"];
 
+// Reserves the fixed bottom TabBar's own footprint below the safety card (BRIEF-094H §1) —
+// without this, a sticky-positioned card taller than the leftover viewport ends up sitting
+// flush against the real screen bottom, with the TabBar (higher z-index) painted over its
+// last choice.
+const SAFETY_PANEL_BOTTOM_PAD = 'calc(var(--tab-bar-height) + env(safe-area-inset-bottom, 0px) + 16px)';
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function AskPage() {
@@ -501,7 +507,7 @@ export default function AskPage() {
               <h1 className="t-h2" style={{ margin: 0 }}>Ask</h1>
               <p style={{
                 margin: 0,
-                fontFamily: "var(--font-space-mono,'Courier New')", fontSize: 11, letterSpacing: '0.08em', color: 'var(--c-muted)',
+                fontFamily: "var(--font-space-mono,'Courier New')", fontSize: 11, letterSpacing: '0.08em', color: 'var(--c-ink-body)',
               }}>
                 {left} QUESTIONS LEFT TODAY
               </p>
@@ -527,7 +533,7 @@ export default function AskPage() {
                     >
                       <ChipButton chip={chip} active={isActive} onClick={() => setSelected(chip.id)} size={hasAnyThread ? 'tab' : 'default'} />
                       {!hasAnyThread && chip.id === 'me' && (
-                        <span style={{ fontFamily: "var(--font-space-mono,'Courier New')", fontSize: 8.5, letterSpacing: '0.1em', color: 'var(--c-muted)', textTransform: 'uppercase' }}>YOU · TIMING · ANYTHING</span>
+                        <span style={{ fontFamily: "var(--font-space-mono,'Courier New')", fontSize: 8.5, letterSpacing: '0.1em', color: 'var(--c-ink-body)', textTransform: 'uppercase' }}>YOU · TIMING · ANYTHING</span>
                       )}
                     </div>
                   );
@@ -553,7 +559,7 @@ export default function AskPage() {
                       + Someone
                     </Link>
                     {!hasAnyThread && (
-                      <span style={{ fontFamily: "var(--font-space-mono,'Courier New')", fontSize: 8.5, letterSpacing: '0.1em', color: 'var(--c-muted)', textTransform: 'uppercase' }}>ADD A PERSON</span>
+                      <span style={{ fontFamily: "var(--font-space-mono,'Courier New')", fontSize: 8.5, letterSpacing: '0.1em', color: 'var(--c-ink-body)', textTransform: 'uppercase' }}>ADD A PERSON</span>
                     )}
                   </div>
                 )}
@@ -622,7 +628,9 @@ export default function AskPage() {
         paddingTop: 12, paddingRight: 20, paddingLeft: 20,
         // No extra safe-area padding while the keyboard is open — there's no home indicator
         // to clear above the keyboard, so it would just double up the bottom gap.
-        paddingBottom: 10,
+        // Safety cards (S1/S2/S3) sit behind the fixed bottom TabBar unless this sticky
+        // composer reserves that height itself (BRIEF-094H §1 — the last choice was hidden).
+        paddingBottom: safetyCardState && !keyboardOpen ? SAFETY_PANEL_BOTTOM_PAD : 10,
       }}>
         {safetyCardState ? (
           <SafetyPanel
@@ -658,7 +666,7 @@ export default function AskPage() {
                   style={{
                     flexShrink: 0,
                     fontFamily: "var(--font-inter,system-ui)", fontSize: 13,
-                    color: 'var(--c-muted)', background: 'var(--c-card)',
+                    color: 'var(--c-ink-body)', background: 'var(--c-card)',
                     border: '1px solid var(--c-hairline)', borderRadius: 16,
                     padding: '5px 12px', cursor: 'pointer', whiteSpace: 'nowrap',
                   }}
@@ -712,7 +720,7 @@ export default function AskPage() {
 
         {/* Disclaimer — hidden during the safety flow (S1-S3 screens stay minimal, BRIEF-096) */}
         {!safetyCardState && (
-          <p style={{ margin: '8px 0 0', textAlign: 'center', fontFamily: "var(--font-inter,system-ui)", fontSize: 11, color: 'var(--c-muted)' }}>
+          <p style={{ margin: '8px 0 0', textAlign: 'center', fontFamily: "var(--font-inter,system-ui)", fontSize: 11, color: 'var(--c-ink-body)' }}>
             Attune is for understanding and self-reflection, not a verdict on anyone.
           </p>
         )}

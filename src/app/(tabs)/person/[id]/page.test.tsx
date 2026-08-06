@@ -151,6 +151,25 @@ describe('PersonHubPage (BRIEF-097)', () => {
     const cta = await waitFor(() => screen.getByText('Ask about this relationship →'));
     expect(cta.closest('a')?.getAttribute('href')).toBe('/ask?person=r-new');
   });
+
+  it('§3 (BRIEF-094H): the identity header clears the status bar via the same calc() as TabTopBar — not clipped at y:0', async () => {
+    localStorage.setItem('attune.readings', JSON.stringify([makeReading({ id: 'r1' })]));
+    await renderHub('r1');
+
+    const backButton = await waitFor(() => screen.getByLabelText('Back'));
+    let el: HTMLElement | null = backButton;
+    let header: HTMLElement | null = null;
+    while (el) {
+      // jsdom's cssstyle parses (and garbles the argument order of) a bare `env(x, y)` inside
+      // calc() — unlike `calc(var(--x) + env(...))`, which it leaves opaque — so this checks
+      // for the still-present pieces rather than an exact string (documented jsdom quirk,
+      // harmless in real browsers).
+      const pt = el.style.paddingTop;
+      if (pt && pt.includes('12px') && pt.includes('safe-area-inset-top')) { header = el; break; }
+      el = el.parentElement;
+    }
+    expect(header).not.toBeNull();
+  });
 });
 
 describe('PersonHubPage — delete records (BRIEF-098)', () => {
