@@ -67,4 +67,4 @@ pushBackup 성공(모킹) 케이스에서 `mockPushBackup`이 정확히 1회 호
 ## 8. 커밋 해시
 
 - 저장소: https://github.com/Farerworks/attune
-- 커밋 해시: (다음 커밋에서 반영 예정)
+- 커밋 해시: `8e5e850`
