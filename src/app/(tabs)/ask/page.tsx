@@ -118,6 +118,7 @@ export default function AskPage() {
   const { bottomInset, topOffset } = useKeyboardInset();
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const selectedChipRef = useRef<HTMLDivElement>(null);
 
   const [initialized, setInitialized] = useState(false);
   const [chips,     setChips]     = useState<Chip[]>([]);
@@ -224,6 +225,13 @@ export default function AskPage() {
     setSafetyReentryText(null);
     setAckNextSend(false);
   }, [selected]);
+
+  // Keep the selected person's tab in view — chips can scroll off-screen once several
+  // people exist (BRIEF-094G). Also fires once `chips` finishes its async load, so a
+  // ?person= deep link that lands far down the list scrolls into view too.
+  useEffect(() => {
+    selectedChipRef.current?.scrollIntoView({ inline: 'nearest' });
+  }, [selected, chips]);
 
   // ── Send handler ──────────────────────────────────────────────────────────────
 
@@ -480,35 +488,60 @@ export default function AskPage() {
                 {left} QUESTIONS LEFT TODAY
               </p>
             </div>
-            <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 12, scrollbarWidth: 'none', alignItems: 'flex-start' }}>
-              <style>{`::-webkit-scrollbar{display:none}`}</style>
-              {/* Me + Person chips — slim once a conversation exists (BRIEF-094E) */}
-              {chips.filter(c => c.id !== 'general').map(chip => (
-                <div key={chip.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, flexShrink: 0 }}>
-                  <ChipButton chip={chip} active={selected === chip.id} onClick={() => setSelected(chip.id)} size={hasAnyThread ? 'slim' : 'default'} />
-                  {!hasAnyThread && chip.id === 'me' && (
-                    <span style={{ fontFamily: "var(--font-space-mono,'Courier New')", fontSize: 8.5, letterSpacing: '0.1em', color: 'var(--c-muted)', textTransform: 'uppercase' }}>YOU · TIMING · ANYTHING</span>
-                  )}
-                </div>
-              ))}
-              {/* + Someone chip — only when no saved people */}
-              {!hasPersonChips && (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, flexShrink: 0 }}>
-                  <Link href="/new" style={{
-                    display: 'flex', alignItems: 'center',
-                    padding: hasAnyThread ? '8px 14px' : '12px 18px',
-                    borderRadius: hasAnyThread ? 16 : 20,
-                    border: '1.5px dashed #C9C0AD',
-                    background: 'transparent', color: 'var(--c-muted)',
-                    textDecoration: 'none', fontFamily: "var(--font-inter,system-ui)", fontSize: 13,
-                    whiteSpace: 'nowrap', minHeight: hasAnyThread ? 34 : 48, boxSizing: 'border-box',
-                  }}>
-                    + Someone
-                  </Link>
-                  {!hasAnyThread && (
-                    <span style={{ fontFamily: "var(--font-space-mono,'Courier New')", fontSize: 8.5, letterSpacing: '0.1em', color: 'var(--c-muted)', textTransform: 'uppercase' }}>ADD A PERSON</span>
-                  )}
-                </div>
+            <div style={{ position: 'relative' }}>
+              <div style={{
+                display: 'flex', gap: hasAnyThread ? 16 : 8, overflowX: 'auto', paddingBottom: 12,
+                scrollbarWidth: 'none', alignItems: hasAnyThread ? 'center' : 'flex-start',
+                minHeight: hasAnyThread ? 44 : undefined,
+              }}>
+                <style>{`::-webkit-scrollbar{display:none}`}</style>
+                {/* Me + Person chips — newspaper-section tabs once a conversation exists (BRIEF-094G) */}
+                {chips.filter(c => c.id !== 'general').map(chip => {
+                  const isActive = selected === chip.id;
+                  return (
+                    <div
+                      key={chip.id}
+                      ref={isActive ? selectedChipRef : undefined}
+                      style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, flexShrink: 0 }}
+                    >
+                      <ChipButton chip={chip} active={isActive} onClick={() => setSelected(chip.id)} size={hasAnyThread ? 'tab' : 'default'} />
+                      {!hasAnyThread && chip.id === 'me' && (
+                        <span style={{ fontFamily: "var(--font-space-mono,'Courier New')", fontSize: 8.5, letterSpacing: '0.1em', color: 'var(--c-muted)', textTransform: 'uppercase' }}>YOU · TIMING · ANYTHING</span>
+                      )}
+                    </div>
+                  );
+                })}
+                {/* + Someone chip — only when no saved people */}
+                {!hasPersonChips && (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, flexShrink: 0 }}>
+                    <Link href="/new" style={hasAnyThread ? {
+                      display: 'flex', alignItems: 'center',
+                      padding: '6px 2px', minHeight: 32,
+                      color: 'var(--c-ink-body)', textDecoration: 'none',
+                      fontFamily: "var(--font-inter,system-ui)", fontSize: 13, whiteSpace: 'nowrap',
+                    } : {
+                      display: 'flex', alignItems: 'center',
+                      padding: '12px 18px', borderRadius: 20,
+                      border: '1.5px dashed #C9C0AD',
+                      background: 'transparent', color: 'var(--c-muted)',
+                      textDecoration: 'none', fontFamily: "var(--font-inter,system-ui)", fontSize: 13,
+                      whiteSpace: 'nowrap', minHeight: 48, boxSizing: 'border-box',
+                    }}>
+                      + Someone
+                    </Link>
+                    {!hasAnyThread && (
+                      <span style={{ fontFamily: "var(--font-space-mono,'Courier New')", fontSize: 8.5, letterSpacing: '0.1em', color: 'var(--c-muted)', textTransform: 'uppercase' }}>ADD A PERSON</span>
+                    )}
+                  </div>
+                )}
+              </div>
+              {/* Right-edge fade — signals more chips off-screen when several people exist (BRIEF-094G) */}
+              {hasAnyThread && (
+                <div aria-hidden="true" style={{
+                  position: 'absolute', top: 0, right: 0, bottom: 0, width: 20,
+                  background: 'linear-gradient(to right, transparent, rgba(250,248,244,0.92))',
+                  pointerEvents: 'none',
+                }} />
               )}
             </div>
           </div>
@@ -889,9 +922,45 @@ function DateDivider({ isoStr }: { isoStr: string }) {
   );
 }
 
-function ChipButton({ chip, active, onClick, size = 'default' }: { chip: Chip; active: boolean; onClick: () => void; size?: 'default' | 'slim' }) {
+function ChipButton({ chip, active, onClick, size = 'default' }: { chip: Chip; active: boolean; onClick: () => void; size?: 'default' | 'tab' }) {
   const elC = chip.element ? ELEMENT_COLORS[chip.element.toLowerCase()] : null;
-  const slim = size === 'slim';
+
+  // Tab style once a conversation exists (BRIEF-094G) — newspaper-section tabs, not pills:
+  // no box (background/border/radius), identity carried by the element-color dot + underline.
+  if (size === 'tab') {
+    const dotColor = elC?.fg ?? 'var(--c-ink-body)';
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className="pressable"
+        style={{
+          display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
+          padding: '6px 2px', minHeight: 32,
+          background: 'transparent',
+          // Fully expanded (no `border` shorthand mixed with `borderBottom`) — mixing them
+          // triggers a React dev warning and unreliable style reads (BRIEF-094D-FIX precedent).
+          borderTop: 'none', borderLeft: 'none', borderRight: 'none',
+          borderBottom: active ? `2px solid ${dotColor}` : '2px solid transparent',
+          borderRadius: 0,
+          cursor: 'pointer',
+        }}
+      >
+        <span style={{
+          width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+          background: dotColor, opacity: active ? 1 : 0.55,
+        }} />
+        <span style={{
+          fontFamily: "var(--font-inter,system-ui)", fontSize: 13,
+          // muted fails 4.5:1 contrast — ink-body is the non-active color here (BRIEF-094G §1).
+          color: active ? 'var(--c-ink)' : 'var(--c-ink-body)',
+          fontWeight: active ? 600 : 400,
+        }}>
+          {chip.label}
+        </span>
+      </button>
+    );
+  }
 
   return (
     <button
@@ -900,9 +969,9 @@ function ChipButton({ chip, active, onClick, size = 'default' }: { chip: Chip; a
       className="pressable"
       style={{
         display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
-        padding: slim ? '6px 12px 6px 8px' : '12px 18px 12px 10px',
-        borderRadius: slim ? 16 : 20,
-        minHeight: slim ? 34 : 48,
+        padding: '12px 18px 12px 10px',
+        borderRadius: 20,
+        minHeight: 48,
         border: active ? '1px solid rgba(196,80,46,0.35)' : '1px solid var(--c-hairline)',
         background: active ? '#FFF2EE' : 'var(--c-card)',
         cursor: 'pointer',
@@ -922,7 +991,7 @@ function ChipButton({ chip, active, onClick, size = 'default' }: { chip: Chip; a
         </div>
       )}
       <span style={{
-        fontFamily: "var(--font-inter,system-ui)", fontSize: slim ? 12 : 13,
+        fontFamily: "var(--font-inter,system-ui)", fontSize: 13,
         color: active ? '#A83E20' : 'var(--c-ink)',
         fontWeight: active ? 500 : 400,
       }}>

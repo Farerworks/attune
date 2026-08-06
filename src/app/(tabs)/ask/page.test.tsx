@@ -326,28 +326,70 @@ describe('AskPage', () => {
     expect(title.parentElement!.contains(quotaEl)).toBe(true);
   });
 
-  it('chips are small once a conversation exists, and full-size on the empty first visit (BRIEF-094E)', async () => {
-    // Empty first visit — chips stay full-size (minHeight 48), onboarding captions intact.
+  it('empty first visit keeps full-size chips (minHeight 48) — unchanged by BRIEF-094G', async () => {
     localStorage.setItem('attune.profile', JSON.stringify({
       date: '1990-06-15', time: '14:30', gender: 'other', createdAt: new Date().toISOString(),
     }));
     const { default: AskPageEmpty } = await import('./page');
-    const { unmount } = render(<AskPageEmpty />);
+    render(<AskPageEmpty />);
 
     await waitFor(() => expect(screen.getByText('YOU · TIMING · ANYTHING')).toBeTruthy());
     const meChipEmpty = screen.getByText('Me').closest('button') as HTMLElement;
     expect(meChipEmpty.style.minHeight).toBe('48px');
-    unmount();
+  });
 
-    // With a saved thread — chips shrink to slim (minHeight 34).
+  it('with a conversation, person chips render as tabs: no background/border, and the selected one is underlined (BRIEF-094G)', async () => {
+    localStorage.setItem('attune.profile', JSON.stringify({
+      date: '1990-06-15', time: '14:30', gender: 'other', createdAt: new Date().toISOString(),
+    }));
+    localStorage.setItem('attune.readings', JSON.stringify([
+      { id: 'r1', name: 'Sam', date: '1988-03-02', time: '09:00', createdAt: new Date().toISOString(),
+        themChart: { dayMaster: { element: 'fire', stem: 'Yang Fire', polarity: 'Yang' } } },
+    ]));
     localStorage.setItem('attune.ask.threads', JSON.stringify({
       me: [{ id: 'u1', role: 'user', text: 'hi', createdAt: new Date().toISOString() }],
     }));
-    const { default: AskPageWithThread } = await import('./page');
-    render(<AskPageWithThread />);
+    const { default: AskPage } = await import('./page');
+    render(<AskPage />);
 
+    // Selected by default: "Me". (jsdom's cssstyle serializer drops explicit `border-*: none`
+    // longhands from the style text entirely, so background/radius/underline are what's
+    // reliably testable here — the "no box" look itself is confirmed in the render screenshots.)
     const meChip = await waitFor(() => screen.getByText('Me').closest('button') as HTMLElement);
-    expect(meChip.style.minHeight).toBe('34px');
+    expect(meChip.style.background).toBe('transparent');
+    expect(meChip.style.borderRadius).toBe('0');
+    expect(meChip.style.borderBottom).toContain('2px solid');
+    expect(meChip.style.borderBottom).not.toContain('transparent');
+
+    // Unselected: Sam — no underline, and the name is ink-body, never muted (contrast requirement).
+    const samChip = screen.getByText('Sam').closest('button') as HTMLElement;
+    expect(samChip.style.borderBottom).toContain('transparent');
+    const samLabel = screen.getByText('Sam');
+    expect(samLabel.style.color).toBe('var(--c-ink-body)');
+    expect(samLabel.style.color).not.toBe('var(--c-muted)');
+  });
+
+  it('changing the selected person scrolls that tab into view (BRIEF-094G)', async () => {
+    localStorage.setItem('attune.profile', JSON.stringify({
+      date: '1990-06-15', time: '14:30', gender: 'other', createdAt: new Date().toISOString(),
+    }));
+    localStorage.setItem('attune.readings', JSON.stringify([
+      { id: 'r1', name: 'Sam', date: '1988-03-02', time: '09:00', createdAt: new Date().toISOString() },
+    ]));
+    localStorage.setItem('attune.ask.threads', JSON.stringify({
+      me: [{ id: 'u1', role: 'user', text: 'hi', createdAt: new Date().toISOString() }],
+    }));
+    const { default: AskPage } = await import('./page');
+    render(<AskPage />);
+
+    const samChip = await waitFor(() => screen.getByText('Sam').closest('button') as HTMLElement);
+    (Element.prototype.scrollIntoView as ReturnType<typeof vi.fn>).mockClear();
+    fireEvent.click(samChip);
+
+    await waitFor(() => {
+      const calls = (Element.prototype.scrollIntoView as ReturnType<typeof vi.fn>).mock.calls;
+      expect(calls.some(([opts]) => opts?.inline === 'nearest')).toBe(true);
+    });
   });
 });
 
