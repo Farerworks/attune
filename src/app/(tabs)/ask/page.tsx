@@ -298,7 +298,7 @@ export default function AskPage() {
       const chip = chips.find(c => c.id === selected);
 
       // Serialize history (the thread BEFORE the new question)
-      const history = prevThread.slice(-10).map(m => ({
+      const history = prevThread.slice(-20).map(m => ({
         role: m.role as 'user' | 'assistant',
         text: m.role === 'user'
           ? (m as UserMsg).text

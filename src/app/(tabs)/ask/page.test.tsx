@@ -21,6 +21,18 @@ afterEach(() => {
   Object.defineProperty(navigator, 'language', { value: 'en-US', configurable: true });
 });
 
+// n alternating user/assistant messages, one day apart starting at startDate (BRIEF-100 §2 tests).
+function makeMessages(n: number, startDate: string) {
+  return Array.from({ length: n }, (_, i) => {
+    const d = new Date(`${startDate}T00:00:00.000Z`);
+    d.setUTCDate(d.getUTCDate() + i);
+    const createdAt = d.toISOString();
+    return i % 2 === 0
+      ? { id: `u${i}`, role: 'user' as const, text: `question ${i}`, createdAt }
+      : { id: `a${i}`, role: 'assistant' as const, mode: 'me' as const, text: `answer ${i}`, createdAt };
+  });
+}
+
 describe('AskPage', () => {
   it('renders exactly one Settings link, in the top bar (avatar), not in TabHeader (BRIEF-080)', async () => {
     localStorage.setItem('attune.profile', JSON.stringify({
@@ -76,6 +88,83 @@ describe('AskPage', () => {
       { role: 'user', text: 'hi', at: '2026-07-19' },
       { role: 'assistant', text: 'hello', at: '2026-07-19' },
     ]);
+  });
+
+  it('local thread of 24 messages -> only the last 20 are sent as history (BRIEF-100 §2)', async () => {
+    localStorage.setItem('attune.profile', JSON.stringify({
+      date: '1990-06-15', time: '14:30', gender: 'other', createdAt: new Date().toISOString(),
+    }));
+    const thread = makeMessages(24, '2026-06-01');
+    localStorage.setItem('attune.ask.threads', JSON.stringify({ me: thread }));
+
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ answer: { text: 'ok' } }) });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { default: AskPage } = await import('./page');
+    render(<AskPage />);
+
+    const textarea = await waitFor(() => screen.getByPlaceholderText('Ask anything…')) as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: 'a new question' } });
+    fireEvent.click(screen.getByLabelText('Send'));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/ask', expect.anything()));
+    const askCall = fetchMock.mock.calls.find(([url]) => url === '/api/ask') as [string, RequestInit];
+    const body = JSON.parse(askCall[1].body as string);
+
+    expect(body.history).toHaveLength(20);
+    // Last 20 of 24 local messages = indices 4..23 — the first 4 (the oldest scene) are dropped.
+    expect(body.history[0].text).toBe(thread[4].text);
+  });
+
+  it('sent history preserves original order and the `at` date field (BRIEF-100 §2)', async () => {
+    localStorage.setItem('attune.profile', JSON.stringify({
+      date: '1990-06-15', time: '14:30', gender: 'other', createdAt: new Date().toISOString(),
+    }));
+    const thread = makeMessages(8, '2026-06-01');
+    localStorage.setItem('attune.ask.threads', JSON.stringify({ me: thread }));
+
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ answer: { text: 'ok' } }) });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { default: AskPage } = await import('./page');
+    render(<AskPage />);
+
+    const textarea = await waitFor(() => screen.getByPlaceholderText('Ask anything…')) as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: 'a new question' } });
+    fireEvent.click(screen.getByLabelText('Send'));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/ask', expect.anything()));
+    const askCall = fetchMock.mock.calls.find(([url]) => url === '/api/ask') as [string, RequestInit];
+    const body = JSON.parse(askCall[1].body as string);
+
+    expect(body.history.map((h: { role: string }) => h.role)).toEqual(thread.map(m => m.role));
+    expect(body.history.map((h: { text: string }) => h.text)).toEqual(thread.map(m => m.text));
+    expect(body.history.map((h: { at: string }) => h.at)).toEqual(thread.map(m => m.createdAt.slice(0, 10)));
+  });
+
+  it('6 round-trips (12 messages) already saved -> sending the 7th question still includes the very first exchange (BRIEF-100 §2/§12)', async () => {
+    localStorage.setItem('attune.profile', JSON.stringify({
+      date: '1990-06-15', time: '14:30', gender: 'other', createdAt: new Date().toISOString(),
+    }));
+    const thread = makeMessages(12, '2026-06-01'); // 6 user+assistant round-trips
+    localStorage.setItem('attune.ask.threads', JSON.stringify({ me: thread }));
+
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ answer: { text: 'ok' } }) });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { default: AskPage } = await import('./page');
+    render(<AskPage />);
+
+    const textarea = await waitFor(() => screen.getByPlaceholderText('Ask anything…')) as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: '7th question' } });
+    fireEvent.click(screen.getByLabelText('Send'));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/ask', expect.anything()));
+    const askCall = fetchMock.mock.calls.find(([url]) => url === '/api/ask') as [string, RequestInit];
+    const body = JSON.parse(askCall[1].body as string);
+
+    expect(body.history).toHaveLength(12);
+    expect(body.history[0].text).toBe(thread[0].text); // the very first exchange is still present
   });
 
   it('composer textarea has fontSize 16 — prevents iOS Safari auto-zoom on focus (BRIEF-091)', async () => {

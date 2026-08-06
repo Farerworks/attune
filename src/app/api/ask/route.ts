@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { calculateSaju, getDailyPillars, pillarLabel, friendlyPillarName } from '@/lib/saju';
-import type { SajuChart, DailyPillar, Pillar } from '@/lib/saju';
+import { calculateSaju, getDailyPillars, pillarLabel, friendlyPillarName, STEM_NAMES } from '@/lib/saju';
+import type { SajuChart, DailyPillar, Pillar, Element } from '@/lib/saju';
 import { getArchetype, getElementRelationship, localeVoiceBlock, ARCHETYPE_LOCALE } from '@/lib/interpretGuide';
 import { formatChart } from '@/lib/briefing';
 import { createLlmProvider, type ChatTurn } from '@/lib/llm';
@@ -60,6 +60,61 @@ export function hasTodayIntroduced(
   return history.some(h => h.role === 'assistant' && names.some(n => n && h.text.includes(n)));
 }
 
+// Sino-Korean single-character hanja/reading for each element and polarity — not exported from
+// saju.ts (which only has native-Korean element words like "나무" for the friendly day names).
+// Needed here for "甲木"/"갑목"/"양 목" style identity-mention candidates (BRIEF-100 §8).
+const ELEMENT_HANJA: Record<Element, string> = { wood: '木', fire: '火', earth: '土', metal: '金', water: '水' };
+const ELEMENT_KO_SINO: Record<Element, string> = { wood: '목', fire: '화', earth: '토', metal: '금', water: '수' };
+const POLARITY_KO: Record<'Yang' | 'Yin', string> = { Yang: '양', Yin: '음' };
+
+/**
+ * The other person's day-master/archetype name candidates, for detecting whether the assistant
+ * has already introduced their identity in this conversation (BRIEF-100 §8). Deliberately
+ * excludes bare single-hanja (`甲`) and bare element words (`목`, `목 기운`) — those collide with
+ * unrelated mentions like today's day pillar ("甲子일"), so a match on them would be a false
+ * positive, not evidence the person's identity was actually named.
+ */
+export function themNameCandidates(themChart: SajuChart): string[] {
+  const { stem, element, polarity } = themChart.dayMaster;
+  const stemHanja = STEM_NAMES[stem].hanja;
+  const stemKo = STEM_NAMES[stem].ko;
+  const elementHanja = ELEMENT_HANJA[element];
+  const elementKo = ELEMENT_KO_SINO[element];
+  const polarityKo = POLARITY_KO[polarity];
+  const archetype = getArchetype(stem);
+  const archetypeKo = ARCHETYPE_LOCALE[stem]?.name_ko;
+
+  const candidates = [
+    `${stemHanja}${elementHanja}`,   // e.g. 甲木
+    `${stemKo}${elementKo}`,         // e.g. 갑목
+    `${polarityKo} ${elementKo}`,    // e.g. 양 목
+    `${polarityKo}${elementKo}`,     // e.g. 양목
+    stem,                            // e.g. Yang Wood
+    archetype.name,                  // e.g. The First Light
+  ];
+  if (archetypeKo) candidates.push(archetypeKo); // e.g. 첫 새벽
+  return candidates;
+}
+
+/** Unicode NFKC + lowercase + collapsed whitespace — so matching is resilient to full/half-width
+ * variants, casing, and incidental spacing differences the LLM's own output might introduce. */
+function normalizeForMatch(s: string): string {
+  return s.normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
+/** True if any assistant-role message in `history` already named the other person's identity. */
+export function hasPersonIntroduced(
+  history: Array<{ role: 'user' | 'assistant'; text: string }>,
+  candidates: string[],
+): boolean {
+  const normalizedCandidates = candidates.map(normalizeForMatch).filter(c => c.length > 0);
+  return history.some(h => {
+    if (h.role !== 'assistant') return false;
+    const normText = normalizeForMatch(h.text);
+    return normalizedCandidates.some(c => normText.includes(c));
+  });
+}
+
 // ── Prompt builder ─────────────────────────────────────────────────────────────
 
 export function buildAskSystem(
@@ -72,6 +127,7 @@ export function buildAskSystem(
   themName?: string,
   memory?: string[],
   todayIntroduced?: boolean,
+  personIntroduced?: boolean,
 ): string {
   // Chart context
   let chartBlock = '';
@@ -145,10 +201,10 @@ AFTER that: use only the short handle, woven in ("물 호랑이 기운이…" / 
   const outputSpec = mode === 'person'
     ? `Choose the 3 part labels to fit the question (labels in English, UPPERCASE):
 - If the user is deciding whether to DO something (should I…, is it a good idea…): LIKELY RECEPTION / WHAT COULD BACKFIRE / HOW TO IMPROVE YOUR ODDS.
-- If the user is trying to UNDERSTAND (why is…, what's going on…, how does he feel…): WHAT'S LIKELY GOING ON / WHY (FROM THE CHART) / WHAT YOU CAN DO.
+- If the user is trying to UNDERSTAND (why is…, what's going on…, how does he feel…): WHAT'S LIKELY GOING ON / WHY THIS MAY HAVE HAPPENED / WHAT YOU CAN DO.
 
 Respond ONLY with valid JSON (no markdown fences, no extra keys). Choose ONE shape:
-1) If the latest message is a NEW substantive question (a decision to make, a situation to read, a timing ask):
+1) If the latest message is a NEW substantive question — a new situation, a decision to make, an explicit ask for advice, or a real re-judgment of your earlier conclusion:
 {
   "parts": [
     { "label": "<chosen label>", "text": "2–3 sentences, specific and actionable. HARD LIMIT: max 3 sentences, max 55 words." },
@@ -156,16 +212,16 @@ Respond ONLY with valid JSON (no markdown fences, no extra keys). Choose ONE sha
     { "label": "<chosen label>", "text": "2–3 sentences. HARD LIMIT: max 3 sentences, max 55 words." }
   ],
   "timing": "ONLY if the question is about timing. MUST be a single plain-text string — NEVER an object or array. Name 2–3 favorable dates (YYYY-MM-DD, day-of-week, reason) and 1–2 to avoid. Omit this key entirely if not a timing question.",
-  "followUp": "OPTIONAL. One short line (12 words max): either a gentle check-back inviting the user to report how it went, or ONE question that would sharpen your next answer. Same language as the answer. Omit this key entirely when it would feel forced.",
+  "followUp": "OPTIONAL. One short line (12 words max), ONLY when the next answer genuinely depends on it: a missing fact, fact-vs-guess, an unclear goal, or safety. When you've already given enough to act on, end without a question. Omit the key otherwise.",
   "memory": ["OPTIONAL array of 0–2 short strings — NEW facts learned in THIS exchange worth remembering about the other person or the situation (events, dates, decisions, circumstances). Facts the user stated only — never feelings you inferred, never your own advice, never anything already in RELATIONSHIP NOTES. Same language as the conversation. Omit the key when nothing new."]
 }
-2) If the latest message is a follow-up, clarification, or short reaction to your previous answer:
-{ "text": "Under 100 words. Conversational and direct, same coaching voice. Answer the follow-up specifically — do not restate your previous answer.", "followUp": "OPTIONAL. Same rule as above.", "memory": ["OPTIONAL. Same rule as above."] }`
+2) If the latest message continues the same scene: it adds facts, confirms or corrects your reading, or reacts — with no new independent request for advice:
+{ "text": "Under 100 words. Conversational and direct, same coaching voice. Answer the follow-up specifically — do not restate your previous answer.", "followUp": "OPTIONAL. One short line (12 words max), ONLY when the next answer genuinely depends on it: a missing fact, fact-vs-guess, an unclear goal, or safety. When you've already given enough to act on, end without a question. Omit the key otherwise.", "memory": ["OPTIONAL. Same rule as above."] }`
     : `Respond ONLY with valid JSON (no markdown fences, no extra keys):
 { "text": "Under 120 words. Warm, practical coach tone. Describe tendencies, not predictions.", "followUp": "OPTIONAL. One short line (12 words max): either a gentle check-back inviting the user to report how it went, or ONE question that would sharpen your next answer. Same language as the answer. Omit this key entirely when it would feel forced." }`;
 
   const persona = mode === 'person'
-    ? 'You are Attune, a Four Pillars relationship coach. Your job is to help the user understand the other person and navigate this specific relationship. Read the other person\'s likely feelings, motives, and reactions from their saju chart and the conversation so far, then give the user specific, practical guidance. Always frame your read as understanding and connection — never as a way to control, pressure, or outmaneuver them.'
+    ? 'You are Attune, a relationship coach who uses Four Pillars as one lens. Your job is to help the user understand the other person and navigate this specific relationship. Start from what the user has told you and what has actually happened between them; use the chart as a supporting lens for personalization the facts alone can\'t give — never as the sole cause of a specific action. Always frame your read as understanding and connection — never as a way to control, pressure, or outmaneuver them.'
     : mode === 'me'
     ? 'You are Attune, a Four Pillars self-awareness coach. Help the user understand their own behavioral tendencies through their saju chart. Warm, grounded, concise. If a question isn\'t really about their chart, still answer it practically and warmly — the chart is helpful context, never a limitation.'
     : 'You are Attune, a thoughtful life coach who uses Four Pillars of Destiny as one lens. Answer practically and concisely.';
@@ -173,18 +229,28 @@ Respond ONLY with valid JSON (no markdown fences, no extra keys). Choose ONE sha
   const PERSON_RULES = `RULES (non-negotiable):
 1. Use hedged language — "likely", "tends to", "may", "~할 가능성이 있어요". Never state a reaction as certainty; never "will".
 2. No yes/no verdicts. No numerical probabilities or scores.
-3. You MAY describe the other person's likely feelings, motives, and reactions — that is the point. Ground every read in their chart or the conversation, and keep it hedged.
+3. You MAY describe the other person's likely feelings, motives, and reactions — that is the point. Ground every read first in what the user told you and what has happened in this conversation; bring the chart in only per BASIS PRIORITY, and keep it hedged.
 4. Forbidden words: weakness, exploit, leverage against, manipulate, vulnerable to. Never frame guidance as controlling or pressuring the other person.
 5. Help the user understand the other person AND adjust their own approach. Offer moves the user can make; never tactics to manipulate or corner the other person.
 6. No medical, legal, or financial advice.
 7. This is an ongoing conversation. Build on earlier turns instead of repeating them, and address what the user just asked.
-8. Answer the user's actual question directly and first. Do NOT recite archetype names or chart labels back to the reader; use the chart only as your private reasoning.
+8. Answer the user's actual question directly and first. Whether their day master / archetype may be named is governed by the IDENTITY state block; outside that allowance, do not recite chart labels back to the reader — the chart is your private reasoning.
 9. Refer to the other person by their name when given. LANGUAGE: detect the question's language and write all free text in it, never mixing. In English, address the user as "you" and tie your read of the other person to what the user can do. In Korean, follow the KOREAN VOICE block below (omit 당신; use the other person's name). JSON keys and part labels stay in English.
 10. Each part must contain one concrete, specific scene tied to THIS relationship — not a generic personality statement. Text over 3 sentences / 55 words is cut.
-11. Do not repeat the same chart-based explanation you already gave in a recent answer. If the same trait becomes relevant again — or the user asks about it again — explain it freshly: rephrase and add one NEW detail instead of reusing earlier wording.
+11. Do not re-explain a chart-based trait you already explained — not even in new wording. When an already-explained trait is relevant again, connect it to the current moment in one short clause, or bring a genuinely NEW chart angle per BASIS PRIORITY — otherwise leave the chart out of this answer.
 12. Always speak TO the user in second person; never describe the user in third person alongside the other person. (Korean: addressing the user as <이름>님 is fine and warm — but never narrate the user like a bystander in an answer addressed to them.)
 13. Labels: pick ONE label set per answer and use all three from that set — never mix labels across the two sets.
-14. If the question asks about dates beyond the listed DAILY PILLARS window, use the {text} shape: say briefly that you can see about three months ahead, offer what you CAN (general element flow, or suggest asking again closer to the date). Never produce a 3-part report just to say you don't know.`;
+14. If the question asks about dates beyond the listed DAILY PILLARS window, use the {text} shape: say briefly that you can see about three months ahead, offer what you CAN (general element flow, or suggest asking again closer to the date). Never produce a 3-part report just to say you don't know.
+
+BASIS PRIORITY — for every answer, and especially the WHY part, ground your reasoning in this order:
+1) Facts the user has told you. 2) What just happened in the latest exchange. 3) Patterns observed repeatedly across this conversation. 4) The chart — a supporting lens only: bring it in when the first three don't explain the moment, or when it adds a genuinely new angle. Never present the chart as the definitive cause of a specific action.
+Consecutive answers must not open WHY with the same basis or a near-identical sentence. If you have no new basis to add, keep WHY to one short sentence — without the chart.
+
+BALANCE: Explain both sides. Separate intent from impact — the user may have meant to check facts while it landed on the other person as an evaluation. Never lecture the user; never only validate them.
+
+NO CHARACTER VERDICTS: Never confirm a stable personality trait from a single incident. Without repeated observation, offer two plausible readings and one thing to watch next time. Even when the chart suggests a tendency: "the chart leans that way, but one moment isn't enough to be sure" — never "that's just how they are."
+
+SCRIPTS: Suggested lines must sound like something an adult actually says to a close adult — no exaggerated praise, no therapist/parent/teacher tone. Prefer: confirm the fact → name the misunderstanding → make the next request. An apology briefly acknowledges how it landed — not self-abasement. Stay close to the user's own register.`;
 
   const SELF_RULES = `RULES (non-negotiable):
 1. Use hedged language — "tends to", "may", "~하는 편이에요". Never certainty; never "will".
@@ -216,6 +282,14 @@ The person's element/archetype identity is context, not a greeting.
 3. Otherwise refer to the trait implicitly ("that head-on streak of theirs") or just answer the question.
 4. Vary answer openings: lead with the situation, the read, or the move — not the chart. This applies in every language.`;
 
+  // person mode only — replaces IDENTITY_MENTIONS_RULES with an explicit, mutually-exclusive
+  // state the server has already determined from `personIntroduced` (BRIEF-100 §4/§8). me/general
+  // keep IDENTITY_MENTIONS_RULES unchanged, since the "has this been introduced" detection is
+  // person-chart-specific.
+  const IDENTITY_STATE_BLOCK = personIntroduced
+    ? `IDENTITY — ALREADY INTRODUCED: Their day master / archetype has been named earlier in this conversation. From here: (a) never re-introduce it ("민수는 갑목이라…", "첫 새벽 성향이라…"); (b) never re-explain the same base-temperament summary (drive, directness, goal-focus) in any wording; (c) you MAY connect the known temperament to THIS specific moment in one short clause; (d) you MAY use a genuinely NEW chart angle (element balance, the axis between your two charts, click/clash) when it adds real insight.`
+    : `IDENTITY — NOT YET INTRODUCED: You may name their day master / archetype once, briefly, if it genuinely helps this answer. One framing is plenty for the whole conversation.`;
+
   return `${persona}
 
 ${chartBlock ? `SAJU CONTEXT:\n${chartBlock}\n\nRead the WHOLE chart — all pillars and the element balance — not just the day master. Weave at most one or two specific chart details into an answer when they genuinely matter; never recite or dump the chart.\n\n` : ''}DAILY PILLARS — NEXT 90 DAYS (server-computed, do not modify):
@@ -234,7 +308,7 @@ ${SAFETY_RULES}
 
 ${PREDICTION_RULES}
 
-${IDENTITY_MENTIONS_RULES}
+${mode === 'person' ? IDENTITY_STATE_BLOCK : IDENTITY_MENTIONS_RULES}
 
 If you name an archetype in a Korean answer, use its Korean name (the KO value) — never mix the English archetype name into Korean prose.
 
@@ -350,7 +424,7 @@ const RequestSchema = z.object({
     role: z.enum(['user', 'assistant']),
     text: z.string(),
     at: z.string().optional(),
-  })).max(10),
+  })).max(20),
   question: z.string().min(1).max(500),
   todayLocal: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   memory: z.array(z.string().max(200)).max(10).optional(),
@@ -406,6 +480,12 @@ export async function POST(request: Request) {
   const todayNames = todayNameCandidates(calculateSaju({ date: today }).pillars.day);
   const todayIntroduced = hasTodayIntroduced(history, todayNames);
 
+  // Has the other person's day master / archetype already been named earlier (person mode only,
+  // BRIEF-100 §8) — bounded by the same `history` window the client sends (§8's known limit).
+  const personIntroduced = mode === 'person' && themChart
+    ? hasPersonIntroduced(history, themNameCandidates(themChart))
+    : undefined;
+
   const system = buildAskSystem(
     mode, meChart, themChart,
     briefing as Record<string, unknown> | undefined,
@@ -413,6 +493,7 @@ export async function POST(request: Request) {
     parsed.data.me.name, themInput?.name,
     mode === 'person' ? parsed.data.memory : undefined,
     todayIntroduced,
+    personIntroduced,
   );
   const turns = buildAskTurns(history, question, today);
 

@@ -33,7 +33,7 @@ Module._load = function (request, parent, isMain) {
 
 const { calculateSaju, getDailyPillars, pillarLabel, friendlyPillarName } = await import(path.join(ROOT, 'src/lib/saju.ts'));
 const { buildBriefingPrompt } = await import(path.join(ROOT, 'src/lib/briefing.ts'));
-const { buildAskTurns, buildAskSystem, hasTodayIntroduced } = await import(path.join(ROOT, 'src/app/api/ask/route.ts'));
+const { buildAskTurns, buildAskSystem, hasTodayIntroduced, themNameCandidates, hasPersonIntroduced } = await import(path.join(ROOT, 'src/app/api/ask/route.ts'));
 const { LENS_FRAGMENTS } = await import(path.join(ROOT, 'src/lib/promptFragments.ts'));
 const { ILJU_PROFILES } = await import(path.join(ROOT, 'src/lib/iljuProfiles.ts'));
 
@@ -261,6 +261,70 @@ function countMarkers(text) {
   );
   const total = turns.reduce((s, t) => s + countMarkers(t.text), 0);
   check('askTurns: no `at` anywhere (old client) -> 0 markers', total === 0, `found ${total}`);
+}
+
+// ── BRIEF-100 v2 — Ask 연속 상담 품질 패치 ───────────────────────────────────
+
+// §1: WHY label replaced
+{
+  const system = buildAskSystem('person', me, them, undefined, []);
+  check('askSystem (person): new WHY THIS MAY HAVE HAPPENED label present', system.includes('WHY THIS MAY HAVE HAPPENED'), '');
+  check('askSystem (person): old WHY (FROM THE CHART) label absent', !system.includes('WHY (FROM THE CHART)'), '');
+  check('askSystem (person): other understand-branch labels unchanged', system.includes("WHAT'S LIKELY GOING ON") && system.includes('WHAT YOU CAN DO'), '');
+  check('askSystem (person): decide-branch labels unchanged', system.includes('LIKELY RECEPTION') && system.includes('WHAT COULD BACKFIRE') && system.includes('HOW TO IMPROVE YOUR ODDS'), '');
+}
+
+// §3: persona + PERSON_RULES 3/8/11 replaced (person-only; me/general untouched)
+{
+  const system = buildAskSystem('person', me, them, undefined, []);
+  check('askSystem (person): new persona wording present', system.includes('Start from what the user has told you and what has actually happened between them'), '');
+  check('askSystem (person): rule 3 grounds in user/conversation first', system.includes('Ground every read first in what the user told you and what has happened in this conversation'), '');
+  check('askSystem (person): rule 8 defers to IDENTITY state block', system.includes('governed by the IDENTITY state block'), '');
+  check('askSystem (person): rule 11 forbids re-explaining even in new wording', system.includes('Do not re-explain a chart-based trait you already explained — not even in new wording'), '');
+
+  const meSystem = buildAskSystem('me', me, null, undefined, []);
+  check('askSystem (me): persona/SELF_RULES unchanged (old persona wording present)', meSystem.includes('You are Attune, a Four Pillars self-awareness coach'), '');
+}
+
+// §5/§6: BASIS PRIORITY + tone rules (person-only)
+{
+  const system = buildAskSystem('person', me, them, undefined, []);
+  check('askSystem (person): BASIS PRIORITY present', system.includes('BASIS PRIORITY'), '');
+  check('askSystem (person): BALANCE tone block present', system.includes('BALANCE: Explain both sides.'), '');
+  check('askSystem (person): NO CHARACTER VERDICTS tone block present', system.includes('NO CHARACTER VERDICTS'), '');
+  check('askSystem (person): SCRIPTS tone block present', system.includes('SCRIPTS: Suggested lines'), '');
+
+  const meSystem = buildAskSystem('me', me, null, undefined, []);
+  check('askSystem (me): BASIS PRIORITY absent (person-only)', !meSystem.includes('BASIS PRIORITY'), '');
+}
+
+// §4: IDENTITY state block — mutually exclusive, and replaces IDENTITY MENTIONS for person only
+{
+  const introduced = buildAskSystem('person', me, them, undefined, [], 'Alex', 'Sam', undefined, undefined, true);
+  check('askSystem (person, personIntroduced=true): ALREADY INTRODUCED present', introduced.includes('IDENTITY — ALREADY INTRODUCED'), '');
+  check('askSystem (person, personIntroduced=true): NOT YET INTRODUCED absent', !introduced.includes('IDENTITY — NOT YET INTRODUCED'), '');
+
+  const notIntroduced = buildAskSystem('person', me, them, undefined, [], 'Alex', 'Sam', undefined, undefined, false);
+  check('askSystem (person, personIntroduced=false): NOT YET INTRODUCED present', notIntroduced.includes('IDENTITY — NOT YET INTRODUCED'), '');
+  check('askSystem (person, personIntroduced=false): ALREADY INTRODUCED absent', !notIntroduced.includes('IDENTITY — ALREADY INTRODUCED'), '');
+
+  check('askSystem (person): IDENTITY MENTIONS block absent (replaced)', !notIntroduced.includes('IDENTITY MENTIONS — AVOID THE BROKEN RECORD'), '');
+
+  const meSystem = buildAskSystem('me', me, null, undefined, []);
+  check('askSystem (me): IDENTITY MENTIONS block still present (unchanged)', meSystem.includes('IDENTITY MENTIONS — AVOID THE BROKEN RECORD'), '');
+}
+
+// §8: themNameCandidates / hasPersonIntroduced — false-positive guard + detection
+{
+  const candidates = themNameCandidates(them);
+  check('themNameCandidates: no bare single-hanja candidate', !candidates.includes(them.pillars.day.stemHanja), '');
+  check('themNameCandidates: no candidate contains "기운"', !candidates.some(c => c.includes('기운')), '');
+
+  const introducedHistory = [{ role: 'assistant', text: `그 사람은 ${candidates[0]}라 그래요.` }];
+  check('hasPersonIntroduced: detects an assistant mention', hasPersonIntroduced(introducedHistory, candidates) === true, '');
+
+  const userOnlyHistory = [{ role: 'user', text: `${candidates[0]} 맞아?` }];
+  check('hasPersonIntroduced: user-only mention -> false', hasPersonIntroduced(userOnlyHistory, candidates) === false, '');
 }
 
 // ── Report ────────────────────────────────────────────────────────────────────
