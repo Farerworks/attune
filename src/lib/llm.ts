@@ -29,6 +29,26 @@ function extractGeminiText(data: GeminiResponse): string {
   return text;
 }
 
+/**
+ * generationConfig, branched by model family (BRIEF-100D §1). `gemini-2.` models keep the
+ * legacy shape (temperature + thinkingConfig.thinkingBudget, preserving 0="off"/N="budget" as
+ * before — never omitted, since omitting means dynamic thinking, a different meaning). Anything
+ * else (currently just gemini-3.5-flash-lite) goes to the new shape: no temperature, no
+ * thinkingBudget, thinkingConfig.thinkingLevel fixed to 'minimal' regardless of the caller's
+ * budget value. No exception is thrown for unrecognized model names — they fall through to the
+ * new shape, same as any other non-2.x model (100C's `test-model-x` included).
+ */
+function buildGenerationConfig(maxTokens: number, thinkingBudget: number, temperature: number): Record<string, unknown> {
+  const shared = {
+    maxOutputTokens: maxTokens,
+    responseMimeType: 'application/json',
+  };
+  if (GEMINI_MODEL.startsWith('gemini-2.')) {
+    return { ...shared, temperature, thinkingConfig: { thinkingBudget } };
+  }
+  return { ...shared, thinkingConfig: { thinkingLevel: 'minimal' } };
+}
+
 class GeminiProvider implements LlmProvider {
   private readonly apiKey: string;
 
@@ -45,12 +65,7 @@ class GeminiProvider implements LlmProvider {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0.4,
-          maxOutputTokens: maxTokens,
-          responseMimeType: 'application/json',
-          thinkingConfig: { thinkingBudget },
-        },
+        generationConfig: buildGenerationConfig(maxTokens, thinkingBudget, 0.4),
       }),
     });
 
@@ -72,12 +87,7 @@ class GeminiProvider implements LlmProvider {
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: system }] },
         contents: turns.map(t => ({ role: t.role, parts: [{ text: t.text }] })),
-        generationConfig: {
-          temperature,
-          maxOutputTokens: maxTokens,
-          responseMimeType: 'application/json',
-          thinkingConfig: { thinkingBudget },
-        },
+        generationConfig: buildGenerationConfig(maxTokens, thinkingBudget, temperature),
       }),
     });
 
