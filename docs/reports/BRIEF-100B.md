@@ -234,5 +234,5 @@ IDENTITY — ALREADY INTRODUCED: Their day master / archetype has been named ear
 
 - 저장소: https://github.com/Farerworks/attune
 - §0.5 브리프 원문 보관: `7b6bc67`
-- 코드 커밋: (다음 커밋에서 반영 예정)
+- 코드 커밋: `6f5a05c`
 - 보고서 해시 반영 커밋: (다음 커밋에서 반영 예정)
