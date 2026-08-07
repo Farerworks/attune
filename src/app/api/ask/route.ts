@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { calculateSaju, getDailyPillars, pillarLabel, friendlyPillarName, STEM_NAMES } from '@/lib/saju';
-import type { SajuChart, DailyPillar, Pillar, Element } from '@/lib/saju';
+import type { SajuChart, DailyPillar, Pillar, Element, TenStem } from '@/lib/saju';
 import { getArchetype, getElementRelationship, localeVoiceBlock, ARCHETYPE_LOCALE } from '@/lib/interpretGuide';
 import { formatChart } from '@/lib/briefing';
 import { createLlmProvider, type ChatTurn } from '@/lib/llm';
@@ -9,7 +9,9 @@ import { detectSafetyTrigger } from '@/lib/safety';
 
 export const maxDuration = 60;
 
-const LLM_TIMEOUT = 55_000;
+// 1차 30s / 재시도·재생성 20s — 합 50s, maxDuration(60s) 안에 여유를 둔다 (BRIEF-100B §2).
+const FIRST_CALL_TIMEOUT = 30_000;
+const RETRY_CALL_TIMEOUT = 20_000;
 const RATE_LIMIT  = 30;
 const RATE_WINDOW = 60 * 60 * 1000;
 
@@ -17,6 +19,11 @@ const BANNED = ['weakness', 'exploit', 'leverage against', 'manipulate', 'vulner
 
 // SAFETY (BRIEF-096 §3 — verbatim, byte-for-byte):
 const SAFETY_RULES = `SAFETY: You are not a crisis service. If the user mentions self-harm, suicide, or harming anyone, do not give relationship advice in that reply — acknowledge briefly; the app routes to human support. Never explain distress or danger through saju, elements, charts, or compatibility. Never tell someone to immediately break up; offer options, not verdicts.`;
+
+// Label sets — single source of truth (BRIEF-100B §6). outputSpec below renders these via
+// .join(' / '), so the assembled prompt text stays byte-identical to the pre-existing wording.
+export const DECIDE_LABELS = ['LIKELY RECEPTION', 'WHAT COULD BACKFIRE', 'HOW TO IMPROVE YOUR ODDS'] as const;
+export const UNDERSTAND_LABELS = ["WHAT'S LIKELY GOING ON", 'WHY THIS MAY HAVE HAPPENED', 'WHAT YOU CAN DO'] as const;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -115,6 +122,87 @@ export function hasPersonIntroduced(
   });
 }
 
+// ── §5: ALREADY-state reintroduction-bait projection (route-local, formatChart untouched) ──
+// All 10 day stems, for scrubbing "Yang Wood (甲)"-style display names out of the THEM part
+// of the prompt once the other person's identity is already introduced (BRIEF-100B §5).
+const ALL_TEN_STEMS: TenStem[] = Object.keys(STEM_NAMES) as TenStem[];
+
+/**
+ * Replaces every "<TenStem EN name> (<hanja>)" occurrence (however it's padded/spaced —
+ * formatChart pads differently per pillar slot) with "<hanja> (<element>, <polarity>)". This is
+ * a probability-reducing projection over the ASSEMBLED text, not a guarantee — the model can
+ * still reconstruct "Yang Wood" from "甲 (wood, yang)" if it wants to. The actual guarantee is
+ * the output validator (§7) + its correction pass, not this substitution.
+ */
+function projectStemDisplayNames(text: string): string {
+  let out = text;
+  for (const stem of ALL_TEN_STEMS) {
+    const { hanja, element } = STEM_NAMES[stem];
+    const polarity = stem.startsWith('Yang') ? 'yang' : 'yin';
+    const re = new RegExp(`${stem} +\\(${hanja}\\)`, 'g');
+    out = out.replace(re, `${hanja} (${element}, ${polarity})`);
+  }
+  return out;
+}
+
+const THEM_ARCHETYPE_WITHHELD = `THEM ARCHETYPE: (name withheld — it was already introduced earlier in this conversation; never re-name or re-explain it. The trait notes below are your private reasoning only.)`;
+
+// ── §3: askMode / continuation-hint detection (conservative — unsure => null/false) ──────────
+// Table-driven so tests can assert against the exact pattern list, not just the function's
+// aggregate decision (BRIEF-100B §3).
+
+export type AskMode = 'strict_script' | 'verdict_probe' | null;
+
+const COUNT_WORD = '(?:\\d+|한|두|세|네)';
+
+export const STRICT_SCRIPT_PATTERNS: RegExp[] = [
+  new RegExp(`문장\\s*${COUNT_WORD}\\s*개`),                    // "문장 두 개", "문장 3개"
+  new RegExp(`${COUNT_WORD}\\s*문장(?:만)?\\s*(?:써|만들|뽑)`), // "3문장 써", "두문장만 뽑아"
+  new RegExp(`멘트\\s*${COUNT_WORD}\\s*개`),                    // "멘트 두 개"
+  /\b(?:write|give|draft)\b(?:\s+me)?\s+\d+\s+(?:lines?|sentences?|messages?)\b/i,
+  /\bexactly\s+\d+\s+(?:lines?|sentences?)\b/i,
+];
+
+export const VERDICT_PROBE_PATTERNS: RegExp[] = [
+  /원래\s*(?:그런|그렇)\s*(?:성격|사람|스타일)/,
+  // No trailing \b — JS regex word-boundary is ASCII-\w-based and doesn't work reliably right
+  // after a Hangul syllable (neither side of the boundary counts as \w), so a `\b` here would
+  // silently fail to match "원래 그래?" etc.
+  /원래\s*(?:그래|그런가)/,
+  /항상\s*(?:그래|이래)/,
+  /원래\s*\S*?(?:형|타입)이야/,
+  /\bis\s+(?:he|she|that)\s+always\s+like\b/i,
+  /\bjust\s+(?:how|who)\s+(?:he|she)\s+is\b/i,
+];
+
+export const CONTINUATION_HINT_PATTERNS: RegExp[] = [
+  /그래서\s*내가/,
+  /그러자\s*\S+[이가]/,
+  /아니,\s*사실은/,
+  /라고\s*했어/,
+];
+
+/** Conservative: only fires on an explicit count ("문장 두 개 써줘"), never on a bare request
+ * ("뭐라고 답할까?", "보낼 문장 써줘") — a false trigger here is worse than missing one. */
+export function detectAskMode(latestUserText: string): AskMode {
+  if (STRICT_SCRIPT_PATTERNS.some(p => p.test(latestUserText))) return 'strict_script';
+  if (VERDICT_PROBE_PATTERNS.some(p => p.test(latestUserText))) return 'verdict_probe';
+  return null;
+}
+
+/** Hint only — never gates validation or forces a shape, just nudges the model (BRIEF-100B §3). */
+export function detectContinuationHint(latestUserText: string): boolean {
+  return CONTINUATION_HINT_PATTERNS.some(p => p.test(latestUserText));
+}
+
+// ── §4: state-block verbatim strings (added to the prompt only when detected) ────────────────
+
+const STRICT_SCRIPT_BLOCK = `SCRIPT REQUEST — the user asked for message lines to send, with an explicit count. Contract for THIS answer: respond in shape 2 ({"text": ...}) — no parts, no labels, no headings. Give exactly the requested number of lines, each ready to send as-is, plus at most one short sentence of framing. No chart talk, no archetype, no day-pillar/today talk, no followUp. This contract outranks every other block for this turn, including TODAY first-mention duty — skip it here.`;
+
+const VERDICT_PROBE_BLOCK = `CHARACTER QUESTION — the user is asking whether this is the other person's fixed personality. Contract for THIS answer: (1) never open with a confirmation ("네", "맞아요", "Yes") and never confirm a fixed trait; (2) start with one short line of honest uncertainty — a few moments aren't enough to define someone; (3) offer at least two different situational readings of the same behavior; (4) give one concrete thing to watch next time that would tell the readings apart; (5) the chart may color a tendency but must never serve as proof of character. Keep it compact.`;
+
+const CONTINUATION_HINT_BLOCK = `CONTINUATION HINT — the latest message reads as a continuation of the same scene (added facts, their reaction, or a correction), not a new question. Shape 2 (short {"text"}) is almost certainly right here; do not restart the 3-part card unless it is clearly a new independent question.`;
+
 // ── Prompt builder ─────────────────────────────────────────────────────────────
 
 export function buildAskSystem(
@@ -128,6 +216,8 @@ export function buildAskSystem(
   memory?: string[],
   todayIntroduced?: boolean,
   personIntroduced?: boolean,
+  askMode?: AskMode,
+  continuationHint?: boolean,
 ): string {
   // Chart context
   let chartBlock = '';
@@ -145,18 +235,29 @@ ME ARCHETYPE: ${myArch.name}${myArchKo ? ` (KO: ${myArchKo})` : ''}
       const themArch  = getArchetype(themChart.dayMaster.stem);
       const themArchKo = ARCHETYPE_LOCALE[themChart.dayMaster.stem]?.name_ko;
       const elemAxis  = getElementRelationship(meChart.dayMaster.stem, themChart.dayMaster.stem);
-      chartBlock += `
+
+      // (a) ALREADY: withhold the name; NOT YET: name it as before (BRIEF-100B §5).
+      const themArchetypeLine = personIntroduced
+        ? THEM_ARCHETYPE_WITHHELD
+        : `THEM ARCHETYPE: ${themArch.name}${themArchKo ? ` (KO: ${themArchKo})` : ''}`;
+
+      // "THEM part" — chart table + archetype + Drive/Communication/Stress + ELEMENT AXIS
+      // (+ pillarsKnown note + BRIEFING SUMMARY, appended below) is the exact scope the §5
+      // projection applies to. RELATIONSHIP NOTES (memory) is appended AFTER, unprocessed —
+      // user-sourced data is never rewritten (see §5's exception table).
+      let themPart = `
 
 ${formatChart(themChart, `THEM${themName ? ` — ${themName}` : ''}`)}
 
-THEM ARCHETYPE: ${themArch.name}${themArchKo ? ` (KO: ${themArchKo})` : ''}
+${themArchetypeLine}
   Drive: ${themArch.coreDrive}
   Communication: ${themArch.communication}
   Under stress: ${themArch.stress}
 
 ELEMENT AXIS (ME → THEM): ${elemAxis}`;
+
       if (themChart.pillarsKnown === 6) {
-        chartBlock += `
+        themPart += `
 Note: their birth time is unknown — 6 of 8 pillars available. Avoid overconfident assertions.`;
       }
 
@@ -165,12 +266,19 @@ Note: their birth time is unknown — 6 of 8 pillars available. Avoid overconfid
         if (dyn) {
           const click = (dyn.click as { takeaway?: string } | undefined)?.takeaway ?? '';
           const clash = (dyn.clash as { takeaway?: string } | undefined)?.takeaway ?? '';
-          chartBlock += `\n\nBRIEFING SUMMARY (pre-computed context)
+          themPart += `\n\nBRIEFING SUMMARY (pre-computed context)
   Resonance: ${String(dyn.resonance ?? '')}
   Click: ${click}
   Clash: ${clash}`;
         }
       }
+
+      // (b) ALREADY only: scrub "<TenStem> (<hanja>)" display names out of the them-part.
+      if (personIntroduced) {
+        themPart = projectStemDisplayNames(themPart);
+      }
+
+      chartBlock += themPart;
 
       if (memory && memory.length > 0) {
         chartBlock += `\n\nRELATIONSHIP NOTES — facts learned in earlier conversations (background context; use naturally, never recite back as a list):
@@ -200,8 +308,8 @@ AFTER that: use only the short handle, woven in ("물 호랑이 기운이…" / 
   // Output schema per mode
   const outputSpec = mode === 'person'
     ? `Choose the 3 part labels to fit the question (labels in English, UPPERCASE):
-- If the user is deciding whether to DO something (should I…, is it a good idea…): LIKELY RECEPTION / WHAT COULD BACKFIRE / HOW TO IMPROVE YOUR ODDS.
-- If the user is trying to UNDERSTAND (why is…, what's going on…, how does he feel…): WHAT'S LIKELY GOING ON / WHY THIS MAY HAVE HAPPENED / WHAT YOU CAN DO.
+- If the user is deciding whether to DO something (should I…, is it a good idea…): ${DECIDE_LABELS.join(' / ')}.
+- If the user is trying to UNDERSTAND (why is…, what's going on…, how does he feel…): ${UNDERSTAND_LABELS.join(' / ')}.
 
 Respond ONLY with valid JSON (no markdown fences, no extra keys). Choose ONE shape:
 1) If the latest message is a NEW substantive question — a new situation, a decision to make, an explicit ask for advice, or a real re-judgment of your earlier conclusion:
@@ -245,6 +353,7 @@ Respond ONLY with valid JSON (no markdown fences, no extra keys). Choose ONE sha
 BASIS PRIORITY — for every answer, and especially the WHY part, ground your reasoning in this order:
 1) Facts the user has told you. 2) What just happened in the latest exchange. 3) Patterns observed repeatedly across this conversation. 4) The chart — a supporting lens only: bring it in when the first three don't explain the moment, or when it adds a genuinely new angle. Never present the chart as the definitive cause of a specific action.
 Consecutive answers must not open WHY with the same basis or a near-identical sentence. If you have no new basis to add, keep WHY to one short sentence — without the chart.
+When the user has given you no concrete facts yet, say so briefly and offer possibilities — do not let the chart fill the gap as if it were evidence.
 
 BALANCE: Explain both sides. Separate intent from impact — the user may have meant to check facts while it landed on the other person as an evaluation. Never lecture the user; never only validate them.
 
@@ -290,6 +399,25 @@ The person's element/archetype identity is context, not a greeting.
     ? `IDENTITY — ALREADY INTRODUCED: Their day master / archetype has been named earlier in this conversation. From here: (a) never re-introduce it ("민수는 갑목이라…", "첫 새벽 성향이라…"); (b) never re-explain the same base-temperament summary (drive, directness, goal-focus) in any wording; (c) you MAY connect the known temperament to THIS specific moment in one short clause; (d) you MAY use a genuinely NEW chart angle (element balance, the axis between your two charts, click/clash) when it adds real insight.`
     : `IDENTITY — NOT YET INTRODUCED: You may name their day master / archetype once, briefly, if it genuinely helps this answer. One framing is plenty for the whole conversation.`;
 
+  // KOREAN VOICE lives in src/lib/interpretGuide.ts (LOCALE_VOICE.Korean) — off-limits to edit
+  // directly (BRIEF-100B §11 "src/lib 전체 무접촉"). Since it's the ONLY entry in that table,
+  // localeVoiceBlock() always returns exactly that string, so appending item 8 here (person mode
+  // only — "the other person" doesn't exist as a concept in me/general) is safe and keeps
+  // me/general's assembled prompt byte-identical to before this BRIEF (§5 보존 테스트 ③).
+  const koreanVoiceBase = localeVoiceBlock();
+  const koreanVoice = mode === 'person'
+    ? `${koreanVoiceBase}
+8) Mirror the user's way of naming the other person (e.g., "지현이" stays "지현이", "지현님" stays "지현님") — never upgrade or downgrade the honorific on your own. If the user's term for them is an insult, use the plain name.`
+    : koreanVoiceBase;
+
+  // §4 state blocks — added only when detected, turn-specific, so placed last (closest to the
+  // output schema, where recency-weighted instructions land hardest).
+  const modeBlocks: string[] = [];
+  if (askMode === 'strict_script') modeBlocks.push(STRICT_SCRIPT_BLOCK);
+  if (askMode === 'verdict_probe') modeBlocks.push(VERDICT_PROBE_BLOCK);
+  if (continuationHint) modeBlocks.push(CONTINUATION_HINT_BLOCK);
+  const modeBlocksText = modeBlocks.length > 0 ? `\n\n${modeBlocks.join('\n\n')}` : '';
+
   return `${persona}
 
 ${chartBlock ? `SAJU CONTEXT:\n${chartBlock}\n\nRead the WHOLE chart — all pillars and the element balance — not just the day master. Weave at most one or two specific chart details into an answer when they genuinely matter; never recite or dump the chart.\n\n` : ''}DAILY PILLARS — NEXT 90 DAYS (server-computed, do not modify):
@@ -312,9 +440,9 @@ ${mode === 'person' ? IDENTITY_STATE_BLOCK : IDENTITY_MENTIONS_RULES}
 
 If you name an archetype in a Korean answer, use its Korean name (the KO value) — never mix the English archetype name into Korean prose.
 
-${localeVoiceBlock()}
+${koreanVoice}
 
-FOLLOW-UP RULE: at most ONE followUp per answer. Never re-ask what the user already told you. Never stack questions. In Korean, no 당신 — e.g. "해보고 어땠는지 알려줘요" / "혹시 지현이 먼저 연락한 적도 있어요?". Skip it entirely on heavy or emotional moments where a question would feel pushy.
+FOLLOW-UP RULE: at most ONE followUp per answer. Never re-ask what the user already told you. Never stack questions. In Korean, no 당신 — e.g. "해보고 어땠는지 알려줘요" / "혹시 지현이 먼저 연락한 적도 있어요?". Skip it entirely on heavy or emotional moments where a question would feel pushy.${modeBlocksText}
 
 ${outputSpec}`;
 }
@@ -405,6 +533,235 @@ function normalizeAnswer(
   };
 }
 
+// ── §6/§7: answer validator (pure — reads the answer, never mutates it) ──────────────────────
+
+export type AskViolationType = 'label_set' | 'label_order' | 'strict_script_parts' | 'reintroduction' | 'verdict_opening';
+export interface AskViolation { type: AskViolationType; detail?: string }
+export interface AskValidationCtx {
+  askMode: AskMode;
+  personIntroduced?: boolean;
+  candidates: string[];
+  latestUserText: string;
+}
+
+function partsLabels(answer: Record<string, unknown>): string[] | null {
+  if (!Array.isArray(answer.parts)) return null;
+  return (answer.parts as Array<{ label: string }>).map(p => p.label);
+}
+
+function isExactSet(labels: string[], set: readonly string[]): boolean {
+  return labels.length === set.length && set.every(l => labels.includes(l));
+}
+
+/**
+ * Reads an already-normalized answer and reports violations — never mutates. `label_order` is
+ * reported here for standalone testability, but the route fixes it in place (no regen spent)
+ * BEFORE calling this in the real pipeline, so it should never actually reach the regen decision
+ * (BRIEF-100B §1's "라벨 순서만 위반" row).
+ */
+export function validateAskAnswer(answer: Record<string, unknown>, ctx: AskValidationCtx): AskViolation[] {
+  const violations: AskViolation[] = [];
+  const labels = partsLabels(answer);
+
+  if (ctx.askMode === 'strict_script' && labels !== null) {
+    violations.push({ type: 'strict_script_parts' });
+  }
+
+  if (labels !== null) {
+    const matchesUnderstand = isExactSet(labels, UNDERSTAND_LABELS);
+    const matchesDecide = isExactSet(labels, DECIDE_LABELS);
+    if (!matchesUnderstand && !matchesDecide) {
+      violations.push({ type: 'label_set' });
+    } else {
+      const canonical = matchesUnderstand ? UNDERSTAND_LABELS : DECIDE_LABELS;
+      const inOrder = labels.every((l, i) => l === canonical[i]);
+      if (!inOrder) violations.push({ type: 'label_order' });
+    }
+  }
+
+  // Reintroduction — person + ALREADY only. The user's own latest message is exempt (they may
+  // have asked "첫 새벽이라 그런 거야?" directly — the assistant must be able to answer that).
+  if (ctx.personIntroduced) {
+    const normalizedAnswer = normalizeForMatch(JSON.stringify(answer));
+    const normalizedUserText = normalizeForMatch(ctx.latestUserText);
+    for (const candidate of ctx.candidates) {
+      const nc = normalizeForMatch(candidate);
+      if (!nc || normalizedUserText.includes(nc)) continue;
+      if (normalizedAnswer.includes(nc)) { violations.push({ type: 'reintroduction', detail: candidate }); break; }
+    }
+  }
+
+  // verdict_probe leading-affirmation — a SOFT signal only (§6's own documented limitation:
+  // an unflagged verdict sentence can still slip through, and a flagged opening isn't always
+  // actually a verdict — the real defense is the §4 contract block, this is a backstop nudge).
+  if (ctx.askMode === 'verdict_probe') {
+    const opening = labels !== null
+      ? String((answer.parts as Array<{ text: string }>)[0]?.text ?? '')
+      : String(answer.text ?? '');
+    const trimmed = opening.trim();
+    // Same Hangul-\b caveat as above: use a negative lookahead (not followed by another Hangul
+    // syllable) for the Korean words instead of \b; "Yes" is plain ASCII so \b works normally.
+    const startsWithAffirm = /^(?:(?:네|맞아요|맞아)(?![가-힣])|Yes\b)/.test(trimmed);
+    const firstSentence = trimmed.split(/(?<=[.!?。])\s|\n/)[0] ?? trimmed;
+    const affirmPattern = /원래\s*그런\s*(?:편|성격|사람)/.test(firstSentence);
+    if (startsWithAffirm || affirmPattern) violations.push({ type: 'verdict_opening' });
+  }
+
+  return violations;
+}
+
+/** Order-only fix — free (no regen budget spent), applied immediately wherever label_order is
+ * the issue (BRIEF-100B §1's "재생성 없이... 1차에서 즉시" row). Leaves an invalid set alone. */
+function fixLabelOrder(answer: Record<string, unknown>): { answer: Record<string, unknown>; fixed: boolean } {
+  const labels = partsLabels(answer);
+  if (labels === null) return { answer, fixed: false };
+  const matchesUnderstand = isExactSet(labels, UNDERSTAND_LABELS);
+  const matchesDecide = isExactSet(labels, DECIDE_LABELS);
+  if (!matchesUnderstand && !matchesDecide) return { answer, fixed: false };
+  const canonical = matchesUnderstand ? UNDERSTAND_LABELS : DECIDE_LABELS;
+  if (labels.every((l, i) => l === canonical[i])) return { answer, fixed: false };
+  const parts = answer.parts as Array<{ label: string; text: string }>;
+  const reordered = canonical.map(label => parts.find(p => p.label === label)!);
+  return { answer: { ...answer, parts: reordered }, fixed: true };
+}
+
+/** Label-SET violation final disposition — stamps the majority-matching set's 3 canonical
+ * labels onto the existing parts positionally; text content is untouched (BRIEF-100B §1). */
+function normalizeLabels(answer: Record<string, unknown>): Record<string, unknown> {
+  const parts = answer.parts as Array<{ label: string; text: string }>;
+  const labels = parts.map(p => p.label);
+  const understandMatches = labels.filter(l => (UNDERSTAND_LABELS as readonly string[]).includes(l)).length;
+  const decideMatches = labels.filter(l => (DECIDE_LABELS as readonly string[]).includes(l)).length;
+  const winning = understandMatches >= decideMatches ? UNDERSTAND_LABELS : DECIDE_LABELS;
+  const newParts = parts.map((p, i) => ({ ...p, label: winning[i] }));
+  return { ...answer, parts: newParts };
+}
+
+/** strict_script + parts final disposition — downgrades to shape 2 by joining the 3 part
+ * texts with a blank line, dropping `parts`/`timing` (BRIEF-100B §1). */
+function downgradeToText(answer: Record<string, unknown>): Record<string, unknown> {
+  const parts = answer.parts as Array<{ text: string }>;
+  const combined = parts.map(p => p.text).join('\n\n');
+  const { parts: _p, timing: _t, ...rest } = answer;
+  void _p; void _t;
+  return { ...rest, text: combined };
+}
+
+/** Final, deterministic disposition for whatever violations remain after the (at most one)
+ * correction attempt — never returns null; only call/parse/schema/banned can hard-fail, and
+ * those are handled before this is ever called (BRIEF-100B §1's disposition table). */
+function applyFinalDisposition(
+  answer: Record<string, unknown>,
+  violations: AskViolation[],
+): { answer: Record<string, unknown>; flags: Array<{ stage: string; action: string }> } {
+  let out = answer;
+  const flags: Array<{ stage: string; action: string }> = [];
+  const hasType = (t: AskViolationType) => violations.some(v => v.type === t);
+
+  if (hasType('strict_script_parts')) {
+    out = downgradeToText(out);
+    flags.push({ stage: 'script', action: 'downgrade' });
+  } else if (hasType('label_set')) {
+    out = normalizeLabels(out);
+    flags.push({ stage: 'labels', action: 'normalize' });
+  }
+  if (hasType('reintroduction')) flags.push({ stage: 'reintro', action: 'soft' });
+  if (hasType('verdict_opening')) flags.push({ stage: 'verdict', action: 'soft' });
+  return { answer: out, flags };
+}
+
+function stageOf(type: AskViolationType): string {
+  switch (type) {
+    case 'label_set':
+    case 'label_order':
+      return 'labels';
+    case 'strict_script_parts':
+      return 'script';
+    case 'reintroduction':
+      return 'reintro';
+    case 'verdict_opening':
+      return 'verdict';
+  }
+}
+
+function buildCorrectionWarnings(schemaInvalid: boolean, banned: string[], violations: AskViolation[]): string[] {
+  const warnings: string[] = [];
+  if (schemaInvalid) warnings.push('⚠ SCHEMA VIOLATION — Response did not match required JSON shape. Return exactly the specified schema.');
+  if (banned.length > 0) warnings.push(`⚠ BANNED PHRASES — Found: ${banned.map(v => `"${v}"`).join(', ')}. Regenerate without these phrases.`);
+  for (const v of violations) {
+    switch (v.type) {
+      case 'label_set':
+        warnings.push('⚠ LABEL SET VIOLATION — Use all three labels from exactly one set (never mix the DECIDE and UNDERSTAND sets). Regenerate with a single consistent label set.');
+        break;
+      case 'strict_script_parts':
+        warnings.push('⚠ SCRIPT CONTRACT VIOLATION — The user asked for exact message lines. Respond in shape 2 ({"text": ...}) with no parts/labels. Regenerate in that shape.');
+        break;
+      case 'reintroduction':
+        warnings.push(`⚠ REINTRODUCTION VIOLATION — You named "${v.detail}", but their identity was already introduced earlier in this conversation. Do not re-name or re-explain it. Regenerate without it.`);
+        break;
+      case 'verdict_opening':
+        warnings.push('⚠ VERDICT OPENING VIOLATION — Do not open by confirming a fixed personality trait. Start with honest uncertainty and offer two situational readings instead. Regenerate.');
+        break;
+      case 'label_order':
+        break; // fixed in place, never reaches here
+    }
+  }
+  return warnings;
+}
+
+// ── §2: call classification + logging (route-local — llm.ts itself is untouched) ─────────────
+
+interface CallOk { ok: true; raw: string }
+interface CallFail { ok: false; status?: number; timeout: boolean; failFast: boolean; errName: string }
+type CallResult = CallOk | CallFail;
+
+async function callModel(system: string, turns: ChatTurn[], timeoutMs: number): Promise<CallResult> {
+  try {
+    const llm = createLlmProvider();
+    const raw = await withTimeout(llm.generateJsonChat(system, turns, { maxTokens: 4096, thinkingBudget: 1024, temperature: 0.7 }), timeoutMs);
+    return { ok: true, raw };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    const errName = err instanceof Error ? err.name : 'Error';
+    const geminiMatch = msg.match(/^Gemini API error (\d+):/);
+    if (geminiMatch) {
+      const status = Number(geminiMatch[1]);
+      const retryable = status === 429 || status >= 500;
+      return { ok: false, status, timeout: false, failFast: !retryable, errName };
+    }
+    if (msg.includes('returned no text')) return { ok: false, timeout: false, failFast: false, errName };
+    if (msg.includes('LLM timed out after')) return { ok: false, timeout: true, failFast: false, errName };
+    if (msg.includes('GEMINI_API_KEY environment variable is not set')) return { ok: false, timeout: false, failFast: true, errName };
+    return { ok: false, timeout: false, failFast: false, errName }; // other network-ish exception -> retry
+  }
+}
+
+function tryParse(raw: string): { ok: true; value: unknown } | { ok: false; errName: string } {
+  try { return { ok: true, value: extractJson(raw) }; }
+  catch (err) { return { ok: false, errName: err instanceof Error ? err.name : 'Error' }; }
+}
+
+/** [ask] rid=<rid> stage=<...> action=<...> status=<숫자|-> timeout=<y|n> [rawLen=<n>] [err=<name>]
+ * Never logs raw response/conversation content — only lengths and error names (BRIEF-100B §2,
+ * fixing the prior privacy defect where response bodies were logged via rawAnswer.slice(0,300)). */
+function logAsk(
+  rid: string,
+  stage: string,
+  action: string,
+  opts: { status?: number; timeout?: boolean; rawLen?: number; errName?: string } = {},
+): void {
+  const status = opts.status !== undefined ? String(opts.status) : '-';
+  const timeout = opts.timeout ? 'y' : 'n';
+  let line = `[ask] rid=${rid} stage=${stage} action=${action} status=${status} timeout=${timeout}`;
+  if (opts.rawLen !== undefined) line += ` rawLen=${opts.rawLen}`;
+  if (opts.errName) line += ` err=${opts.errName}`;
+  console.error(line);
+}
+
+function errorResponse(code: 'call' | 'parse' | 'schema' | 'banned', status: number) {
+  return Response.json({ error: "Attune couldn't finish that thought — ask again.", code }, { status });
+}
+
 // ── Request schema ─────────────────────────────────────────────────────────────
 
 const RequestSchema = z.object({
@@ -486,6 +843,12 @@ export async function POST(request: Request) {
     ? hasPersonIntroduced(history, themNameCandidates(themChart))
     : undefined;
 
+  // §3: askMode / continuation hint — detected for all 3 modes, from the latest question only.
+  const askMode = detectAskMode(question);
+  const continuationHint = detectContinuationHint(question);
+  const candidates = mode === 'person' && themChart ? themNameCandidates(themChart) : [];
+  const ctx: AskValidationCtx = { askMode, personIntroduced, candidates, latestUserText: question };
+
   const system = buildAskSystem(
     mode, meChart, themChart,
     briefing as Record<string, unknown> | undefined,
@@ -494,67 +857,112 @@ export async function POST(request: Request) {
     mode === 'person' ? parsed.data.memory : undefined,
     todayIntroduced,
     personIntroduced,
+    askMode,
+    continuationHint,
   );
   const turns = buildAskTurns(history, question, today);
+  const rid = crypto.randomUUID().slice(0, 8);
 
-  const llm = createLlmProvider();
+  // ── §1/§2 pipeline: 1 primary call + at most 1 shared extra call (retry OR correction) ──────
 
-  // First attempt
-  let rawAnswer: string;
-  try {
-    rawAnswer = await withTimeout(llm.generateJsonChat(system, turns, { maxTokens: 4096, thinkingBudget: 1024, temperature: 0.7 }), LLM_TIMEOUT);
-  } catch (err) {
-    console.error('[ask] LLM call failed:', err instanceof Error ? err.message : err);
-    return Response.json({ error: "Attune couldn't finish that thought — ask again." }, { status: 502 });
+  let usedExtraCall = false;
+
+  let callRes = await callModel(system, turns, FIRST_CALL_TIMEOUT);
+  if (!callRes.ok) {
+    if (callRes.failFast) {
+      logAsk(rid, 'call', 'fail', callRes);
+      return errorResponse('call', 502);
+    }
+    logAsk(rid, 'call', 'retry', callRes);
+    usedExtraCall = true;
+    callRes = await callModel(system, turns, RETRY_CALL_TIMEOUT);
+    if (!callRes.ok) {
+      logAsk(rid, 'call', 'fail', callRes);
+      return errorResponse('call', 502);
+    }
   }
 
-  let rawParsed: unknown;
-  try { rawParsed = extractJson(rawAnswer); }
-  catch {
-    console.error('[ask] LLM response not parseable:', rawAnswer.slice(0, 300));
-    return Response.json({ error: "Attune couldn't finish that thought — ask again." }, { status: 502 });
+  let raw = callRes.raw;
+  let parseRes = tryParse(raw);
+
+  if (!parseRes.ok) {
+    if (usedExtraCall) {
+      logAsk(rid, 'parse', 'fail', { rawLen: raw.length, errName: parseRes.errName });
+      return errorResponse('parse', 502);
+    }
+    logAsk(rid, 'parse', 'retry', { rawLen: raw.length, errName: parseRes.errName });
+    usedExtraCall = true;
+    const retryCall = await callModel(system, turns, RETRY_CALL_TIMEOUT);
+    if (!retryCall.ok) {
+      logAsk(rid, 'call', 'fail', retryCall);
+      return errorResponse('call', 502);
+    }
+    raw = retryCall.raw;
+    parseRes = tryParse(raw);
+    if (!parseRes.ok) {
+      logAsk(rid, 'parse', 'fail', { rawLen: raw.length, errName: parseRes.errName });
+      return errorResponse('parse', 502);
+    }
   }
 
-  let answer = normalizeAnswer(mode, rawParsed);
-  const violations = answer ? findBanned(JSON.stringify(answer)) : [];
+  let answer = normalizeAnswer(mode, parseRes.value);
+  if (answer) {
+    const orderFix = fixLabelOrder(answer);
+    if (orderFix.fixed) { answer = orderFix.answer; logAsk(rid, 'labels', 'reorder', {}); }
+  }
+  let banned = answer ? findBanned(JSON.stringify(answer)) : [];
+  let violations = answer ? validateAskAnswer(answer, ctx) : [];
 
-  // If schema invalid or banned phrases → one retry with combined warnings
-  if (!answer || violations.length > 0) {
-    const warnings: string[] = [];
-    if (!answer) warnings.push('⚠ SCHEMA VIOLATION — Response did not match required JSON shape. Return exactly the specified schema.');
-    if (violations.length > 0) warnings.push(`⚠ BANNED PHRASES — Found: ${violations.map(v => `"${v}"`).join(', ')}. Regenerate without these phrases.`);
+  if (!answer || banned.length > 0 || violations.length > 0) {
+    if (usedExtraCall) {
+      // Budget already spent on a call/parse retry — resolve deterministically, no more calls.
+      if (!answer) { logAsk(rid, 'schema', 'fail', {}); return errorResponse('schema', 502); }
+      if (banned.length > 0) { logAsk(rid, 'banned', 'fail', {}); return errorResponse('banned', 502); }
+      const disposition = applyFinalDisposition(answer, violations);
+      for (const f of disposition.flags) logAsk(rid, f.stage, f.action, {});
+      return Response.json({ answer: disposition.answer });
+    }
 
-    const retryTurns: ChatTurn[] = [
+    // Spend the single shared correction attempt.
+    usedExtraCall = true;
+    if (!answer) logAsk(rid, 'schema', 'regen', {});
+    if (banned.length > 0) logAsk(rid, 'banned', 'regen', {});
+    for (const v of violations) logAsk(rid, stageOf(v.type), 'regen', {});
+
+    const warnings = buildCorrectionWarnings(!answer, banned, violations);
+    const correctionTurns: ChatTurn[] = [
       ...turns,
-      { role: 'model', text: rawAnswer },
+      { role: 'model', text: raw },
       { role: 'user', text: warnings.join('\n\n') },
     ];
 
-    let retryRaw: string;
-    try {
-      retryRaw = await withTimeout(llm.generateJsonChat(system, retryTurns, { maxTokens: 4096, thinkingBudget: 1024, temperature: 0.7 }), LLM_TIMEOUT);
-    } catch (err) {
-      console.error('[ask] Retry LLM call failed:', err instanceof Error ? err.message : err);
-      return Response.json({ error: "Attune couldn't finish that thought — ask again." }, { status: 502 });
+    const correctionRes = await callModel(system, correctionTurns, RETRY_CALL_TIMEOUT);
+    if (!correctionRes.ok) {
+      logAsk(rid, 'call', 'fail', correctionRes);
+      return errorResponse('call', 502);
+    }
+    raw = correctionRes.raw;
+    parseRes = tryParse(raw);
+    if (!parseRes.ok) {
+      logAsk(rid, 'parse', 'fail', { rawLen: raw.length, errName: parseRes.errName });
+      return errorResponse('parse', 502);
     }
 
-    let retryParsed: unknown;
-    try { retryParsed = extractJson(retryRaw); }
-    catch {
-      console.error('[ask] Retry LLM response not parseable:', retryRaw.slice(0, 300));
-      return Response.json({ error: "Attune couldn't finish that thought — ask again." }, { status: 502 });
+    answer = normalizeAnswer(mode, parseRes.value);
+    if (answer) {
+      const orderFix2 = fixLabelOrder(answer);
+      if (orderFix2.fixed) { answer = orderFix2.answer; logAsk(rid, 'labels', 'reorder', {}); }
     }
+    if (!answer) { logAsk(rid, 'schema', 'fail', {}); return errorResponse('schema', 502); }
 
-    answer = normalizeAnswer(mode, retryParsed);
-    if (!answer) {
-      console.error('[ask] Retry still schema-invalid');
-      return Response.json({ error: "Attune couldn't finish that thought — ask again." }, { status: 502 });
-    }
+    banned = findBanned(JSON.stringify(answer));
+    if (banned.length > 0) { logAsk(rid, 'banned', 'fail', {}); return errorResponse('banned', 502); }
 
-    const retryViolations = findBanned(JSON.stringify(answer));
-    if (retryViolations.length > 0) {
-      console.error('[ask] Banned phrases after retry:', retryViolations);
-      return Response.json({ error: "Attune couldn't finish that thought — ask again." }, { status: 502 });
+    violations = validateAskAnswer(answer, ctx);
+    if (violations.length > 0) {
+      const disposition = applyFinalDisposition(answer, violations);
+      for (const f of disposition.flags) logAsk(rid, f.stage, f.action, {});
+      return Response.json({ answer: disposition.answer });
     }
   }
 

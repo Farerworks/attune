@@ -7,13 +7,18 @@ vi.mock('@/lib/rateLimit', () => ({
 }));
 
 const mockGenerateJsonChat = vi.fn();
+const mockCreateLlmProvider = vi.fn(() => ({
+  generateJsonChat: (...args: unknown[]) => mockGenerateJsonChat(...args),
+}));
 vi.mock('@/lib/llm', () => ({
-  createLlmProvider: () => ({
-    generateJsonChat: (...args: unknown[]) => mockGenerateJsonChat(...args),
-  }),
+  createLlmProvider: () => mockCreateLlmProvider(),
 }));
 
-const { buildAskTurns, buildAskSystem, hasTodayIntroduced, themNameCandidates, hasPersonIntroduced, POST } = await import('./route');
+const {
+  buildAskTurns, buildAskSystem, hasTodayIntroduced, themNameCandidates, hasPersonIntroduced, POST,
+  detectAskMode, detectContinuationHint, STRICT_SCRIPT_PATTERNS, VERDICT_PROBE_PATTERNS, CONTINUATION_HINT_PATTERNS,
+  validateAskAnswer, UNDERSTAND_LABELS, DECIDE_LABELS,
+} = await import('./route');
 const { calculateSaju, getDailyPillars, pillarLabel, friendlyPillarName, STEM_NAMES } = await import('@/lib/saju');
 const { ARCHETYPES, ARCHETYPE_LOCALE } = await import('@/lib/interpretGuide');
 
@@ -574,3 +579,558 @@ describe('POST /api/ask — IDENTITY state wiring (BRIEF-100 §9 P0-5)', () => {
     expect(system).not.toContain('IDENTITY — NOT YET INTRODUCED');
   });
 });
+
+// ══════════════════════════════════════════════════════════════════════════
+// BRIEF-100B v3 — Ask 응답 검증·회복 파이프라인
+// ══════════════════════════════════════════════════════════════════════════
+
+describe('detectAskMode (BRIEF-100B §3)', () => {
+  it.each([
+    '문장 두 개 써줘', '문장 3개 만들어줘', '3문장 써줘', '두문장만 뽑아줘',
+    '멘트 두 개 줘', 'write me 3 lines', 'give 2 sentences', 'draft 3 messages', 'exactly 2 lines please',
+  ])('strict_script positive: %s', (text) => {
+    expect(detectAskMode(text)).toBe('strict_script');
+  });
+
+  it.each([
+    '뭐라고 답할까?', '보낼 문장 써줘', '선물 두 개 중 뭐가 나아', '어떻게 말하지?', '조언 좀 해줘',
+  ])('strict_script negative (no explicit count near 문장/멘트) -> null: %s', (text) => {
+    expect(detectAskMode(text)).not.toBe('strict_script');
+  });
+
+  it.each([
+    '쟤 원래 그런 성격이야?', '원래 그래?', '항상 그래', '원래 회피형이야?',
+    'is he always like that', 'just how he is',
+  ])('verdict_probe positive: %s', (text) => {
+    expect(detectAskMode(text)).toBe('verdict_probe');
+  });
+
+  it.each([
+    '성격이 어때?', '오늘 뭐해?',
+  ])('verdict_probe negative -> null: %s', (text) => {
+    expect(detectAskMode(text)).toBeNull();
+  });
+
+  it('strict_script is checked before verdict_probe (no realistic overlap, but priority is deterministic)', () => {
+    for (const p of STRICT_SCRIPT_PATTERNS) expect(p).toBeInstanceOf(RegExp);
+    for (const p of VERDICT_PROBE_PATTERNS) expect(p).toBeInstanceOf(RegExp);
+  });
+});
+
+describe('detectContinuationHint (BRIEF-100B §3)', () => {
+  it.each([
+    '그래서 내가 이렇게 말했어', '그러자 지현이가 화를 냈어', '아니, 사실은 내가 먼저 그랬어',
+  ])('positive: %s', (text) => {
+    expect(detectContinuationHint(text)).toBe(true);
+  });
+
+  it('negative on an unrelated fresh question', () => {
+    expect(detectContinuationHint('오늘 소개팅 어때?')).toBe(false);
+  });
+
+  it('CONTINUATION_HINT_PATTERNS is exported for direct comparison', () => {
+    expect(CONTINUATION_HINT_PATTERNS.length).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe('validateAskAnswer (BRIEF-100B §6/§7)', () => {
+  const baseCtx: { askMode: 'strict_script' | 'verdict_probe' | null; personIntroduced: boolean; candidates: string[]; latestUserText: string } =
+    { askMode: null, personIntroduced: false, candidates: [], latestUserText: '' };
+
+  it('a normal UNDERSTAND-set answer, in order -> no violations', () => {
+    const answer = { parts: UNDERSTAND_LABELS.map(label => ({ label, text: 'x' })) };
+    expect(validateAskAnswer(answer, baseCtx)).toEqual([]);
+  });
+
+  it('a normal DECIDE-set answer, in order -> no violations', () => {
+    const answer = { parts: DECIDE_LABELS.map(label => ({ label, text: 'x' })) };
+    expect(validateAskAnswer(answer, baseCtx)).toEqual([]);
+  });
+
+  it('mixed labels (2 UNDERSTAND + 1 DECIDE) -> label_set violation', () => {
+    const answer = { parts: [
+      { label: UNDERSTAND_LABELS[0], text: 'x' },
+      { label: UNDERSTAND_LABELS[1], text: 'x' },
+      { label: DECIDE_LABELS[0], text: 'x' },
+    ] };
+    const violations = validateAskAnswer(answer, baseCtx);
+    expect(violations.some(v => v.type === 'label_set')).toBe(true);
+  });
+
+  it('correct set, wrong order -> label_order violation (route fixes this in place — see pipeline tests)', () => {
+    const shuffled = [UNDERSTAND_LABELS[2], UNDERSTAND_LABELS[0], UNDERSTAND_LABELS[1]];
+    const answer = { parts: shuffled.map(label => ({ label, text: 'x' })) };
+    const violations = validateAskAnswer(answer, baseCtx);
+    expect(violations).toEqual([{ type: 'label_order' }]);
+  });
+
+  it('strict_script askMode but the answer has parts -> strict_script_parts violation', () => {
+    const answer = { parts: UNDERSTAND_LABELS.map(label => ({ label, text: 'x' })) };
+    const violations = validateAskAnswer(answer, { ...baseCtx, askMode: 'strict_script' });
+    expect(violations.some(v => v.type === 'strict_script_parts')).toBe(true);
+  });
+
+  it('strict_script askMode with a plain {text} answer -> no strict_script_parts violation', () => {
+    const answer = { text: 'here are your lines' };
+    const violations = validateAskAnswer(answer, { ...baseCtx, askMode: 'strict_script' });
+    expect(violations.some(v => v.type === 'strict_script_parts')).toBe(false);
+  });
+
+  it('ALREADY + candidate present in the answer -> reintroduction violation', () => {
+    const answer = { text: '민수는 첫 새벽이라 그래요' };
+    const violations = validateAskAnswer(answer, { ...baseCtx, personIntroduced: true, candidates: ['첫 새벽'] });
+    expect(violations.some(v => v.type === 'reintroduction')).toBe(true);
+  });
+
+  it('ALREADY + candidate appears ONLY in the user\'s latest message -> exempt, no violation', () => {
+    const answer = { text: '네, 그런 편이에요' };
+    const violations = validateAskAnswer(answer, {
+      ...baseCtx, personIntroduced: true, candidates: ['첫 새벽'], latestUserText: '첫 새벽이라 그런 거야?',
+    });
+    expect(violations.some(v => v.type === 'reintroduction')).toBe(false);
+  });
+
+  it('NOT-YET (personIntroduced: false) -> reintroduction never checked, even if the candidate is present', () => {
+    const answer = { text: '민수는 첫 새벽이라 그래요' };
+    const violations = validateAskAnswer(answer, { ...baseCtx, personIntroduced: false, candidates: ['첫 새벽'] });
+    expect(violations.some(v => v.type === 'reintroduction')).toBe(false);
+  });
+
+  it('verdict_probe + answer opening with "네," -> verdict_opening violation', () => {
+    const answer = { text: '네, 맞아요. 항상 그래요.' };
+    const violations = validateAskAnswer(answer, { ...baseCtx, askMode: 'verdict_probe' });
+    expect(violations.some(v => v.type === 'verdict_opening')).toBe(true);
+  });
+
+  it('verdict_probe + a hedged, non-affirming opening -> no verdict_opening violation', () => {
+    const answer = { text: '한두 번으로는 단정하기 어려워요. 이런 상황일 수도 있고, 저런 상황일 수도 있어요.' };
+    const violations = validateAskAnswer(answer, { ...baseCtx, askMode: 'verdict_probe' });
+    expect(violations.some(v => v.type === 'verdict_opening')).toBe(false);
+  });
+});
+
+describe('buildAskSystem — §4 state blocks (added only when detected)', () => {
+  const meChart = calculateSaju({ date: '1990-06-15', time: '14:30' });
+  const themChart = calculateSaju({ date: '1988-03-02', time: '09:00' });
+
+  it('askMode="strict_script" -> the SCRIPT REQUEST block is present', () => {
+    const system = buildAskSystem('person', meChart, themChart, undefined, [], 'Alex', 'Sam', undefined, false, false, 'strict_script', false);
+    expect(system).toContain('SCRIPT REQUEST');
+    expect(system).not.toContain('CHARACTER QUESTION');
+  });
+
+  it('askMode="verdict_probe" -> the CHARACTER QUESTION block is present', () => {
+    const system = buildAskSystem('person', meChart, themChart, undefined, [], 'Alex', 'Sam', undefined, false, false, 'verdict_probe', false);
+    expect(system).toContain('CHARACTER QUESTION');
+    expect(system).not.toContain('SCRIPT REQUEST');
+  });
+
+  it('continuationHint=true -> the CONTINUATION HINT block is present', () => {
+    const system = buildAskSystem('person', meChart, themChart, undefined, [], 'Alex', 'Sam', undefined, false, false, null, true);
+    expect(system).toContain('CONTINUATION HINT');
+  });
+
+  it('askMode=null, continuationHint=false -> none of the 3 blocks are present', () => {
+    const system = buildAskSystem('person', meChart, themChart, undefined, [], 'Alex', 'Sam', undefined, false, false, null, false);
+    expect(system).not.toContain('SCRIPT REQUEST');
+    expect(system).not.toContain('CHARACTER QUESTION');
+    expect(system).not.toContain('CONTINUATION HINT');
+  });
+
+  it('state blocks are detected for me and general modes too (BRIEF-100B §1: "모든 person/me/general" 요청)', () => {
+    for (const mode of ['me', 'general'] as const) {
+      const system = buildAskSystem(mode, meChart, null, undefined, [], 'Alex', undefined, undefined, false, undefined, 'strict_script', false);
+      expect(system).toContain('SCRIPT REQUEST');
+    }
+  });
+});
+
+describe('buildAskSystem — §5 ALREADY-state reintroduction-bait projection', () => {
+  // Different day masters for ME/THEM on purpose, so ME's own chart material can never
+  // coincidentally match a THEM candidate (isolates the exception-table row 1 case).
+  const meChart = calculateSaju({ date: '1990-06-15', time: '14:30' });   // Yin Metal
+  const themChart = calculateSaju({ date: '1988-03-02', time: '09:00' }); // some other stem
+  const candidates = themNameCandidates(themChart);
+
+  function themPartOnly(system: string): string {
+    const start = system.indexOf('=== THEM');
+    const end = system.indexOf('DAILY PILLARS —');
+    expect(start).toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(start);
+    return system.slice(start, end);
+  }
+
+  it('① ALREADY: none of the candidate strings appear in the THEM part of the assembled prompt', () => {
+    const system = buildAskSystem('person', meChart, themChart, undefined, [], 'Alex', 'Sam', undefined, false, true);
+    const scope = themPartOnly(system);
+    for (const c of candidates) expect(scope).not.toContain(c);
+  });
+
+  it('② NOT-YET: the THEM part keeps naming the archetype as before (no withholding)', () => {
+    const system = buildAskSystem('person', meChart, themChart, undefined, [], 'Alex', 'Sam', undefined, false, false);
+    const scope = themPartOnly(system);
+    const themArch = ARCHETYPES[themChart.dayMaster.stem];
+    expect(scope).toContain(`THEM ARCHETYPE: ${themArch.name}`);
+  });
+
+  it('③ me/general system prompts are byte-identical to their pre-BRIEF-100B assembly (personIntroduced is person-only, so this never triggers there)', () => {
+    const daily = getDailyPillars('2026-08-06', 90);
+    const meSystemNoNewParams = buildAskSystem('me', meChart, null, undefined, daily, 'Alex');
+    const meSystemWithDefaults = buildAskSystem('me', meChart, null, undefined, daily, 'Alex', undefined, undefined, undefined, undefined, null, false);
+    expect(meSystemWithDefaults).toBe(meSystemNoNewParams);
+
+    const generalSystemNoNewParams = buildAskSystem('general', meChart, null, undefined, daily);
+    const generalSystemWithDefaults = buildAskSystem('general', meChart, null, undefined, daily, undefined, undefined, undefined, undefined, undefined, null, false);
+    expect(generalSystemWithDefaults).toBe(generalSystemNoNewParams);
+  });
+
+  it('④ TODAY / SAFETY / PREDICTION block text is unchanged by ALREADY-state projection', () => {
+    const daily = getDailyPillars('2026-08-06', 90);
+    const notIntroduced = buildAskSystem('person', meChart, themChart, undefined, daily, 'Alex', 'Sam', undefined, false, false);
+    const introduced = buildAskSystem('person', meChart, themChart, undefined, daily, 'Alex', 'Sam', undefined, false, true);
+    for (const marker of ['TODAY —', 'SAFETY: You are not a crisis service', 'TIMING & PREDICTION QUESTIONS']) {
+      expect(notIntroduced).toContain(marker);
+      expect(introduced).toContain(marker);
+    }
+  });
+
+  it('⑤ buildAskTurns still passes history through untransformed/undeleted regardless of personIntroduced (history shaping is a route-level concern, not buildAskSystem\'s)', () => {
+    const history = [
+      { role: 'user' as const, text: 'hi', at: '2026-08-01' },
+      { role: 'assistant' as const, text: 'hello', at: '2026-08-01' },
+    ];
+    const turns = buildAskTurns(history, 'next question', '2026-08-01');
+    expect(turns).toEqual([
+      { role: 'user', text: 'hi' },
+      { role: 'model', text: 'hello' },
+      { role: 'user', text: 'next question' },
+    ]);
+  });
+
+  it('known limitation (documented): the 90-day DAILY PILLARS calendar table can coincidentally contain the candidate\'s bare EN stem name — this is expected and out of §5\'s scope (timing data, not identity material)', () => {
+    const daily = getDailyPillars('2026-08-07', 90);
+    const system = buildAskSystem('person', meChart, themChart, undefined, daily, 'Alex', 'Sam', undefined, false, true);
+    const dailyPillarsSection = system.slice(system.indexOf('DAILY PILLARS —'), system.indexOf('RULES (non-negotiable)'));
+    // themChart's EN stem (e.g. "Yang Fire") is expected to reappear here purely by calendar
+    // coincidence roughly every 10 days across a 90-day window — not a §5 regression.
+    expect(dailyPillarsSection.includes(themChart.dayMaster.stem)).toBe(true);
+  });
+});
+
+describe('buildAskSystem — §8 prompt additions (1 sentence each, no replacement)', () => {
+  const meChart = calculateSaju({ date: '1990-06-15', time: '14:30' });
+  const themChart = calculateSaju({ date: '1988-03-02', time: '09:00' });
+
+  it('BASIS PRIORITY gets the new "no concrete facts yet" sentence (person mode)', () => {
+    const system = buildAskSystem('person', meChart, themChart, undefined, []);
+    expect(system).toContain('When the user has given you no concrete facts yet, say so briefly and offer possibilities — do not let the chart fill the gap as if it were evidence.');
+  });
+
+  it('KOREAN VOICE gets item 8 (honorific mirroring) in person mode only', () => {
+    const personSystem = buildAskSystem('person', meChart, themChart, undefined, []);
+    expect(personSystem).toContain('8) Mirror the user\'s way of naming the other person');
+
+    const meSystem = buildAskSystem('me', meChart, null, undefined, []);
+    expect(meSystem).not.toContain('Mirror the user\'s way of naming the other person');
+  });
+});
+
+describe('POST /api/ask — pipeline (BRIEF-100B §1/§2/§9)', () => {
+  const themInput = { date: '1988-03-02', time: '09:00', name: 'Sam' };
+  const personBaseBody = {
+    mode: 'person' as const,
+    me: { date: '1990-06-15', time: '14:30' },
+    them: themInput,
+  };
+  const meBaseBody = {
+    mode: 'me' as const,
+    me: { date: '1990-06-15', time: '14:30' },
+    history: [] as unknown[],
+  };
+  const [hanjaCandidate] = themNameCandidates(calculateSaju(themInput));
+
+  const understandCard = (opts: { withCandidate?: boolean } = {}) => JSON.stringify({
+    parts: UNDERSTAND_LABELS.map((label, i) => ({
+      label, text: i === 0 && opts.withCandidate ? `${hanjaCandidate}라 그런 편이에요.` : 'A short specific read.',
+    })),
+  });
+  const mixedLabelCard = () => JSON.stringify({
+    parts: [
+      { label: UNDERSTAND_LABELS[0], text: 'x' },
+      { label: UNDERSTAND_LABELS[1], text: 'y' },
+      { label: DECIDE_LABELS[0], text: 'z' },
+    ],
+  });
+
+  it('① ALREADY + reintroduction in the 1st output -> rejected, correction prompt names the specific violation', async () => {
+    mockGenerateJsonChat.mockClear();
+    mockGenerateJsonChat
+      .mockResolvedValueOnce(understandCard({ withCandidate: true }))
+      .mockResolvedValueOnce(understandCard());
+
+    const history = [
+      { role: 'user' as const, text: 'Sam은 어떤 사람이야?' },
+      { role: 'assistant' as const, text: `Sam은 ${hanjaCandidate}라 직진형이에요.` },
+    ];
+    const res = await POST(makeAskRequest({ ...personBaseBody, history, question: '더 얘기해줘' }));
+    const data = await res.json() as { answer?: unknown };
+
+    expect(mockGenerateJsonChat).toHaveBeenCalledTimes(2);
+    const correctionTurns = mockGenerateJsonChat.mock.calls[1][1] as Array<{ role: string; text: string }>;
+    const correctionMsg = correctionTurns[correctionTurns.length - 1].text;
+    expect(correctionMsg).toContain('REINTRODUCTION VIOLATION');
+    expect(correctionMsg).toContain(hanjaCandidate);
+    expect(data.answer).toBeTruthy();
+  });
+
+  it('② mixed labels -> rejected, one correction regeneration', async () => {
+    mockGenerateJsonChat.mockClear();
+    mockGenerateJsonChat
+      .mockResolvedValueOnce(mixedLabelCard())
+      .mockResolvedValueOnce(understandCard());
+
+    const res = await POST(makeAskRequest({ ...personBaseBody, history: [], question: 'How does Sam feel about this?' }));
+    const data = await res.json() as { answer?: { parts?: Array<{ label: string }> } };
+
+    expect(mockGenerateJsonChat).toHaveBeenCalledTimes(2);
+    const correctionTurns = mockGenerateJsonChat.mock.calls[1][1] as Array<{ role: string; text: string }>;
+    expect(correctionTurns[correctionTurns.length - 1].text).toContain('LABEL SET VIOLATION');
+    expect(data.answer?.parts?.map(p => p.label)).toEqual([...UNDERSTAND_LABELS]);
+  });
+
+  it('③ strict_script question but the model answers with a labeled card -> rejected, one correction regeneration', async () => {
+    mockGenerateJsonChat.mockClear();
+    mockGenerateJsonChat
+      .mockResolvedValueOnce(understandCard())
+      .mockResolvedValueOnce(JSON.stringify({ text: 'line one\n\nline two' }));
+
+    const res = await POST(makeAskRequest({ ...personBaseBody, history: [], question: '문장 두 개 써줘' }));
+    const data = await res.json() as { answer?: { text?: string; parts?: unknown } };
+
+    expect(mockGenerateJsonChat).toHaveBeenCalledTimes(2);
+    const correctionTurns = mockGenerateJsonChat.mock.calls[1][1] as Array<{ role: string; text: string }>;
+    expect(correctionTurns[correctionTurns.length - 1].text).toContain('SCRIPT CONTRACT VIOLATION');
+    expect(data.answer?.parts).toBeUndefined();
+    expect(data.answer?.text).toBe('line one\n\nline two');
+  });
+
+  it('④ parse failure recovers once via a plain retry; two consecutive parse failures -> 502 code:parse', async () => {
+    mockGenerateJsonChat.mockClear();
+    mockGenerateJsonChat.mockResolvedValueOnce('not json at all').mockResolvedValueOnce('still not json');
+
+    const res = await POST(makeAskRequest({ ...meBaseBody, question: 'What should I focus on?' }));
+    const data = await res.json() as { code?: string };
+
+    expect(mockGenerateJsonChat).toHaveBeenCalledTimes(2);
+    expect(res.status).toBe(502);
+    expect(data.code).toBe('parse');
+  });
+
+  it('④b a single parse failure followed by a valid response recovers -> 200, exactly 2 calls', async () => {
+    mockGenerateJsonChat.mockClear();
+    mockGenerateJsonChat.mockResolvedValueOnce('not json').mockResolvedValueOnce(JSON.stringify({ text: 'ok now' }));
+
+    const res = await POST(makeAskRequest({ ...meBaseBody, question: 'What should I focus on?' }));
+    const data = await res.json() as { answer?: { text?: string } };
+
+    expect(mockGenerateJsonChat).toHaveBeenCalledTimes(2);
+    expect(res.status).toBe(200);
+    expect(data.answer?.text).toBe('ok now');
+  });
+
+  it('⑤a correction result STILL has a label-set violation -> final disposition normalizes the labels, served (not 502)', async () => {
+    mockGenerateJsonChat.mockClear();
+    mockGenerateJsonChat.mockResolvedValueOnce(mixedLabelCard()).mockResolvedValueOnce(mixedLabelCard());
+
+    const res = await POST(makeAskRequest({ ...personBaseBody, history: [], question: 'How does Sam feel about this?' }));
+    const data = await res.json() as { answer?: { parts?: Array<{ label: string }> } };
+
+    expect(res.status).toBe(200);
+    expect(data.answer?.parts?.map(p => p.label)).toEqual([...UNDERSTAND_LABELS]);
+  });
+
+  it('⑤b correction result STILL violates the strict_script contract -> final disposition downgrades to {text}, served', async () => {
+    mockGenerateJsonChat.mockClear();
+    mockGenerateJsonChat.mockResolvedValueOnce(understandCard()).mockResolvedValueOnce(mixedLabelCard()); // still has `parts`
+
+    const res = await POST(makeAskRequest({ ...personBaseBody, history: [], question: '문장 두 개 써줘' }));
+    const data = await res.json() as { answer?: { text?: string; parts?: unknown } };
+
+    expect(res.status).toBe(200);
+    expect(data.answer?.parts).toBeUndefined();
+    expect(typeof data.answer?.text).toBe('string');
+  });
+
+  it('⑤c correction result STILL reintroduces the candidate -> final disposition soft-serves as-is (not 502)', async () => {
+    mockGenerateJsonChat.mockClear();
+    mockGenerateJsonChat
+      .mockResolvedValueOnce(understandCard({ withCandidate: true }))
+      .mockResolvedValueOnce(understandCard({ withCandidate: true }));
+
+    const history = [
+      { role: 'user' as const, text: 'Sam은 어떤 사람이야?' },
+      { role: 'assistant' as const, text: `Sam은 ${hanjaCandidate}라 직진형이에요.` },
+    ];
+    const res = await POST(makeAskRequest({ ...personBaseBody, history, question: '더 얘기해줘' }));
+    const data = await res.json() as { answer?: { parts?: Array<{ text: string }> } };
+
+    expect(res.status).toBe(200);
+    expect(data.answer?.parts?.[0]?.text).toContain(hanjaCandidate); // soft-served as-is
+  });
+
+  it('⑥ a clean first output -> zero regenerations, exactly 1 model call', async () => {
+    mockGenerateJsonChat.mockClear();
+    mockGenerateJsonChat.mockResolvedValueOnce(JSON.stringify({ text: 'a clean, valid answer' }));
+
+    const res = await POST(makeAskRequest({ ...meBaseBody, question: 'What should I focus on?' }));
+    const data = await res.json() as { answer?: { text?: string } };
+
+    expect(mockGenerateJsonChat).toHaveBeenCalledTimes(1);
+    expect(res.status).toBe(200);
+    expect(data.answer?.text).toBe('a clean, valid answer');
+  });
+
+  it('label-order-only violation is fixed for free — no extra model call', async () => {
+    mockGenerateJsonChat.mockClear();
+    const shuffled = [UNDERSTAND_LABELS[2], UNDERSTAND_LABELS[0], UNDERSTAND_LABELS[1]];
+    mockGenerateJsonChat.mockResolvedValueOnce(JSON.stringify({
+      parts: shuffled.map(label => ({ label, text: 'x' })),
+    }));
+
+    const res = await POST(makeAskRequest({ ...personBaseBody, history: [], question: 'How does Sam feel about this?' }));
+    const data = await res.json() as { answer?: { parts?: Array<{ label: string }> } };
+
+    expect(mockGenerateJsonChat).toHaveBeenCalledTimes(1);
+    expect(data.answer?.parts?.map(p => p.label)).toEqual([...UNDERSTAND_LABELS]);
+  });
+});
+
+describe('POST /api/ask — call failure classification (BRIEF-100B §2)', () => {
+  const meBaseBody = {
+    mode: 'me' as const,
+    me: { date: '1990-06-15', time: '14:30' },
+    history: [] as unknown[],
+  };
+
+  it('429 -> retried once; a subsequent success is served', async () => {
+    mockGenerateJsonChat.mockClear();
+    mockGenerateJsonChat
+      .mockRejectedValueOnce(new Error('Gemini API error 429: rate limited'))
+      .mockResolvedValueOnce(JSON.stringify({ text: 'ok after retry' }));
+
+    const res = await POST(makeAskRequest({ ...meBaseBody, question: 'hi' }));
+    const data = await res.json() as { answer?: { text?: string } };
+
+    expect(mockGenerateJsonChat).toHaveBeenCalledTimes(2);
+    expect(res.status).toBe(200);
+    expect(data.answer?.text).toBe('ok after retry');
+  });
+
+  it('a 5xx status is retried once', async () => {
+    mockGenerateJsonChat.mockClear();
+    mockGenerateJsonChat
+      .mockRejectedValueOnce(new Error('Gemini API error 503: unavailable'))
+      .mockResolvedValueOnce(JSON.stringify({ text: 'ok' }));
+
+    const res = await POST(makeAskRequest({ ...meBaseBody, question: 'hi' }));
+    expect(mockGenerateJsonChat).toHaveBeenCalledTimes(2);
+    expect(res.status).toBe(200);
+  });
+
+  it('a 400 status is NOT retried — immediate 502 code:call', async () => {
+    mockGenerateJsonChat.mockClear();
+    mockGenerateJsonChat.mockRejectedValueOnce(new Error('Gemini API error 400: bad request'));
+
+    const res = await POST(makeAskRequest({ ...meBaseBody, question: 'hi' }));
+    const data = await res.json() as { code?: string };
+
+    expect(mockGenerateJsonChat).toHaveBeenCalledTimes(1);
+    expect(res.status).toBe(502);
+    expect(data.code).toBe('call');
+  });
+
+  it('the withTimeout rejection literal is retried', async () => {
+    mockGenerateJsonChat.mockClear();
+    mockGenerateJsonChat
+      .mockRejectedValueOnce(new Error('LLM timed out after 30000ms'))
+      .mockResolvedValueOnce(JSON.stringify({ text: 'ok' }));
+
+    const res = await POST(makeAskRequest({ ...meBaseBody, question: 'hi' }));
+    expect(mockGenerateJsonChat).toHaveBeenCalledTimes(2);
+    expect(res.status).toBe(200);
+  });
+
+  it('a missing GEMINI_API_KEY fails immediately, no retry', async () => {
+    mockGenerateJsonChat.mockClear();
+    mockCreateLlmProvider.mockImplementationOnce(() => {
+      throw new Error('GEMINI_API_KEY environment variable is not set');
+    });
+
+    const res = await POST(makeAskRequest({ ...meBaseBody, question: 'hi' }));
+    const data = await res.json() as { code?: string };
+
+    expect(mockGenerateJsonChat).not.toHaveBeenCalled();
+    expect(res.status).toBe(502);
+    expect(data.code).toBe('call');
+  });
+
+  it('no combination of failures results in more than 2 total model calls (1 primary + 1 shared extra)', async () => {
+    mockGenerateJsonChat.mockClear();
+    mockGenerateJsonChat
+      .mockRejectedValueOnce(new Error('Gemini API error 429: rate limited'))
+      .mockRejectedValueOnce(new Error('Gemini API error 429: rate limited again'));
+
+    const res = await POST(makeAskRequest({ ...meBaseBody, question: 'hi' }));
+    expect(mockGenerateJsonChat).toHaveBeenCalledTimes(2);
+    expect(res.status).toBe(502);
+  });
+});
+
+describe('POST /api/ask — logging privacy (BRIEF-100B §2)', () => {
+  const meBaseBody = {
+    mode: 'me' as const,
+    me: { date: '1990-06-15', time: '14:30' },
+    history: [] as unknown[],
+  };
+
+  it('a parse failure never logs raw response content — only rawLen and the error name', async () => {
+    mockGenerateJsonChat.mockClear();
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      mockGenerateJsonChat.mockResolvedValueOnce('not json at all — this text must never appear in logs').mockResolvedValueOnce('still not json — neither must this');
+
+      await POST(makeAskRequest({ ...meBaseBody, question: 'hi' }));
+
+      const loggedTexts = errorSpy.mock.calls.map(c => c.join(' '));
+      for (const line of loggedTexts) {
+        expect(line).not.toContain('not json at all');
+        expect(line).not.toContain('still not json');
+      }
+      const parseLines = loggedTexts.filter(l => l.includes('stage=parse'));
+      expect(parseLines.length).toBeGreaterThan(0);
+      for (const line of parseLines) expect(line).toMatch(/rawLen=\d+/);
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+});
+
+describe('validateAskAnswer — known limitations, documented on purpose (BRIEF-100B §6/§9)', () => {
+  const baseCtx = { askMode: 'verdict_probe' as const, personIntroduced: false, candidates: [] as string[], latestUserText: '' };
+
+  it('limitation ①: an unhedged verdict phrased outside the specific patterns checked is NOT detected — the signal is a backstop, not the real defense (the §4 contract block is)', () => {
+    // Asserts a fixed trait ("그런 식", "늘") without a leading 네/맞아/Yes and without the exact
+    // "원래 그런 (편|성격|사람)" phrase the pattern below checks for — a real, silent gap.
+    const answer = { text: '그 사람 성격이 그래요, 늘 그런 식이죠.' };
+    const violations = validateAskAnswer(answer, baseCtx);
+    expect(violations.some(v => v.type === 'verdict_opening')).toBe(false);
+  });
+
+  it('limitation ②: a leading "네" that ISN\'T actually a character verdict still trips the signal — a false positive that costs one correction regeneration', () => {
+    const answer = { text: '네, 좋은 질문이에요. 최근엔 바빠서 연락이 뜸했을 수 있어요.' }; // "Yes" here just means "good question", not a trait confirmation
+    const violations = validateAskAnswer(answer, baseCtx);
+    expect(violations.some(v => v.type === 'verdict_opening')).toBe(true); // flagged anyway — documented false-positive cost
+  });
+});
+
+

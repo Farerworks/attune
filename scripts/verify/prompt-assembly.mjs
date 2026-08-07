@@ -33,7 +33,10 @@ Module._load = function (request, parent, isMain) {
 
 const { calculateSaju, getDailyPillars, pillarLabel, friendlyPillarName } = await import(path.join(ROOT, 'src/lib/saju.ts'));
 const { buildBriefingPrompt } = await import(path.join(ROOT, 'src/lib/briefing.ts'));
-const { buildAskTurns, buildAskSystem, hasTodayIntroduced, themNameCandidates, hasPersonIntroduced } = await import(path.join(ROOT, 'src/app/api/ask/route.ts'));
+const {
+  buildAskTurns, buildAskSystem, hasTodayIntroduced, themNameCandidates, hasPersonIntroduced,
+  detectAskMode, detectContinuationHint, validateAskAnswer, UNDERSTAND_LABELS, DECIDE_LABELS,
+} = await import(path.join(ROOT, 'src/app/api/ask/route.ts'));
 const { LENS_FRAGMENTS } = await import(path.join(ROOT, 'src/lib/promptFragments.ts'));
 const { ILJU_PROFILES } = await import(path.join(ROOT, 'src/lib/iljuProfiles.ts'));
 
@@ -325,6 +328,63 @@ function countMarkers(text) {
 
   const userOnlyHistory = [{ role: 'user', text: `${candidates[0]} 맞아?` }];
   check('hasPersonIntroduced: user-only mention -> false', hasPersonIntroduced(userOnlyHistory, candidates) === false, '');
+}
+
+// ── BRIEF-100B v3 — Ask 응답 검증·회복 파이프라인 ───────────────────────────
+
+// §3: askMode / continuation-hint detection
+{
+  check('detectAskMode: "문장 두 개 써줘" -> strict_script', detectAskMode('문장 두 개 써줘') === 'strict_script', '');
+  check('detectAskMode: "보낼 문장 써줘" (no count) -> null', detectAskMode('보낼 문장 써줘') === null, '');
+  check('detectAskMode: "쟤 원래 그런 성격이야?" -> verdict_probe', detectAskMode('쟤 원래 그런 성격이야?') === 'verdict_probe', '');
+  check('detectContinuationHint: "그래서 내가 그랬어" -> true', detectContinuationHint('그래서 내가 그랬어') === true, '');
+}
+
+// §4: state blocks — present only when detected
+{
+  const system = buildAskSystem('person', me, them, undefined, [], 'Alex', 'Sam', undefined, false, false, 'strict_script', false);
+  check('askSystem: SCRIPT REQUEST block present for askMode=strict_script', system.includes('SCRIPT REQUEST'), '');
+  const systemNone = buildAskSystem('person', me, them, undefined, [], 'Alex', 'Sam', undefined, false, false, null, false);
+  check('askSystem: no state block present when nothing detected', !systemNone.includes('SCRIPT REQUEST') && !systemNone.includes('CHARACTER QUESTION') && !systemNone.includes('CONTINUATION HINT'), '');
+}
+
+// §5: ALREADY-state projection — candidates absent from the THEM part; NOT-YET/me/general preserved
+{
+  const candidates = themNameCandidates(them);
+  const introduced = buildAskSystem('person', me, them, undefined, [], 'Alex', 'Sam', undefined, false, true);
+  const start = introduced.indexOf('=== THEM');
+  const end = introduced.indexOf('DAILY PILLARS —');
+  const themScope = introduced.slice(start, end);
+  const leaked = candidates.filter(c => themScope.includes(c));
+  check('askSystem (ALREADY): 0 candidate strings in the THEM part', leaked.length === 0, leaked.join(', '));
+
+  const notIntroduced = buildAskSystem('person', me, them, undefined, [], 'Alex', 'Sam', undefined, false, false);
+  const themArch = notIntroduced.slice(notIntroduced.indexOf('=== THEM'), notIntroduced.indexOf('DAILY PILLARS —'));
+  check('askSystem (NOT-YET): archetype naming preserved as before', themArch.includes('THEM ARCHETYPE:') && !themArch.includes('name withheld'), '');
+
+  const meA = buildAskSystem('me', me, null, undefined, []);
+  const meB = buildAskSystem('me', me, null, undefined, [], undefined, undefined, undefined, undefined, undefined, null, false);
+  check('askSystem: me-mode prompt is byte-identical with/without the new params (default-off)', meA === meB, '');
+}
+
+// §6/§7: label validator + reintroduction/verdict-opening checks
+{
+  const okAnswer = { parts: UNDERSTAND_LABELS.map(label => ({ label, text: 'x' })) };
+  check('validateAskAnswer: correct UNDERSTAND set, in order -> no violations', validateAskAnswer(okAnswer, { askMode: null, personIntroduced: false, candidates: [], latestUserText: '' }).length === 0, '');
+
+  const mixed = { parts: [{ label: UNDERSTAND_LABELS[0], text: 'x' }, { label: UNDERSTAND_LABELS[1], text: 'y' }, { label: DECIDE_LABELS[0], text: 'z' }] };
+  check('validateAskAnswer: mixed labels -> label_set violation', validateAskAnswer(mixed, { askMode: null, personIntroduced: false, candidates: [], latestUserText: '' }).some(v => v.type === 'label_set'), '');
+
+  const candidates = themNameCandidates(them);
+  const reintro = { text: `${candidates[0]}라 그래요` };
+  check('validateAskAnswer: ALREADY + candidate present -> reintroduction violation', validateAskAnswer(reintro, { askMode: null, personIntroduced: true, candidates, latestUserText: '' }).some(v => v.type === 'reintroduction'), '');
+}
+
+// §8: two 1-sentence prompt additions
+{
+  const system = buildAskSystem('person', me, them, undefined, []);
+  check('askSystem: BASIS PRIORITY "no concrete facts yet" sentence present', system.includes('do not let the chart fill the gap as if it were evidence'), '');
+  check('askSystem: KOREAN VOICE item 8 (honorific mirroring) present (person mode)', system.includes("Mirror the user's way of naming the other person"), '');
 }
 
 // ── Report ────────────────────────────────────────────────────────────────────
