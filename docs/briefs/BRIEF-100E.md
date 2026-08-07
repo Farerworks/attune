@@ -133,4 +133,3 @@ merge·자동 배포 후 **이 판만으로는 아무것도 재현하지 않는�
 ## 6. 결재 반영 (v1 질의 2건 — 종결)
 1. **rid = `crypto.randomUUID()` 전체**(절단 금지) — §1.1·§2.3에 반영.
 2. **`err=<Error name>` 미추가** — 고정 형식 유지, category·upstreamStatus만 사용. 임의 error name이 로그에 유입될 경로를 만들지 않는다 — §1.2·§4에 반영.
-ㅌ₩

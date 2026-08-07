@@ -63,3 +63,9 @@ banned_after_retry: [briefing] rid=b63000d2-48bb-44a2-8d64-7a9043c9fdf4 stage=ba
 - 저장소: https://github.com/Farerworks/attune
 - §0.5 브리프 원문 보관: `123b3f1`
 - 코드 커밋: `79d4220`
+
+## 8. 정정 기록 (BRIEF-100E-FIX)
+
+- 최초 보관 커밋 `123b3f1`의 `docs/briefs/BRIEF-100E.md` 말미에 정본에 없는 6바이트(`ㅌ₩`, §6 마지막 줄 뒤)가 붙어 있었다.
+- 판정: 요구 문장이 아니고 §1의 구현·테스트 어디에도 영향을 주지 않았다 — byte-exact 보관 요구 위반만 존재했다.
+- 정정 후 `docs/briefs/BRIEF-100E.md`의 sha256은 `4e636b719da396463eaa914a211bd600c06aaa4e626008f2c256d2574d848c8e`, 크기는 16394바이트로 목표값과 정확히 일치한다.
