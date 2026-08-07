@@ -38,6 +38,36 @@ function headlineTooLong(headline: string): boolean {
 const HEADLINE_RETRY_INSTRUCTION =
   '\n\nYour headline was too long. Rewrite ONLY the headline in one shorter sentence (same language, same meaning, same non-judgmental tone), within the hard limit. Return the full JSON again with only the headline changed.';
 
+// ── §1: structured failure logging (BRIEF-100E — no PII, 502 return points only) ────────────
+
+/**
+ * §1.4 category classification — a fixed-start-anchored pattern match against
+ * `err instanceof Error ? err.message : String(err)` (never `String(err)` on an Error object,
+ * which would prepend "Error: " and break every anchor below). Only the 3-digit status from
+ * pattern 1 is ever extracted from the message; the rest of the message text is never logged.
+ */
+function classifyBriefingError(err: unknown): { category: string; upstreamStatus: string } {
+  const message = err instanceof Error ? err.message : String(err);
+
+  const upstreamMatch = message.match(/^Gemini API error (\d{3}):/);
+  if (upstreamMatch) return { category: 'upstream_http', upstreamStatus: upstreamMatch[1] };
+
+  if (/^(LLM call|LLM retry) timed out after \d+ms$/.test(message)) {
+    return { category: 'timeout', upstreamStatus: 'na' };
+  }
+
+  if (/^Gemini returned no text/.test(message)) {
+    return { category: 'empty_response', upstreamStatus: 'na' };
+  }
+
+  return { category: 'llm_call_failed', upstreamStatus: 'na' };
+}
+
+/** §1.2 — exactly one fixed-format line via console.error, no second (Error/object) argument. */
+function logBriefingFailure(rid: string, stage: string, action: string, category: string, upstreamStatus: string): void {
+  console.error(`[briefing] rid=${rid} stage=${stage} action=${action} status=502 category=${category} upstreamStatus=${upstreamStatus}`);
+}
+
 const RequestSchema = z.object({
   me: z.object({
     date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'date must be YYYY-MM-DD'),
@@ -53,6 +83,10 @@ const RequestSchema = z.object({
 });
 
 export async function POST(request: Request) {
+  // §1.1 — one full UUID per request, generated right on entry. Not truncated (unlike [ask]'s
+  // 8-char rid) — this is purely a log-correlation id, never shown to the user.
+  const rid = crypto.randomUUID();
+
   // ── Rate limit ──────────────────────────────────────────────────────────────
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown';
   const rl = checkRateLimit(ip, RATE_LIMIT, RATE_WINDOW);
@@ -92,6 +126,10 @@ export async function POST(request: Request) {
   const prompt = buildBriefingPrompt(meChart, themChart, relationship, contextualSituation);
 
   // ── LLM call + banned-phrase guard ─────────────────────────────────────────
+  // §1.3's "current stage" variable — the outer catch below can't otherwise tell whether the
+  // failed call was the initial one or the banned-phrase retry, since both land in the same
+  // catch block. Control flow and return values are unchanged; this only feeds the log action.
+  let callStage: 'initial' | 'banned_retry' = 'initial';
   let briefing;
   try {
     const llm = createLlmProvider();
@@ -101,6 +139,7 @@ export async function POST(request: Request) {
     try {
       candidate = parseBriefing(raw);
     } catch (err) {
+      logBriefingFailure(rid, 'parse', 'initial', 'parse_failed', 'na');
       return Response.json(
         { error: 'Briefing parsing failed', detail: String(err) },
         { status: 502 },
@@ -114,12 +153,14 @@ export async function POST(request: Request) {
         prompt +
         `\n\n⚠ PREVIOUS RESPONSE VIOLATION — The following banned phrases appeared in your last response: ${violations.map(v => `"${v}"`).join(', ')}. Regenerate the entire JSON without using these phrases. Violations will be rejected.`;
 
+      callStage = 'banned_retry';
       const retryRaw = await withTimeout(llm.generateJson(retryPrompt, 4096), LLM_TIMEOUT, 'LLM retry');
 
       let retryCandidate;
       try {
         retryCandidate = parseBriefing(retryRaw);
       } catch (err) {
+        logBriefingFailure(rid, 'parse', 'banned_retry', 'parse_failed', 'na');
         return Response.json(
           { error: 'Briefing parsing failed on retry', detail: String(err) },
           { status: 502 },
@@ -128,6 +169,7 @@ export async function POST(request: Request) {
 
       const retryViolations = containsBannedPhrases(retryCandidate);
       if (retryViolations.length > 0) {
+        logBriefingFailure(rid, 'banned', 'after_retry', 'banned_after_retry', 'na');
         return Response.json(
           { error: 'Briefing contains banned phrases after retry', detail: retryViolations },
           { status: 502 },
@@ -150,6 +192,8 @@ export async function POST(request: Request) {
       }
     }
   } catch (err) {
+    const { category, upstreamStatus } = classifyBriefingError(err);
+    logBriefingFailure(rid, 'call', callStage, category, upstreamStatus);
     return Response.json(
       { error: 'LLM call failed', detail: err instanceof Error ? err.message : String(err) },
       { status: 502 },
