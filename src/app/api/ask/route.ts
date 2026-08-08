@@ -6,7 +6,7 @@ import { formatChart } from '@/lib/briefing';
 import { createLlmProvider, type ChatTurn } from '@/lib/llm';
 import { checkRateLimit } from '@/lib/rateLimit';
 import { detectSafetyTrigger } from '@/lib/safety';
-import { findHiddenTruthFraming } from '@/lib/hiddenTruth';
+import { findHiddenTruthFraming, splitSentences } from '@/lib/hiddenTruth';
 
 export const maxDuration = 60;
 
@@ -171,7 +171,7 @@ function collectAnswerText(answer: Record<string, unknown>): string[] {
 // Table-driven so tests can assert against the exact pattern list, not just the function's
 // aggregate decision (BRIEF-100B §3).
 
-export type AskMode = 'strict_script' | 'verdict_probe' | null;
+export type AskMode = 'strict_script' | 'verdict_probe' | 'completion' | null;
 
 const COUNT_WORD = '(?:\\d+|한|두|세|네)';
 
@@ -206,11 +206,37 @@ export const CONTINUATION_HINT_PATTERNS: RegExp[] = [
   /라고\s*했어/,
 ];
 
+// ── Axis B (BRIEF-100B-FIX3 §1.2) — "write me something to send" WITHOUT an explicit count. ─────
+// Deliberately requires a write-verb (COMPLETION_VERB) — never fires on a bare question like
+// "뭐라고 답할까?" (no verb) — same conservative philosophy as STRICT_SCRIPT_PATTERNS above: a false
+// trigger here steals the 3-part card from a real coaching question, which is worse than missing one.
+const COMPLETION_OBJECT = '(?:메[시세][지제]|문자|답장|멘트|문장)';
+const COMPLETION_VERB   = '(?:써|적어|만들어|뽑아)';
+
+export const COMPLETION_PATTERNS: RegExp[] = [
+  new RegExp(`${COMPLETION_OBJECT}[^\\n]{0,10}?${COMPLETION_VERB}`),                                   // "메시지 좀 써줘"
+  new RegExp(`뭐라고[^\\n]{0,10}?(?:보낼지|답할지|말할지|쓸지)[^\\n]{0,10}?${COMPLETION_VERB}`),         // "뭐라고 보낼지 써줘"
+  /\b(?:write|draft|give me)\b[^\n]{0,20}\b(?:message|text|reply|line)s?\b/i,
+];
+
+// "답장 안 써" / "답장 써야 할까?" — negation and deliberation, not a request for text to send.
+export const COMPLETION_EXCLUSIONS: RegExp[] = [
+  /(?:안|못)\s*(?:써|적어|만들어|뽑아)/,
+  /(?:써|적어|만들어|뽑아)\S*\s*(?:할까|말까|될까)/,
+];
+
 /** Conservative: only fires on an explicit count ("문장 두 개 써줘"), never on a bare request
- * ("뭐라고 답할까?", "보낼 문장 써줘") — a false trigger here is worse than missing one. */
+ * ("뭐라고 답할까?", "보낼 문장 써줘") — a false trigger here is worse than missing one.
+ * Priority (fixed, BRIEF-100B-FIX3 §1.2): strict_script > verdict_probe > completion > null — an
+ * explicit count always wins so the count contract is never silently lost to the looser completion
+ * match. */
 export function detectAskMode(latestUserText: string): AskMode {
   if (STRICT_SCRIPT_PATTERNS.some(p => p.test(latestUserText))) return 'strict_script';
   if (VERDICT_PROBE_PATTERNS.some(p => p.test(latestUserText))) return 'verdict_probe';
+  if (
+    COMPLETION_PATTERNS.some(p => p.test(latestUserText)) &&
+    !COMPLETION_EXCLUSIONS.some(p => p.test(latestUserText))
+  ) return 'completion';
   return null;
 }
 
@@ -284,6 +310,9 @@ const STRICT_SCRIPT_BLOCK = `SCRIPT REQUEST — the user asked for message lines
 const VERDICT_PROBE_BLOCK = `CHARACTER QUESTION — the user is asking whether this is the other person's fixed personality. Contract for THIS answer: (1) never open with a confirmation ("네", "맞아요", "Yes") and never confirm a fixed trait; (2) start with one short line of honest uncertainty — a few moments aren't enough to define someone; (3) offer at least two different situational readings of the same behavior; (4) give one concrete thing to watch next time that would tell the readings apart; (5) the chart may color a tendency but must never serve as proof of character. Keep it compact.`;
 
 const CONTINUATION_HINT_BLOCK = `CONTINUATION HINT — the latest message reads as a continuation of the same scene (added facts, their reaction, or a correction), not a new question. Shape 2 (short {"text"}) is almost certainly right here; do not restart the 3-part card unless it is clearly a new independent question.`;
+
+// BRIEF-100B-FIX3 §1.3 — verbatim per the brief (no count given, so no "exactly N" language).
+const COMPLETION_BLOCK = `COMPLETION REQUEST — the user asked you to write something they can send, without giving a count. Contract for THIS answer: respond in shape 2 ({"text": ...}) — no parts, no labels, no headings. Give only the sendable text itself, ready to copy as-is. Nothing before it, nothing after it: no leading explanation, no framing sentence, no closing remark, no commentary on why it works. One option by default; if two genuinely different directions are worth showing, put each on its own line. No numbering, no bullets, no labels, no "/" separators between alternatives. No chart talk, no archetype, no day-pillar/today talk, no followUp. This contract outranks every other block for this turn, including TODAY first-mention duty — skip it here.`;
 
 // ── Prompt builder ─────────────────────────────────────────────────────────────
 
@@ -503,6 +532,7 @@ The person's element/archetype identity is context, not a greeting.
   const modeBlocks: string[] = [];
   if (askMode === 'strict_script') modeBlocks.push(STRICT_SCRIPT_BLOCK);
   if (askMode === 'verdict_probe') modeBlocks.push(VERDICT_PROBE_BLOCK);
+  if (askMode === 'completion') modeBlocks.push(COMPLETION_BLOCK);
   if (continuationHint) modeBlocks.push(CONTINUATION_HINT_BLOCK);
   const modeBlocksText = modeBlocks.length > 0 ? `\n\n${modeBlocks.join('\n\n')}` : '';
 
@@ -623,7 +653,7 @@ function normalizeAnswer(
 
 // ── §6/§7: answer validator (pure — reads the answer, never mutates it) ──────────────────────
 
-export type AskViolationType = 'label_set' | 'label_order' | 'strict_script_parts' | 'reintroduction' | 'verdict_opening' | 'script_contract' | 'hidden_truth_framing';
+export type AskViolationType = 'label_set' | 'label_order' | 'strict_script_parts' | 'reintroduction' | 'verdict_opening' | 'script_contract' | 'hidden_truth_framing' | 'completion_parts' | 'completion_contract';
 export interface AskViolation { type: AskViolationType; detail?: string }
 export interface AskValidationCtx {
   askMode: AskMode;
@@ -705,9 +735,32 @@ export function validateAskAnswer(answer: Record<string, unknown>, ctx: AskValid
       const lines = splitNonEmptyLines(answer.text);
       if (lines.length !== request.count) violations.push({ type: 'script_contract', detail: 'count' });
       if (hasScriptFormatMarker(lines)) violations.push({ type: 'script_contract', detail: 'format' });
+
+      // Axis A (BRIEF-100B-FIX3 §1.1) — per-line SENTENCE count, independent of the line-COUNT
+      // check above (parseScriptRequest recovers {count, unit} but only `count` was ever enforced —
+      // "문장 2개" could pass with 2 lines of 2 sentences each = 4 sentences total). One violation
+      // total even if multiple lines break it (never accumulated per line).
+      const unitViolated = request.unit === 'sentence'
+        ? lines.some(l => splitSentences(l).length !== 1)
+        : lines.some(l => splitSentences(l).length > 2);
+      if (unitViolated) violations.push({ type: 'script_contract', detail: 'unit' });
     }
     if (typeof answer.followUp === 'string' && answer.followUp) {
       violations.push({ type: 'script_contract', detail: 'followup' });
+    }
+  }
+
+  // Axis C (BRIEF-100B-FIX3 §1.3) — completion contract (no explicit count; see COMPLETION_BLOCK).
+  if (ctx.askMode === 'completion') {
+    if (labels !== null) {
+      violations.push({ type: 'completion_parts' });
+    }
+    if (typeof answer.text === 'string') {
+      const lines = splitNonEmptyLines(answer.text);
+      if (hasScriptFormatMarker(lines)) violations.push({ type: 'completion_contract', detail: 'format' });
+    }
+    if (typeof answer.followUp === 'string' && answer.followUp) {
+      violations.push({ type: 'completion_contract', detail: 'followup' });
     }
   }
 
@@ -790,6 +843,9 @@ function applyFinalDisposition(
   if (hasType('strict_script_parts')) {
     out = downgradeToText(out);
     flags.push({ stage: 'script', action: 'downgrade' });
+  } else if (hasType('completion_parts')) {
+    out = downgradeToText(out);
+    flags.push({ stage: 'completion', action: 'downgrade' });
   } else if (hasType('label_set')) {
     out = normalizeLabels(out);
     flags.push({ stage: 'labels', action: 'normalize' });
@@ -815,6 +871,20 @@ function applyFinalDisposition(
     // No safe auto-strip that can't risk mangling real content — soft flag only.
     flags.push({ stage: 'script', action: 'soft' });
   }
+  // Axis A (BRIEF-100B-FIX3 §1.1) — no safe auto-fix: trimming a sentence would delete part of what
+  // the user is about to send. Soft flag only; body is left completely unchanged.
+  if (scriptViolations.some(v => v.detail === 'unit')) {
+    flags.push({ stage: 'script', action: 'soft' });
+  }
+
+  const completionViolations = violations.filter(v => v.type === 'completion_contract');
+  if (completionViolations.some(v => v.detail === 'followup')) {
+    out = stripFollowUp(out);
+    flags.push({ stage: 'completion', action: 'strip_followup' });
+  }
+  if (completionViolations.some(v => v.detail === 'format')) {
+    flags.push({ stage: 'completion', action: 'soft' });
+  }
 
   if (hasType('reintroduction')) flags.push({ stage: 'reintro', action: 'soft' });
   if (hasType('verdict_opening')) flags.push({ stage: 'verdict', action: 'soft' });
@@ -830,6 +900,9 @@ function stageOf(type: AskViolationType): string {
     case 'strict_script_parts':
     case 'script_contract':
       return 'script';
+    case 'completion_parts':
+    case 'completion_contract':
+      return 'completion';
     case 'reintroduction':
       return 'reintro';
     case 'verdict_opening':
@@ -861,9 +934,17 @@ function buildCorrectionWarnings(schemaInvalid: boolean, banned: string[], viola
         if (v.detail === 'count') warnings.push('⚠ SCRIPT LINE COUNT VIOLATION — The number of lines did not match the count the user asked for. Regenerate with EXACTLY that many lines, one per line, nothing else.');
         else if (v.detail === 'format') warnings.push('⚠ SCRIPT FORMAT VIOLATION — No numbering, bullets, labels, or "/" separators are allowed in a script answer. Regenerate as plain lines only.');
         else if (v.detail === 'followup') warnings.push('⚠ SCRIPT FOLLOWUP VIOLATION — A script answer must not include a followUp. Regenerate without one.');
+        else if (v.detail === 'unit') warnings.push('⚠ SCRIPT UNIT VIOLATION — The user asked for a count of sentences/messages, not lines. When the count is for sentences, each line must be exactly one sentence; when it is for messages, at most two short sentences per line. Regenerate respecting that unit.');
         break;
       case 'hidden_truth_framing':
         warnings.push('⚠ HIDDEN-TRUTH FRAMING VIOLATION — Do not claim the other person\'s real feelings or reasons can be known from a reaction or the chart. Regenerate without that claim — a limiting/uncertain phrasing is fine.');
+        break;
+      case 'completion_parts':
+        warnings.push('⚠ COMPLETION CONTRACT VIOLATION — The user asked for something ready to send. Respond in shape 2 ({"text": ...}) with no parts/labels. Regenerate in that shape.');
+        break;
+      case 'completion_contract':
+        if (v.detail === 'followup') warnings.push('⚠ COMPLETION FOLLOWUP VIOLATION — A ready-to-send answer must not include a followUp. Regenerate without one.');
+        else if (v.detail === 'format') warnings.push('⚠ COMPLETION FORMAT VIOLATION — No numbering, bullets, labels, or "/" separators. Regenerate as plain sendable lines only.');
         break;
       case 'label_order':
         break; // fixed in place, never reaches here

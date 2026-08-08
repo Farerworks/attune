@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { findHiddenTruthFraming } from './hiddenTruth';
+import { findHiddenTruthFraming, splitSentences } from './hiddenTruth';
 
 // BRIEF-100B-FIX2 §2.1 — extraction non-regression: subject present + no negation -> violation /
 // subject present + negation -> pass / no subject -> pass. Same fixtures as the original
@@ -28,5 +28,25 @@ describe('findHiddenTruthFraming (BRIEF-100B-FIX2 §1.1 — extracted from ask/r
 
   it('여러 문장 중 하나라도 위반이면 true — 문장 단위 분할이 유지됨을 확인', () => {
     expect(findHiddenTruthFraming('평범한 문장입니다. 숨은 진심을 알아낼 수 있어요. 다른 평범한 문장.')).toBe(true);
+  });
+});
+
+// BRIEF-100B-FIX3 §1.1 — splitSentences now exported (export 키워드 1개 추가만, 로직 무변경). ask/route.ts
+// reuses this exact function for Axis A's per-line sentence-count check — same probe values as §4.5.
+describe('splitSentences (BRIEF-100B-FIX3 §1.1 — export added, logic byte-for-byte unchanged)', () => {
+  it('"오랜만이야! 잘 지내?" -> 2문장', () => {
+    expect(splitSentences('오랜만이야! 잘 지내?')).toHaveLength(2);
+  });
+
+  it('"잘 지냈어? 언제 한번 보자." -> 2문장', () => {
+    expect(splitSentences('잘 지냈어? 언제 한번 보자.')).toHaveLength(2);
+  });
+
+  it('"오랜만이야 잘 지내"(부호 없음) -> 1문장 — 알려진 관대함(과탐지 방지를 위해 그대로 둠)', () => {
+    expect(splitSentences('오랜만이야 잘 지내')).toHaveLength(1);
+  });
+
+  it('"안녕!잘가?"(공백 없이 붙음) -> 1문장', () => {
+    expect(splitSentences('안녕!잘가?')).toHaveLength(1);
   });
 });

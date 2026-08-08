@@ -13,7 +13,7 @@
 const HIDDEN_TRUTH_SUBJECT = /(진짜\s*마음|진짜\s*이유|숨은\s*진심|숨은\s*진실|속마음(?:을|이)?\s*확정)/;
 const HIDDEN_TRUTH_NEGATION_NEARBY = /(없|어렵|힘들|모르|아니)/;
 
-function splitSentences(text: string): string[] {
+export function splitSentences(text: string): string[] {
   return text.split(/(?<=[.!?。])\s+|\n+/).filter(s => s.trim().length > 0);
 }
 

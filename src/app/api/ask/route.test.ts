@@ -18,6 +18,7 @@ const {
   buildAskTurns, buildAskSystem, hasTodayIntroduced, themNameCandidates, hasPersonIntroduced, POST,
   detectAskMode, detectContinuationHint, STRICT_SCRIPT_PATTERNS, VERDICT_PROBE_PATTERNS, CONTINUATION_HINT_PATTERNS,
   validateAskAnswer, UNDERSTAND_LABELS, DECIDE_LABELS, parseScriptRequest,
+  COMPLETION_PATTERNS, COMPLETION_EXCLUSIONS,
 } = await import('./route');
 const { calculateSaju, getDailyPillars, pillarLabel, friendlyPillarName, STEM_NAMES } = await import('@/lib/saju');
 const { ARCHETYPES, ARCHETYPE_LOCALE } = await import('@/lib/interpretGuide');
@@ -1562,6 +1563,260 @@ describe('POST /api/ask — BRIEF-100B-FIX regression (§2 회귀)', () => {
 
     expect(mockGenerateJsonChat).toHaveBeenCalledTimes(2); // never more than 1 primary + 1 shared extra call
     expect(res.status).toBe(200); // final disposition serves it, never a 502
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// BRIEF-100B-FIX3 — 완성물 요청의 분류·단위·출력 형태
+// ══════════════════════════════════════════════════════════════════════════
+
+describe('detectAskMode — completion (BRIEF-100B-FIX3 §1.2/§2.2)', () => {
+  it.each([
+    '보낼 메시지 좀 써줘', '답장 좀 써줘', '메시지 써줘', '멘트 좀 뽑아줘',
+    '보낼 문장 써줘', '뭐라고 보낼지 써줘', '보낼 메시제 좀 써줘',
+  ])('양성 "%s" -> completion', (text) => {
+    expect(detectAskMode(text)).toBe('completion');
+  });
+
+  it.each([
+    '뭐라고 답할까?', '그럼 뭐 하자고 할까?', '어제 연락했어', '답장 왔어',
+    '답장 안 써', '답장 써야 할까?',
+  ])('음성 "%s" -> null (의도적 제외)', (text) => {
+    expect(detectAskMode(text)).toBeNull();
+  });
+
+  it('양성 "지금 보낼 문장 2개만 써줘"/"보낼 메시지 2개만 써줘" -> strict_script (개수가 이긴다, 회귀 금지)', () => {
+    expect(detectAskMode('지금 보낼 문장 2개만 써줘')).toBe('strict_script');
+    expect(detectAskMode('보낼 메시지 2개만 써줘')).toBe('strict_script');
+  });
+
+  it('양성 "지현이는 원래 그런 성격이야?" -> verdict_probe (회귀 금지)', () => {
+    expect(detectAskMode('지현이는 원래 그런 성격이야?')).toBe('verdict_probe');
+  });
+});
+
+describe('COMPLETION_PATTERNS / COMPLETION_EXCLUSIONS — exported tables (BRIEF-100B-FIX3 §1.2, table-driven like BRIEF-100B §3)', () => {
+  it('둘 다 RegExp 배열로 export된다', () => {
+    expect(Array.isArray(COMPLETION_PATTERNS)).toBe(true);
+    expect(COMPLETION_PATTERNS.every((p: unknown) => p instanceof RegExp)).toBe(true);
+    expect(Array.isArray(COMPLETION_EXCLUSIONS)).toBe(true);
+    expect(COMPLETION_EXCLUSIONS.every((p: unknown) => p instanceof RegExp)).toBe(true);
+  });
+
+  it('COMPLETION_PATTERNS 중 하나 이상이 "메시지 좀 써줘"에 매치된다', () => {
+    expect(COMPLETION_PATTERNS.some((p: RegExp) => p.test('메시지 좀 써줘'))).toBe(true);
+  });
+
+  it('COMPLETION_EXCLUSIONS 중 하나 이상이 "답장 안 써"에 매치된다', () => {
+    expect(COMPLETION_EXCLUSIONS.some((p: RegExp) => p.test('답장 안 써'))).toBe(true);
+  });
+});
+
+describe('validateAskAnswer — Axis A 문장 단위 계약 (BRIEF-100B-FIX3 §1.1/§2.1)', () => {
+  const scriptCtx = (latestUserText: string) =>
+    ({ askMode: 'strict_script' as const, personIntroduced: false, candidates: [] as string[], latestUserText });
+
+  it('음성 「문장 2개」 요청 + 2줄×각2문장(=4문장) -> script_contract/unit 검출 (이 판의 핵심 회귀)', () => {
+    const answer = { text: '오랜만이야! 잘 지내?\n요즘 바빴지. 미안해.' };
+    const violations = validateAskAnswer(answer, scriptCtx('지금 보낼 문장 2개만 써줘'));
+    expect(violations).toContainEqual({ type: 'script_contract', detail: 'unit' });
+  });
+
+  it('양성 같은 요청 + 2줄 각 1문장 -> 위반 없음', () => {
+    const answer = { text: '오랜만이야.\n잘 지내?' };
+    const violations = validateAskAnswer(answer, scriptCtx('지금 보낼 문장 2개만 써줘'));
+    expect(violations.filter(v => v.type === 'script_contract')).toEqual([]);
+  });
+
+  it('양성 「메시지 2개」 요청 + 2줄 각 2문장 -> 위반 없음(message는 2문장까지 허용)', () => {
+    const answer = { text: '오랜만이야! 잘 지내?\n한번 보자! 언제 시간 돼?' };
+    const violations = validateAskAnswer(answer, scriptCtx('보낼 메시지 2개만 써줘'));
+    expect(violations.filter(v => v.type === 'script_contract')).toEqual([]);
+  });
+
+  it('음성 「메시지 2개」 요청 + 한 줄이 3문장 -> unit 검출', () => {
+    const answer = { text: '오랜만이야! 잘 지내? 한번 보자.\n다음 주 어때?' };
+    const violations = validateAskAnswer(answer, scriptCtx('보낼 메시지 2개만 써줘'));
+    expect(violations).toContainEqual({ type: 'script_contract', detail: 'unit' });
+  });
+
+  it('양성 줄 수도 틀리고 문장 수도 틀림 -> count와 unit 둘 다 보고', () => {
+    const answer = { text: '오랜만이야! 잘 지내?\n한번 보자! 언제 시간 돼?\n또 하나.' };
+    const violations = validateAskAnswer(answer, scriptCtx('지금 보낼 문장 2개만 써줘'));
+    expect(violations).toContainEqual({ type: 'script_contract', detail: 'count' });
+    expect(violations).toContainEqual({ type: 'script_contract', detail: 'unit' });
+  });
+
+  it('양성 「오랜만이야 잘 지내」(부호 없음) 1줄 + 「문장 1개」 요청 -> 위반 없음(알려진 관대함, 고정)', () => {
+    const answer = { text: '오랜만이야 잘 지내' };
+    const violations = validateAskAnswer(answer, scriptCtx('문장 한 개 써줘'));
+    expect(violations.filter(v => v.type === 'script_contract')).toEqual([]);
+  });
+});
+
+describe('POST /api/ask — Axis A unit 위반의 최종 처분 (BRIEF-100B-FIX3 §2.1)', () => {
+  const personBaseBody = {
+    mode: 'person' as const,
+    me: { date: '1990-06-15', time: '14:30' },
+    them: { date: '1988-03-02', time: '09:00', name: 'Sam' },
+    history: [] as unknown[],
+  };
+
+  it('재생성으로도 안 고쳐지면 SCRIPT UNIT VIOLATION로 교정 경고가 나가고, 최종 처분은 본문 무변경 + soft', async () => {
+    mockGenerateJsonChat.mockClear();
+    const badUnit = JSON.stringify({ text: '오랜만이야! 잘 지내?\n요즘 바빴지. 미안해.' });
+    mockGenerateJsonChat.mockResolvedValueOnce(badUnit).mockResolvedValueOnce(badUnit);
+
+    const res = await POST(makeAskRequest({ ...personBaseBody, question: '지금 보낼 문장 2개만 써줘' }));
+    const data = await res.json() as { answer?: { text?: string } };
+
+    expect(mockGenerateJsonChat).toHaveBeenCalledTimes(2);
+    const correctionTurns = mockGenerateJsonChat.mock.calls[1][1] as Array<{ role: string; text: string }>;
+    expect(correctionTurns[correctionTurns.length - 1].text).toContain('SCRIPT UNIT VIOLATION');
+    expect(res.status).toBe(200);
+    expect(data.answer?.text).toBe('오랜만이야! 잘 지내?\n요즘 바빴지. 미안해.'); // 본문 무변경 — 자르지 않는다
+  });
+});
+
+describe('validateAskAnswer — Axis C completion 출력 계약 (BRIEF-100B-FIX3 §1.3/§2.3)', () => {
+  const completionCtx = { askMode: 'completion' as const, personIntroduced: false, candidates: [] as string[], latestUserText: '메시지 좀 써줘' };
+
+  it('음성 completion + parts 3개 -> completion_parts', () => {
+    const answer = { parts: UNDERSTAND_LABELS.map(label => ({ label, text: 'x' })) };
+    const violations = validateAskAnswer(answer, completionCtx);
+    expect(violations.some(v => v.type === 'completion_parts')).toBe(true);
+  });
+
+  it('음성 completion + followUp 있음 -> completion_contract/followup', () => {
+    const answer = { text: '오랜만이야.', followUp: '보내고 나서 반응 알려줘요.' };
+    const violations = validateAskAnswer(answer, completionCtx);
+    expect(violations).toContainEqual({ type: 'completion_contract', detail: 'followup' });
+  });
+
+  it.each(['1. 오랜만이야.', '- 오랜만이야.', 'A: 오랜만이야.', '가/나 오랜만이야.'])(
+    '음성 completion + 형식 마커("%s") -> completion_contract/format',
+    (line) => {
+      const answer = { text: line };
+      const violations = validateAskAnswer(answer, completionCtx);
+      expect(violations).toContainEqual({ type: 'completion_contract', detail: 'format' });
+    },
+  );
+
+  it('양성 completion + 안내문 없는 1줄 텍스트 -> 위반 없음', () => {
+    const answer = { text: '오랜만이야. 잘 지내?' };
+    const violations = validateAskAnswer(answer, completionCtx);
+    expect(violations).toEqual([]);
+  });
+
+  it('양성 completion에서는 개수 검사를 하지 않는다(script_contract/count 미발생)', () => {
+    const answer = { text: '오랜만이야.\n잘 지내?\n한번 보자.' }; // 몇 줄이든 count 위반 없음
+    const violations = validateAskAnswer(answer, completionCtx);
+    expect(violations.filter(v => v.type === 'script_contract')).toEqual([]);
+  });
+});
+
+describe('buildAskSystem — COMPLETION_BLOCK (BRIEF-100B-FIX3 §1.3/§2.3)', () => {
+  const meChart = calculateSaju({ date: '1990-06-15', time: '14:30' });
+  const themChart = calculateSaju({ date: '1988-03-02', time: '09:00' });
+
+  it('askMode="completion" -> COMPLETION_BLOCK 정확히 1회 포함, STRICT_SCRIPT_BLOCK 미포함', () => {
+    const system = buildAskSystem('person', meChart, themChart, undefined, [], 'Alex', 'Sam', undefined, false, false, 'completion', false);
+    const count = (system.match(/COMPLETION REQUEST — the user asked you to write something/g) ?? []).length;
+    expect(count).toBe(1);
+    expect(system).not.toContain('SCRIPT REQUEST — the user asked for message lines');
+  });
+
+  it('askMode=null -> COMPLETION_BLOCK 미포함', () => {
+    const system = buildAskSystem('person', meChart, themChart, undefined, [], 'Alex', 'Sam', undefined, false, false, null, false);
+    expect(system).not.toContain('COMPLETION REQUEST');
+  });
+});
+
+describe('POST /api/ask — Axis C completion 파이프라인 (BRIEF-100B-FIX3 §2.3)', () => {
+  const meBaseBody = {
+    mode: 'me' as const,
+    me: { date: '1990-06-15', time: '14:30' },
+    history: [] as unknown[],
+  };
+
+  it('completion + parts 3개 -> 재생성 1회(COMPLETION CONTRACT VIOLATION), 계속 위반이면 최종적으로 shape 2로 강등', async () => {
+    mockGenerateJsonChat.mockClear();
+
+    const personBaseBody = {
+      mode: 'person' as const,
+      me: { date: '1990-06-15', time: '14:30' },
+      them: { date: '1988-03-02', time: '09:00', name: 'Sam' },
+      history: [] as unknown[],
+    };
+    const card = JSON.stringify({ parts: UNDERSTAND_LABELS.map(label => ({ label, text: 'x' })) });
+    mockGenerateJsonChat.mockResolvedValueOnce(card).mockResolvedValueOnce(card);
+
+    const res = await POST(makeAskRequest({ ...personBaseBody, question: '메시지 좀 써줘' }));
+    const data = await res.json() as { answer?: { text?: string; parts?: unknown } };
+
+    expect(mockGenerateJsonChat).toHaveBeenCalledTimes(2);
+    const correctionTurns = mockGenerateJsonChat.mock.calls[1][1] as Array<{ role: string; text: string }>;
+    expect(correctionTurns[correctionTurns.length - 1].text).toContain('COMPLETION CONTRACT VIOLATION');
+    expect(res.status).toBe(200);
+    expect(data.answer?.parts).toBeUndefined();
+    expect(typeof data.answer?.text).toBe('string');
+  });
+
+  it('completion + followUp -> 재생성 1회(COMPLETION FOLLOWUP VIOLATION), 계속 있으면 최종적으로 제거', async () => {
+    mockGenerateJsonChat.mockClear();
+    const withFollowUp = JSON.stringify({ text: '오랜만이야.', followUp: '보내고 나서 반응 알려줘요.' });
+    mockGenerateJsonChat.mockResolvedValueOnce(withFollowUp).mockResolvedValueOnce(withFollowUp);
+
+    const res = await POST(makeAskRequest({ ...meBaseBody, question: '메시지 좀 써줘' }));
+    const data = await res.json() as { answer?: { text?: string; followUp?: string } };
+
+    expect(mockGenerateJsonChat).toHaveBeenCalledTimes(2);
+    const correctionTurns = mockGenerateJsonChat.mock.calls[1][1] as Array<{ role: string; text: string }>;
+    expect(correctionTurns[correctionTurns.length - 1].text).toContain('COMPLETION FOLLOWUP VIOLATION');
+    expect(res.status).toBe(200);
+    expect(data.answer?.followUp).toBeUndefined();
+    expect(data.answer?.text).toBe('오랜만이야.');
+  });
+
+  it('completion + 깨끗한 1줄 답변 -> 재생성 없이 1회 호출로 종료', async () => {
+    mockGenerateJsonChat.mockClear();
+    mockGenerateJsonChat.mockResolvedValueOnce(JSON.stringify({ text: '오랜만이야. 잘 지내?' }));
+
+    const res = await POST(makeAskRequest({ ...meBaseBody, question: '메시지 좀 써줘' }));
+    const data = await res.json() as { answer?: { text?: string } };
+
+    expect(mockGenerateJsonChat).toHaveBeenCalledTimes(1);
+    expect(data.answer?.text).toBe('오랜만이야. 잘 지내?');
+  });
+});
+
+describe('POST /api/ask — BRIEF-100B-FIX3 회귀 (§2.4)', () => {
+  const meBaseBody = {
+    mode: 'me' as const,
+    me: { date: '1990-06-15', time: '14:30' },
+    history: [] as unknown[],
+  };
+
+  it('양성 「호출 예산」 — completion 경로도 1차 호출 + 최대 1회 추가 호출을 넘지 않는다(새 재시도 경로 없음)', async () => {
+    mockGenerateJsonChat.mockClear();
+    const bad = JSON.stringify({ text: '1. 오랜만이야.', followUp: '어땠어요?' }); // format + followup 동시 위반
+    mockGenerateJsonChat.mockResolvedValueOnce(bad).mockResolvedValueOnce(bad);
+
+    const res = await POST(makeAskRequest({ ...meBaseBody, question: '메시지 좀 써줘' }));
+
+    expect(mockGenerateJsonChat).toHaveBeenCalledTimes(2);
+    expect(res.status).toBe(200); // 최종 처분이 서빙 — 502 아님
+  });
+
+  it('양성 「502 반환 지점·status·body」 — 파싱 실패 경로는 completion 도입 후에도 무변경', async () => {
+    mockGenerateJsonChat.mockClear();
+    mockGenerateJsonChat.mockResolvedValueOnce('not json').mockResolvedValueOnce('still not json');
+
+    const res = await POST(makeAskRequest({ ...meBaseBody, question: '메시지 좀 써줘' }));
+    const data = await res.json() as { code?: string };
+
+    expect(res.status).toBe(502);
+    expect(data.code).toBe('parse');
   });
 });
 
