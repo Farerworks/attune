@@ -223,8 +223,20 @@ export const COMPLETION_PATTERNS: RegExp[] = [
 // BRIEF-100B-FIX4-C §1.1: role changes here — no longer "exclude the whole input", but "this CLAUSE
 // is not a request" (used inside detectCompletionRequest below). Name and content unchanged.
 export const COMPLETION_EXCLUSIONS: RegExp[] = [
-  /(?:안|못)\s*(?:써|적어|만들어|뽑아)/,
-  /(?:써|적어|만들어|뽑아)\S*\s*(?:할까|말까|될까)/,
+  /(?:안|못)\s*(?:써|적어|만들어|뽑아)/,                              // (기존 1)
+  /(?:써|적어|만들어|뽑아)\S*\s*(?:할까|말까|될까)/,                   // (기존 2)
+
+  // ── BRIEF-100B-FIX5 — 시제·상(相) 축. 이 절은 요청이 아니라 보고·숙고·의도다. ──
+  // 완료·과거 보고: 이미 썼거나 보냈다는 서술.
+  /(?:써|적어|만들어|뽑아)(?:서)?\s*(?:봤|놨|뒀|보냈)/,               // 써봤어 / 써놨어 / 써뒀어 / 써(서) 보냈어
+  // `줬`은 완료형이지만 `줬으면`은 간접 요청이다 — 부정 전방탐색으로 요청만 살린다.
+  /(?:써|적어|만들어|뽑아)줬(?!으면)/,                                // 써줬어 O / 써줬으면 좋겠어 X(통과)
+  /(?:써|적어|만들어|뽑아)줘서\s*(?:고마|감사|좋았|다행)/,             // 써줘서 고마워
+  /(?:써|적어|만들어|뽑아)준\s*(?:거|것|건|게)/,                       // 써준 거 보냈어
+  // 의도 선언: 사용자가 자기가 쓰겠다고 말하는 형태.
+  /(?:써|적어|만들어|뽑아)(?:볼|보|놓을|둘|줄)?\s*(?:게|야지|려고)/,   // 써볼게 / 써둘게 / 써야지 / 써보려고
+  // 숙고: 사용자가 자기가 쓸지 고민하는 형태.
+  /(?:써|적어|만들어|뽑아)(?:볼|놓을|둘)(?:까|지)/,                    // 써볼까? / 써볼지 고민이야 / 써놓을까?
 ];
 
 // ── BRIEF-100B-FIX4-C §1.2 — clause-boundary + speaker-separation tables (all exported for

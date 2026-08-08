@@ -1918,9 +1918,9 @@ describe('detectAskMode — TESTSET E군 기존 브리프 81건, 회귀 감시 (
     ['E-007', '어제 답장 써봤는데 별로였어 오늘 보낼 메시지 좀 써줘', 'completion'],
     ['E-008', '메시지 써봤어 근데 별로야 다시 써줘', 'completion'],
     ['E-009', '답장 써볼게 근데 문장 하나만 뽑아줘', 'completion'],
-    ['E-010', '어제 답장 써봤는데 별로였어.', 'completion'],
+    ['E-010', '어제 답장 써봤는데 별로였어.', 'null'],
     ['E-011', '아까 써준 거 말고 다른 걸 생각하고 있어.', 'null'],
-    ['E-012', '메시지를 써볼지 고민이야.', 'completion'],
+    ['E-012', '메시지를 써볼지 고민이야.', 'null'],
     ['E-013', '내가 한번 써볼게.', 'null'],
     ['E-014', '보낼 메시지 좀 써줘', 'completion'],
     ['E-015', '답장 좀 써줘', 'completion'],
@@ -1945,27 +1945,27 @@ describe('detectAskMode — TESTSET E군 기존 브리프 81건, 회귀 감시 (
     ['E-034', '답장 어떻게 써?', 'completion'],
     ['E-035', 'draft a reply for me', 'completion'],
     ['E-036', 'I need to write a message', 'completion'],
-    ['E-037', '답장 써봤어', 'completion'],
-    ['E-038', '메시지 써서 보냈어', 'completion'],
-    ['E-039', '문자 써놨어', 'completion'],
-    ['E-040', '어제 메시지 적어서 보냈어', 'completion'],
-    ['E-041', '아까 멘트 만들어서 보냈어', 'completion'],
-    ['E-042', '문자 써 보냈어', 'completion'],
-    ['E-043', '메시지 써뒀어', 'completion'],
-    ['E-044', '답장 써줬어', 'completion'],
-    ['E-045', '메시지 써줘서 고마워', 'completion'],
-    ['E-046', '아까 답장 써준 거 보냈어', 'completion'],
-    ['E-047', '메시지 써서 보냈는데 답이 없어', 'completion'],
-    ['E-048', '답장 써봤는데 어때?', 'completion'],
+    ['E-037', '답장 써봤어', 'null'],
+    ['E-038', '메시지 써서 보냈어', 'null'],
+    ['E-039', '문자 써놨어', 'null'],
+    ['E-040', '어제 메시지 적어서 보냈어', 'null'],
+    ['E-041', '아까 멘트 만들어서 보냈어', 'null'],
+    ['E-042', '문자 써 보냈어', 'null'],
+    ['E-043', '메시지 써뒀어', 'null'],
+    ['E-044', '답장 써줬어', 'null'],
+    ['E-045', '메시지 써줘서 고마워', 'null'],
+    ['E-046', '아까 답장 써준 거 보냈어', 'null'],
+    ['E-047', '메시지 써서 보냈는데 답이 없어', 'null'],
+    ['E-048', '답장 써봤는데 어때?', 'null'],
     ['E-049', '내가 답장 썼어', 'null'],
-    ['E-050', '답장 써볼까?', 'completion'],
-    ['E-051', '메시지를 한번 써볼지 고민이야', 'completion'],
-    ['E-052', '답장 써놓을까?', 'completion'],
-    ['E-053', '답장 써볼게', 'completion'],
-    ['E-054', '메시지 써둘게', 'completion'],
-    ['E-055', '답장 써야지', 'completion'],
-    ['E-056', '문자 써놓을게', 'completion'],
-    ['E-057', '메시지 써보려고', 'completion'],
+    ['E-050', '답장 써볼까?', 'null'],
+    ['E-051', '메시지를 한번 써볼지 고민이야', 'null'],
+    ['E-052', '답장 써놓을까?', 'null'],
+    ['E-053', '답장 써볼게', 'null'],
+    ['E-054', '메시지 써둘게', 'null'],
+    ['E-055', '답장 써야지', 'null'],
+    ['E-056', '문자 써놓을게', 'null'],
+    ['E-057', '메시지 써보려고', 'null'],
     ['E-058', '답장을 써야 할까?', 'null'],
     ['E-059', '답장 안 써', 'null'],
     ['E-060', '메시지 쓰기 싫어', 'null'],
@@ -1979,14 +1979,13 @@ describe('detectAskMode — TESTSET E군 기존 브리프 81건, 회귀 감시 (
     ['E-068', '문장 하나 골라줘', 'null'],
     ['E-069', 'she wrote me a message', 'null'],
     ['E-072', '그냥 써줘', 'null'],
-    ['E-073', '메시지 써봤는데 친구에게 보여줘.', 'completion'],
-    ['E-074', '답장 써봤는데 이것 좀 봐줘.', 'completion'],
-    ['E-075', '메시지 써놨는데 읽어줘.', 'completion'],
+    ['E-073', '메시지 써봤는데 친구에게 보여줘.', 'null'],
+    ['E-074', '답장 써봤는데 이것 좀 봐줘.', 'null'],
+    ['E-075', '메시지 써놨는데 읽어줘.', 'null'],
     ['E-076', '답장 써줘, 아니 이미 써봤어. 됐어.', 'null'],
-    ['E-077', '답장 써봤는데 그냥 그대로 보내려고.', 'completion'],
+    ['E-077', '답장 써봤는데 그냥 그대로 보내려고.', 'null'],
     ['E-078', '메시지 써줘 아니다 이미 써놨어', 'null'],
     ['E-079', '어제 답장 써봤어. 오늘 보낼 메시지 좀 써줘.', 'completion'],
-    ['E-080', '오늘 보낼 메시지 좀 써줘 어제 건 써봤어', 'completion'],
     ['E-081', '답장 써줘서 고마워. 하나만 더 써줘.', 'completion'],
   ] as const)('%s %s -> %s', (_id, text, expected) => {
     expect(detectAskMode(text) ?? 'null').toBe(expected);
@@ -1999,6 +1998,13 @@ describe('detectAskMode — TESTSET E군 기존 브리프 81건, 회귀 감시 (
   });
   it.fails('E-071 참고할 거 하나 만들어줘 -> completion (잔여 FN, §4.5)', () => {
     expect(detectAskMode('참고할 거 하나 만들어줘') ?? 'null').toBe('completion');
+  });
+
+  // BRIEF-100B-FIX5 §2.3 — E-080은 이 판에서 새로 FN이 된다. 완료 표지("써봤어")가 이제 절 전체를
+  // 제외시키는데, splitSentences가 부호 없는 이 문장을 한 절로 묶어 순서를 못 보고 완료 표지가 이긴다
+  // (부호 있는 버전인 E-079는 문장이 갈려 정상 판정된다). FP 26 해소와 맞바꾼 알려진 교환 비용(§4.5).
+  it.fails('E-080 오늘 보낼 메시지 좀 써줘 어제 건 써봤어 -> completion (신규 잔여 FN, BRIEF-100B-FIX5 §4.5)', () => {
+    expect(detectAskMode('오늘 보낼 메시지 좀 써줘 어제 건 써봤어') ?? 'null').toBe('completion');
   });
 });
 
@@ -2065,10 +2071,10 @@ describe('구조 회귀 — BRIEF-100B-FIX4-C §2.3', () => {
     expect(COMPLETION_PATTERNS.some(p => p.test('메시지 좀 써줘'))).toBe(true);
   });
 
-  it('COMPLETION_EXCLUSIONS 무변경 (길이 2, 이름·내용 그대로 — 역할만 절 단위로 바뀜)', () => {
-    expect(COMPLETION_EXCLUSIONS).toHaveLength(2);
-    expect(COMPLETION_EXCLUSIONS.some(p => p.test('안 써'))).toBe(true);
-    expect(COMPLETION_EXCLUSIONS.some(p => p.test('써야 할까'))).toBe(true);
+  it('BRIEF-100B-FIX5 §2.4 — COMPLETION_EXCLUSIONS는 2개 -> 8개, 기존 2개는 [0]·[1]에 그대로', () => {
+    expect(COMPLETION_EXCLUSIONS).toHaveLength(8);
+    expect(COMPLETION_EXCLUSIONS[0].test('안 써')).toBe(true);
+    expect(COMPLETION_EXCLUSIONS[1].test('써야 할까')).toBe(true);
   });
 
   it('STRICT_SCRIPT_PATTERNS·VERDICT_PROBE_PATTERNS 무변경 (개수 6개 / 6개, 우선순위 유지)', () => {
