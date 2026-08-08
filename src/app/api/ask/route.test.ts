@@ -19,7 +19,10 @@ const {
   detectAskMode, detectContinuationHint, STRICT_SCRIPT_PATTERNS, VERDICT_PROBE_PATTERNS, CONTINUATION_HINT_PATTERNS,
   validateAskAnswer, UNDERSTAND_LABELS, DECIDE_LABELS, parseScriptRequest,
   COMPLETION_PATTERNS, COMPLETION_EXCLUSIONS,
+  COMPLETION_SEGMENT_SPLIT, COMPLETION_QUOTE_SPAN, COMPLETION_REPORT_MARKER, COMPLETION_FORBID,
+  COMPLETION_CANCEL, COMPLETION_REQUEST_ENDINGS, splitCompletionParts, detectCompletionRequest,
 } = await import('./route');
+const { splitSentences } = await import('@/lib/hiddenTruth');
 const { calculateSaju, getDailyPillars, pillarLabel, friendlyPillarName, STEM_NAMES } = await import('@/lib/saju');
 const { ARCHETYPES, ARCHETYPE_LOCALE } = await import('@/lib/interpretGuide');
 
@@ -1817,6 +1820,269 @@ describe('POST /api/ask — BRIEF-100B-FIX3 회귀 (§2.4)', () => {
 
     expect(res.status).toBe(502);
     expect(data.code).toBe('parse');
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// BRIEF-100B-FIX4-C v3 — completion 판정을 「인용 분리 + 마지막 유효 의도」 구조로 교체
+// ══════════════════════════════════════════════════════════════════════════
+//
+// 정본: TESTSET-100B-FIX4.md v1.1 (sha256 e5154111a567697e6a5d942ea1ae7667652d14e1c1ef2da2a52f9aed213e459e).
+// 아래 3건(X5-M1·E-070·E-071)은 TESTSET §4.5가 명시한 "잔여 FN" — 이 판이 해결하지 않는 알려진 한계다.
+// `it.fails`로 고정해 "지금은 깨져 있고, 그게 의도된 상태임"을 스위트 안에 그대로 남긴다 — 삭제하거나
+// "정상 동작"으로 위장하지 않는다(브리프 §4 금지사항). 나머지는 `it.each`로 TESTSET §2/§3/§4를 그대로 옮긴다.
+
+describe('detectAskMode — TESTSET X군 8축 38건 (BRIEF-100B-FIX4-C §2.1, 기대값 그대로)', () => {
+  it.each([
+    ['X1-P1', '메시지 써줘. 아, 아니다.', 'null'],
+    ['X1-P2', '답장 써줘. 됐어 내가 쓸게.', 'null'],
+    ['X1-P3', '문장 좀 써줘. 아니야 그냥 놔둬.', 'null'],
+    ['X1-N1', '메시지 써줘. 아까 건 써봤어.', 'completion'],
+    ['X1-B1', '메시지 써줘. 아 잠깐만.', 'null'],
+    ['X1-M1', '메시지 써줘. 아니다. 그냥 짧게 하나만 써줘.', 'completion'],
+    ['X2-P1', '답장 써줘, 아니 이미 써봤어. 됐어.', 'null'],
+    ['X2-P2', '메시지 써줘 아니다 이미 써놨어', 'null'],
+    ['X2-N1', '아까 써준 거 말고 새로운 답장 써줘.', 'completion'],
+    ['X2-B1', '메시지 써줘 아니 문자로 써줘', 'completion'],
+    ['X3-P1', '걔가 "메시지 써줘"라고 보냈어', 'null'],
+    ['X3-P2', '"문장 좀 써줘"라고 하더라', 'null'],
+    ['X3-N1', '걔한테 "잘 지내?"라고 보낼 메시지 써줘', 'completion'],
+    ['X3-B1', '걔가 "답장 좀"이라고만 했는데 뭐라고 쓸지 문장 써줘', 'completion'],
+    ['X4-P1', '친구가 나한테 답장 써달라고 했어', 'null'],
+    ['X4-P2', '걔가 답장 써달래', 'null'],
+    ['X4-P3', '엄마가 문자 써달라고 하시네', 'null'],
+    ['X4-N1', '써달라고 했는데 내가 쓸게', 'null'],
+    ['X4-B1', '걔가 답장 써달라는데 어떻게 하지', 'null'],
+    ['X5-P1', '메시지 써주지 마', 'null'],
+    ['X5-P2', '답장 쓰지 마', 'null'],
+    ['X5-P3', '답장 쓰지 말라고 해줘', 'null'],
+    ['X5-N1', '문자 보내지 말라고 써줘', 'completion'],
+    ['X5-B1', '메시지 써주지 말고 그냥 조언만 해줘', 'null'],
+    ['X6-P1', '걔가 답장 안 하면 메시지 하나 써줘', 'completion'],
+    ['X6-P2', '내일까지 답 없으면 문자 써줘', 'completion'],
+    ['X6-P3', '혹시 연락 오면 답장 써줘', 'completion'],
+    ['X6-B1', '걔가 먼저 연락하면 그때 문장 써줄래?', 'completion'],
+    ['X7-M1', '걔가 답장 써달래. 뭐라고 쓸지 문장 하나 써줘', 'completion'],
+    ['X7-M2', '친구가 메시지 써달라고 했는데 보낼 답장 좀 써줘', 'completion'],
+    ['X7-M3', '걔가 "빨리 답장 줘"래. 보낼 메시지 써줘', 'completion'],
+    ['X8-M1', '메시지 써줘. 아 근데 걔가 이미 답장 써달래.', 'completion'],
+    ['X8-M2', '문장 좀 써줘. 아까 건 써봤어.', 'completion'],
+    ['X8-M3', '메시지 써줘. 아니다 걔가 먼저 쓴대.', 'null'],
+    ['X5-M2', '하나 써줘. 아니, 써주지 마.', 'null'],
+    ['X5-M1c', '메시지 써주지 마. 아니, 문장 하나만 써줘.', 'completion'],
+    ['X5-M2c', '메시지 하나 써줘. 아니, 써주지 마.', 'null'],
+  ] as const)('%s %s -> %s', (_id, text, expected) => {
+    expect(detectAskMode(text) ?? 'null').toBe(expected);
+  });
+
+  // TESTSET §4.5 잔여 FN — 기대값은 completion이지만 §1.2의 목적어-필수 규칙상 이 문장 단독으로는
+  // sawObject가 이월될 앞 절이 없어 탐지되지 않는다(§1.4 근거 4). 알려진 한계로 고정.
+  it.fails('X5-M1 써주지 마. 아니, 하나만 써줘. -> completion (잔여 FN, §4.5)', () => {
+    expect(detectAskMode('써주지 마. 아니, 하나만 써줘.') ?? 'null').toBe('completion');
+  });
+});
+
+describe('detectAskMode — TESTSET L군 논리 감사 18건 (BRIEF-100B-FIX4-C §2.1)', () => {
+  it.each([
+    ['L-01', '아까 써준 거 말고 새로운 답장 써줘.', 'completion'],
+    ['L-02', '답장 써줘, 아니 이미 써봤어. 됐어.', 'null'],
+    ['L-03', '메시지 써줘. 아, 아니다.', 'null'],
+    ['L-04', '답장 써줘. 됐어 내가 쓸게.', 'null'],
+    ['L-05', '문장 좀 써줘. 아니야 그냥 놔둬.', 'null'],
+    ['L-06', '메시지 써줘. 아까 건 써봤어.', 'completion'],
+    ['L-07', '메시지를 써볼지 고민인데 일단 예시 하나 만들어줘.', 'completion'],
+    ['L-08', '어제 답장 써봤어. 오늘 보낼 메시지 좀 써줘.', 'completion'],
+    ['L-09', '걔가 답장 안 하면 메시지 하나 써줘', 'completion'],
+    ['L-10', '내일까지 답 없으면 문자 써줘', 'completion'],
+    ['L-11', '혹시 연락 오면 답장 써줘', 'completion'],
+    ['L-12', '걔가 "메시지 써줘"라고 보냈어', 'null'],
+    ['L-13', '친구가 나한테 답장 써달라고 했어', 'null'],
+    ['L-14', '걔가 답장 써달래', 'null'],
+    ['L-15', '"문장 좀 써줘"라고 하더라', 'null'],
+    ['L-16', '메시지 써주지 마', 'null'],
+    ['L-17', '답장 쓰지 말라고 해줘', 'null'],
+    ['L-18', '문자 보내지 말라고 써줘', 'completion'],
+  ] as const)('%s %s -> %s', (_id, text, expected) => {
+    expect(detectAskMode(text) ?? 'null').toBe(expected);
+  });
+});
+
+describe('detectAskMode — TESTSET E군 기존 브리프 81건, 회귀 감시 (BRIEF-100B-FIX4-C §2.1)', () => {
+  it.each([
+    ['E-001', '어제 답장 써봤는데 별로였어. 오늘 보낼 메시지 좀 써줘.', 'completion'],
+    ['E-002', '아까 써준 거 말고 새로운 답장 써줘.', 'completion'],
+    ['E-003', '메시지를 써볼지 고민인데 일단 예시 하나 만들어줘.', 'completion'],
+    ['E-004', '내가 한번 써볼게. 참고할 문장도 하나 뽑아줘.', 'completion'],
+    ['E-005', '아까 멘트 만들어서 보냈는데, 이번에는 다른 문장으로 써줘.', 'completion'],
+    ['E-006', '문장 좀 써줘. 아까 건 써봤어.', 'completion'],
+    ['E-007', '어제 답장 써봤는데 별로였어 오늘 보낼 메시지 좀 써줘', 'completion'],
+    ['E-008', '메시지 써봤어 근데 별로야 다시 써줘', 'completion'],
+    ['E-009', '답장 써볼게 근데 문장 하나만 뽑아줘', 'completion'],
+    ['E-010', '어제 답장 써봤는데 별로였어.', 'completion'],
+    ['E-011', '아까 써준 거 말고 다른 걸 생각하고 있어.', 'null'],
+    ['E-012', '메시지를 써볼지 고민이야.', 'completion'],
+    ['E-013', '내가 한번 써볼게.', 'null'],
+    ['E-014', '보낼 메시지 좀 써줘', 'completion'],
+    ['E-015', '답장 좀 써줘', 'completion'],
+    ['E-016', '메시지 써줘', 'completion'],
+    ['E-017', '멘트 좀 뽑아줘', 'completion'],
+    ['E-018', '보낼 문장 써줘', 'completion'],
+    ['E-019', '뭐라고 보낼지 써줘', 'completion'],
+    ['E-020', '보낼 메시제 좀 써줘', 'completion'],
+    ['E-021', '문장 써주라', 'completion'],
+    ['E-022', '메시지 써봐줘', 'completion'],
+    ['E-023', '답장 써줬으면 좋겠어', 'completion'],
+    ['E-024', '메시지 하나 만들어줬으면 해', 'completion'],
+    ['E-025', '보낼 멘트를 뽑아줬으면 좋겠는데', 'completion'],
+    ['E-026', '답장 써줬으면 하는데 가능해?', 'completion'],
+    ['E-027', '답장 써서 보내게 문장 좀 만들어줘', 'completion'],
+    ['E-028', '메시지 써주세요', 'completion'],
+    ['E-029', '답장 써줄래?', 'completion'],
+    ['E-030', '문자 하나 써주면 좋겠어', 'completion'],
+    ['E-031', '메시지 써줄 수 있어?', 'completion'],
+    ['E-032', '문장 좀 만들어주라', 'completion'],
+    ['E-033', '메시지 써줘 지금', 'completion'],
+    ['E-034', '답장 어떻게 써?', 'completion'],
+    ['E-035', 'draft a reply for me', 'completion'],
+    ['E-036', 'I need to write a message', 'completion'],
+    ['E-037', '답장 써봤어', 'completion'],
+    ['E-038', '메시지 써서 보냈어', 'completion'],
+    ['E-039', '문자 써놨어', 'completion'],
+    ['E-040', '어제 메시지 적어서 보냈어', 'completion'],
+    ['E-041', '아까 멘트 만들어서 보냈어', 'completion'],
+    ['E-042', '문자 써 보냈어', 'completion'],
+    ['E-043', '메시지 써뒀어', 'completion'],
+    ['E-044', '답장 써줬어', 'completion'],
+    ['E-045', '메시지 써줘서 고마워', 'completion'],
+    ['E-046', '아까 답장 써준 거 보냈어', 'completion'],
+    ['E-047', '메시지 써서 보냈는데 답이 없어', 'completion'],
+    ['E-048', '답장 써봤는데 어때?', 'completion'],
+    ['E-049', '내가 답장 썼어', 'null'],
+    ['E-050', '답장 써볼까?', 'completion'],
+    ['E-051', '메시지를 한번 써볼지 고민이야', 'completion'],
+    ['E-052', '답장 써놓을까?', 'completion'],
+    ['E-053', '답장 써볼게', 'completion'],
+    ['E-054', '메시지 써둘게', 'completion'],
+    ['E-055', '답장 써야지', 'completion'],
+    ['E-056', '문자 써놓을게', 'completion'],
+    ['E-057', '메시지 써보려고', 'completion'],
+    ['E-058', '답장을 써야 할까?', 'null'],
+    ['E-059', '답장 안 써', 'null'],
+    ['E-060', '메시지 쓰기 싫어', 'null'],
+    ['E-061', '지금 보낼 문장 2개만 써줘', 'strict_script'],
+    ['E-062', '보낼 메시지 2개만 써줘', 'strict_script'],
+    ['E-063', '지현이는 원래 그런 성격이야?', 'verdict_probe'],
+    ['E-064', '뭐라고 답할까?', 'null'],
+    ['E-065', '그럼 뭐 하자고 할까?', 'null'],
+    ['E-066', '어제 연락했어', 'null'],
+    ['E-067', '답장 왔어', 'null'],
+    ['E-068', '문장 하나 골라줘', 'null'],
+    ['E-069', 'she wrote me a message', 'null'],
+    ['E-072', '그냥 써줘', 'null'],
+    ['E-073', '메시지 써봤는데 친구에게 보여줘.', 'completion'],
+    ['E-074', '답장 써봤는데 이것 좀 봐줘.', 'completion'],
+    ['E-075', '메시지 써놨는데 읽어줘.', 'completion'],
+    ['E-076', '답장 써줘, 아니 이미 써봤어. 됐어.', 'null'],
+    ['E-077', '답장 써봤는데 그냥 그대로 보내려고.', 'completion'],
+    ['E-078', '메시지 써줘 아니다 이미 써놨어', 'null'],
+    ['E-079', '어제 답장 써봤어. 오늘 보낼 메시지 좀 써줘.', 'completion'],
+    ['E-080', '오늘 보낼 메시지 좀 써줘 어제 건 써봤어', 'completion'],
+    ['E-081', '답장 써줘서 고마워. 하나만 더 써줘.', 'completion'],
+  ] as const)('%s %s -> %s', (_id, text, expected) => {
+    expect(detectAskMode(text) ?? 'null').toBe(expected);
+  });
+
+  // TESTSET §4.5 잔여 FN — 목적어 명사(COMPLETION_PATTERNS)가 이 문장에도, 이월 대상 앞 절에도 전혀
+  // 없어 탐지되지 않는다. 알려진 한계로 고정(§4 "지원 범위 밖으로 삭제·정상 동작으로 바꾸지 말 것").
+  it.fails('E-070 하나만 더 써줘 -> completion (잔여 FN, §4.5)', () => {
+    expect(detectAskMode('하나만 더 써줘') ?? 'null').toBe('completion');
+  });
+  it.fails('E-071 참고할 거 하나 만들어줘 -> completion (잔여 FN, §4.5)', () => {
+    expect(detectAskMode('참고할 거 하나 만들어줘') ?? 'null').toBe('completion');
+  });
+});
+
+describe('COMPLETION_* 정규식 6종 — 양성·음성 최소 1건 (BRIEF-100B-FIX4-C §2.2)', () => {
+  it('COMPLETION_SEGMENT_SPLIT — "일단" 앞에서 갈라진다(양성) / 갈릴 표지가 없으면 그대로다(음성)', () => {
+    expect('그렇구나 일단 예시 하나 줘'.split(COMPLETION_SEGMENT_SPLIT).length).toBeGreaterThan(1);
+    expect('그냥 평범한 문장입니다'.split(COMPLETION_SEGMENT_SPLIT)).toEqual(['그냥 평범한 문장입니다']);
+  });
+
+  it('COMPLETION_QUOTE_SPAN — 따옴표 구간을 찾는다(양성) / 따옴표 없으면 매치 없음(음성)', () => {
+    expect(COMPLETION_QUOTE_SPAN.test('"메시지 써줘"라고 했어')).toBe(true);
+    expect(COMPLETION_QUOTE_SPAN.test('메시지 써줘라고 했어')).toBe(false);
+  });
+
+  it('COMPLETION_REPORT_MARKER — "라고 했"/"~대"는 표지다(양성) / 전달 동사 없는 "라고 보낼"은 표지가 아니다(음성)', () => {
+    expect(COMPLETION_REPORT_MARKER.test('라고 했어')).toBe(true);
+    expect(COMPLETION_REPORT_MARKER.test('걔가 답장 써달래')).toBe(true);
+    expect(COMPLETION_REPORT_MARKER.test('라고 보낼 메시지')).toBe(false);
+  });
+
+  it('COMPLETION_FORBID — "지 마"/"지 말고" 둘 다 표지다(양성) / 평범한 요청은 아니다(음성)', () => {
+    expect(COMPLETION_FORBID.test('써주지 마')).toBe(true);
+    expect(COMPLETION_FORBID.test('써주지 말고 조언만')).toBe(true);
+    expect(COMPLETION_FORBID.test('메시지 써줘')).toBe(false);
+  });
+
+  it('COMPLETION_CANCEL — "아니"/"됐어" 등은 취소 표지다(양성) / 무관한 문장은 아니다(음성)', () => {
+    expect(COMPLETION_CANCEL.test('아니 됐어')).toBe(true);
+    expect(COMPLETION_CANCEL.test('메시지 써줘')).toBe(false);
+  });
+
+  it('COMPLETION_REQUEST_ENDINGS — "써줘"류 요청 어미다(양성) / 완료형 어미는 아니다(음성)', () => {
+    expect(COMPLETION_REQUEST_ENDINGS.test('하나만 써줘')).toBe(true);
+    expect(COMPLETION_REQUEST_ENDINGS.test('하나 써봤어')).toBe(false);
+  });
+});
+
+describe('splitCompletionParts — 3개 고정 사례 (BRIEF-100B-FIX4-C §2.2)', () => {
+  it('걔가 "메시지 써줘"라고 보냈어 -> quote 1개, user 부분에는 요청이 없다', () => {
+    const parts = splitCompletionParts('걔가 "메시지 써줘"라고 보냈어');
+    expect(parts.filter(p => p.kind === 'quote')).toHaveLength(1);
+    expect(detectCompletionRequest('걔가 "메시지 써줘"라고 보냈어')).toBe(false);
+  });
+
+  it('걔한테 "잘 지내?"라고 보낼 메시지 써줘 -> 표지 없는 "라고 보낼"이라 인용에 안 먹히고, user 꼬리(실제 요청)가 살아있다', () => {
+    const parts = splitCompletionParts('걔한테 "잘 지내?"라고 보낼 메시지 써줘');
+    const userText = parts.filter(p => p.kind === 'user').map(p => p.text).join('');
+    expect(userText).toContain('메시지 써줘');
+    expect(detectCompletionRequest('걔한테 "잘 지내?"라고 보낼 메시지 써줘')).toBe(true);
+  });
+
+  it('메시지 써줘. 아니다 걔가 먼저 쓴대. -> 두 번째 문장이 "아니다"(user) + "걔가 먼저 쓴대"(quote)로 갈린다', () => {
+    const sentences = splitSentences('메시지 써줘. 아니다 걔가 먼저 쓴대.');
+    expect(sentences).toHaveLength(2);
+    const parts = splitCompletionParts(sentences[1]);
+    expect(parts.some(p => p.kind === 'user' && p.text === '아니다')).toBe(true);
+    expect(parts.some(p => p.kind === 'quote' && p.text.includes('걔가 먼저 쓴대'))).toBe(true);
+  });
+});
+
+describe('구조 회귀 — BRIEF-100B-FIX4-C §2.3', () => {
+  it('COMPLETION_PATTERNS 무변경 (3개, 기존 문구 그대로)', () => {
+    expect(COMPLETION_PATTERNS).toHaveLength(3);
+    expect(COMPLETION_PATTERNS.some(p => p.test('메시지 좀 써줘'))).toBe(true);
+  });
+
+  it('COMPLETION_EXCLUSIONS 무변경 (길이 2, 이름·내용 그대로 — 역할만 절 단위로 바뀜)', () => {
+    expect(COMPLETION_EXCLUSIONS).toHaveLength(2);
+    expect(COMPLETION_EXCLUSIONS.some(p => p.test('안 써'))).toBe(true);
+    expect(COMPLETION_EXCLUSIONS.some(p => p.test('써야 할까'))).toBe(true);
+  });
+
+  it('STRICT_SCRIPT_PATTERNS·VERDICT_PROBE_PATTERNS 무변경 (개수 6개 / 6개, 우선순위 유지)', () => {
+    expect(STRICT_SCRIPT_PATTERNS).toHaveLength(6);
+    expect(VERDICT_PROBE_PATTERNS).toHaveLength(6);
+    expect(detectAskMode('지금 보낼 문장 2개만 써줘')).toBe('strict_script');
+    expect(detectAskMode('지현이는 원래 그런 성격이야?')).toBe('verdict_probe');
+  });
+
+  it('validateAskAnswer·최종 처분·프롬프트 블록 무변경 — 기존 BRIEF-100B-FIX/FIX3 테스트 전건이 이 파일 안에서 그대로 통과(회귀는 전체 vitest 실행 수치로 별도 확인)', () => {
+    const answer = { text: '문장 하나.' };
+    const ctx: { askMode: null; personIntroduced: boolean; candidates: string[]; latestUserText: string } =
+      { askMode: null, personIntroduced: false, candidates: [], latestUserText: '' };
+    expect(validateAskAnswer(answer, ctx)).toEqual([]);
   });
 });
 

@@ -220,23 +220,108 @@ export const COMPLETION_PATTERNS: RegExp[] = [
 ];
 
 // "답장 안 써" / "답장 써야 할까?" — negation and deliberation, not a request for text to send.
+// BRIEF-100B-FIX4-C §1.1: role changes here — no longer "exclude the whole input", but "this CLAUSE
+// is not a request" (used inside detectCompletionRequest below). Name and content unchanged.
 export const COMPLETION_EXCLUSIONS: RegExp[] = [
   /(?:안|못)\s*(?:써|적어|만들어|뽑아)/,
   /(?:써|적어|만들어|뽑아)\S*\s*(?:할까|말까|될까)/,
 ];
 
+// ── BRIEF-100B-FIX4-C §1.2 — clause-boundary + speaker-separation tables (all exported for
+// table-level testing). Replaces the old "whole-text pattern + exclusion" completion check, which
+// could not represent sentence order (a later cancellation) or quoted/reported speech (someone
+// else's request). See BRIEF-100B-FIX4-C.md §1.4 for the design rationale behind each regex. ────
+
+/** 절 경계. 인용·취소가 한 문장 안에 섞여 있을 때 나눈다. */
+export const COMPLETION_SEGMENT_SPLIT: RegExp =
+  /(?<=(?:는데|지만|다만|니까|라서|말고))\s+|(?<=[,;])\s*|(?<=아니다|아니야|아니|됐어|그만)\s+|\s+(?=그래도|그런데|근데|하지만|아니|아니다|그럼|대신|일단)/;
+
+/** 직접 인용 — 따옴표로 묶인 구간. */
+export const COMPLETION_QUOTE_SPAN: RegExp = /["'“”][^"'“”]*["'“”]/;
+
+/** 간접·전달 인용 표지. 이 표지까지가 인용 영역이고, 표지 뒤는 사용자 영역이다.
+ *  `줄래`의 `래`, `있대/없대`의 `대`는 요청·서술이므로 부정 후방탐색으로 제외한다.
+ *  `라고`는 뒤에 전달 동사가 올 때만 표지다 — 그러지 않으면 `뭐라고 보낼지 써줘`가 죽는다. */
+export const COMPLETION_REPORT_MARKER: RegExp =
+  /(?:달라고|달라는데|달래(?![가-힣])|라고\s*(?:했|하|해|한|보냈|왔|들었|그러|말)|다고\s*(?:했|하|해|한)|라는데|라며|라더라|(?<![줄을])래(?![가-힣])|(?<![있없])대(?![가-힣]))/;
+
+/** 후치 부정·금지 — 현재 생성 행위를 막는 형태. `지 마`와 `지 말고` 둘 다 덮는다. */
+export const COMPLETION_FORBID: RegExp =
+  /(?:(?:써|적어|만들어|뽑아)(?:주)?지\s*(?:마|말)|(?:쓰|적|만들|뽑)지\s*(?:마|말)|(?:안|못)\s*(?:써|적어|만들어|뽑아))/;
+
+/** 취소·철회. 목적어가 함께 있는 절은 취소가 아니라 수정 요청이므로 §1.3에서 제외된다. */
+export const COMPLETION_CANCEL: RegExp =
+  /(?:아니|됐어|됐다|관두|놔둬|놔둘|취소|잠깐|기다려|그만)/;
+
+export const COMPLETION_REQUEST_ENDINGS: RegExp =
+  /(?:써|적어|만들어|뽑아)\s*(?:줘(?!서)|주라|줘라|줄래|주세요|주실래|주면|줬으면|주시면|달라|다오)/;
+
+// ── BRIEF-100B-FIX4-C §1.3 — clause classification: separate quoted/reported speech from the
+// user's own direct speech FIRST, then apply request/cancel/forbid + input order to the direct-
+// speech clauses only. Deliberately NOT "find the one speaker of the sentence" — a single input can
+// contain both a quote of someone else AND the user's own real request (§0 판정 원칙). ────────────
+
+type CompletionPart = { kind: 'quote' | 'user'; text: string };
+
+/** 한 문장을 절로 나누고, 각 절에서 인용 영역과 사용자 영역을 가른다. */
+export function splitCompletionParts(sentence: string): CompletionPart[] {
+  const out: CompletionPart[] = [];
+  for (const raw of sentence.split(COMPLETION_SEGMENT_SPLIT)) {
+    const s = raw.trim();
+    if (!s) continue;
+    const q = s.match(COMPLETION_QUOTE_SPAN);
+    const from = q && q.index !== undefined ? q.index + q[0].length : 0;
+    const rm = s.slice(from).match(COMPLETION_REPORT_MARKER);
+    if (rm && rm.index !== undefined) {
+      const cut = from + rm.index + rm[0].length;
+      out.push({ kind: 'quote', text: s.slice(0, cut) });
+      const tail = s.slice(cut).trim();
+      if (tail) out.push({ kind: 'user', text: tail });
+    } else if (q && q.index !== undefined && !s.slice(from).trim()) {
+      out.push({ kind: 'quote', text: s });
+    } else {
+      out.push({ kind: 'user', text: s });
+    }
+  }
+  return out;
+}
+
+export function detectCompletionRequest(text: string): boolean {
+  let sawObject = false;                 // 앞 절에서 목적어 명사가 이미 나왔는가
+  let last: 'request' | 'cancel' | 'forbid' | null = null;
+
+  for (const sentence of splitSentences(text)) {
+    for (const part of splitCompletionParts(sentence)) {
+      if (part.kind === 'quote') continue;              // 인용·보고는 사용자의 요청이 아니다
+      const t = part.text;
+
+      if (COMPLETION_FORBID.test(t)) { last = 'forbid'; continue; }
+
+      const hasObject = COMPLETION_PATTERNS.some(p => p.test(t));
+      const nonRequest = COMPLETION_EXCLUSIONS.some(p => p.test(t));
+      if (hasObject) sawObject = true;
+
+      // 요청: 이 절에 목적어가 있거나(정상), 앞 절에서 목적어가 나온 뒤의 대용 요청이거나.
+      if ((hasObject && !nonRequest) ||
+          (sawObject && COMPLETION_REQUEST_ENDINGS.test(t) && !nonRequest)) {
+        last = 'request'; continue;
+      }
+      // 취소: 목적어가 없는 절에서만. 목적어가 있으면 수정 요청이다("아니 문자로 써줘").
+      if (COMPLETION_CANCEL.test(t) && !hasObject) { last = 'cancel'; continue; }
+    }
+  }
+  return last === 'request';
+}
+
 /** Conservative: only fires on an explicit count ("문장 두 개 써줘"), never on a bare request
  * ("뭐라고 답할까?", "보낼 문장 써줘") — a false trigger here is worse than missing one.
- * Priority (fixed, BRIEF-100B-FIX3 §1.2): strict_script > verdict_probe > completion > null — an
- * explicit count always wins so the count contract is never silently lost to the looser completion
- * match. */
+ * Priority (fixed, BRIEF-100B-FIX3 §1.2, unchanged by FIX4-C): strict_script > verdict_probe >
+ * completion > null — an explicit count always wins so the count contract is never silently lost
+ * to the looser completion match. */
 export function detectAskMode(latestUserText: string): AskMode {
   if (STRICT_SCRIPT_PATTERNS.some(p => p.test(latestUserText))) return 'strict_script';
   if (VERDICT_PROBE_PATTERNS.some(p => p.test(latestUserText))) return 'verdict_probe';
-  if (
-    COMPLETION_PATTERNS.some(p => p.test(latestUserText)) &&
-    !COMPLETION_EXCLUSIONS.some(p => p.test(latestUserText))
-  ) return 'completion';
+  if (detectCompletionRequest(latestUserText)) return 'completion';
   return null;
 }
 
