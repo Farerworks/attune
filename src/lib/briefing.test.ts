@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseBriefing, containsBannedPhrases, buildBriefingPrompt, type Briefing } from './briefing';
+import { parseBriefing, containsBannedPhrases, buildBriefingPrompt, applyStartersFraming, type Briefing } from './briefing';
 import type { SajuChart, Pillar, TenStem, TwelveBranch } from './saju';
 import { LENS_FRAGMENTS, SIGNAL_FRAGMENTS, MIXED_SIGNAL_FRAGMENT, SINSAL_FRAGMENTS } from './promptFragments';
 import { ILJU_PROFILES } from './iljuProfiles';
@@ -343,5 +343,80 @@ describe('buildBriefingPrompt — HEADLINE LENGTH contract (BRIEF-093B)', () => 
     const prompt = buildBriefingPrompt(me, them, 'friend', 'test situation');
 
     expect(prompt).toContain('HEADLINE LENGTH: hard limits — Korean: 60 characters max (aim 28–48). English: 90 characters max (aim 45–75).');
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// BRIEF-100B-FIX2 — Briefing starters에도 F5 방향 판정 적용
+// ══════════════════════════════════════════════════════════════════════════
+
+describe('applyStartersFraming (BRIEF-100B-FIX2 §1.2)', () => {
+  it('음성 — 3개 중 1개가 위반(「은우가 연락을 줄인 진짜 이유는 뭘까?」) -> starters 전체 제거', () => {
+    const briefing: Briefing = { ...VALID_BRIEFING, starters: [
+      '은우가 연락을 줄인 진짜 이유는 뭘까?',
+      '지금 뭐라고 말 걸어볼까?',
+      '이번 주 안에 연락해도 될까?',
+    ] };
+    const result = applyStartersFraming(briefing);
+    expect(result.briefing.starters).toBeUndefined();
+    expect(result.removedCount).toBe(1);
+  });
+
+  it('음성 — 3개 전부 위반 -> starters 전체 제거, count는 3', () => {
+    const briefing: Briefing = { ...VALID_BRIEFING, starters: [
+      '진짜 마음을 읽을 수 있을까?',
+      '진짜 이유가 뭘까?',
+      '숨은 진심을 알아낼 수 있을까?',
+    ] };
+    const result = applyStartersFraming(briefing);
+    expect(result.briefing.starters).toBeUndefined();
+    expect(result.removedCount).toBe(3);
+  });
+
+  it('양성 — 부정·한계형(「진짜 마음을 한 번에 알 수는 없겠지?」) 포함 -> 제거하지 않음, 3개 그대로 유지', () => {
+    const briefing: Briefing = { ...VALID_BRIEFING, starters: [
+      '진짜 마음을 한 번에 알 수는 없겠지?',
+      '지금 뭐라고 말 걸어볼까?',
+      '이번 주 안에 연락해도 될까?',
+    ] };
+    const result = applyStartersFraming(briefing);
+    expect(result.briefing.starters).toEqual(briefing.starters);
+    expect(result.removedCount).toBe(0);
+  });
+
+  it('양성 — 위반 없는 정상 3개 -> 그대로 유지', () => {
+    const briefing: Briefing = { ...VALID_BRIEFING, starters: [
+      '지금 뭐라고 말 걸어볼까?',
+      '먼저 연락해도 괜찮을까?',
+      '이번 주 안에 연락해도 될까?',
+    ] };
+    const result = applyStartersFraming(briefing);
+    expect(result.briefing.starters).toEqual(briefing.starters);
+    expect(result.removedCount).toBe(0);
+  });
+
+  it('starters 필드 자체가 없음 -> 무변경, removedCount 0', () => {
+    const result = applyStartersFraming(VALID_BRIEFING);
+    expect(result.briefing).toBe(VALID_BRIEFING); // same reference — no unnecessary copy
+    expect(result.removedCount).toBe(0);
+  });
+
+  it('부분 제거가 아님을 확인 — 2개만 남기는 경우는 없다 (제거 시 항상 undefined)', () => {
+    const briefing: Briefing = { ...VALID_BRIEFING, starters: [
+      '진짜 이유가 뭘까?',
+      '지금 뭐라고 말 걸어볼까?',
+      '이번 주 안에 연락해도 될까?',
+    ] };
+    const result = applyStartersFraming(briefing);
+    expect(Array.isArray(result.briefing.starters)).toBe(false);
+  });
+
+  it('회귀 — containsBannedPhrases는 여전히 starters를 그대로 검사한다 (F5와 합쳐지지 않았음)', () => {
+    const briefing: Briefing = { ...VALID_BRIEFING, starters: [
+      'weakness를 파고드는 질문',
+      '지금 뭐라고 말 걸어볼까?',
+      '이번 주 안에 연락해도 될까?',
+    ] };
+    expect(containsBannedPhrases(briefing)).toContain('weakness');
   });
 });

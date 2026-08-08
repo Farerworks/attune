@@ -5,6 +5,7 @@ import { relationLens } from './tenGods';
 import { comparePillars, type SignalKind } from './branchRelations';
 import { detectSinsal, type SinsalInput } from './sinsal';
 import { getIljuProfile } from './iljuProfiles';
+import { findHiddenTruthFraming } from './hiddenTruth';
 import {
   LENS_FRAGMENTS, SIGNAL_FRAGMENTS, MIXED_SIGNAL_FRAGMENT, SINSAL_FRAGMENTS, SINSAL_PRIORITY,
   LENS_INSTRUCTION, SIGNALS_INSTRUCTION, SINSAL_INSTRUCTION,
@@ -337,6 +338,23 @@ export function containsBannedPhrases(briefing: Briefing): string[] {
 
   const combined = texts.join(' ').toLowerCase();
   return BANNED_PHRASES.filter(phrase => combined.includes(phrase.toLowerCase()));
+}
+
+/**
+ * F5 applied to `starters` (BRIEF-100B-FIX2 §1.2) — if ANY of the 3 starter questions trips the
+ * hidden-truth framing direction check, drop `starters` entirely (never a partial 1-2 item list):
+ * the client already falls back to its static prompt pool whenever `starters` isn't exactly 3
+ * (src/app/(tabs)/ask/page.tsx, confirmed in §4.5), so removal degrades gracefully — no retry, no
+ * 502, no merging into `containsBannedPhrases` (that path retries then 502s, which would fail an
+ * entire reading over one chip). Returns only a COUNT for logging — never the offending text.
+ */
+export function applyStartersFraming(briefing: Briefing): { briefing: Briefing; removedCount: number } {
+  if (!briefing.starters) return { briefing, removedCount: 0 };
+  const violatingCount = briefing.starters.filter(s => findHiddenTruthFraming(s)).length;
+  if (violatingCount === 0) return { briefing, removedCount: 0 };
+  const { starters: _starters, ...rest } = briefing;
+  void _starters;
+  return { briefing: rest, removedCount: violatingCount };
 }
 
 export function parseBriefing(raw: string): Briefing {

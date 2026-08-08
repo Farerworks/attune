@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { calculateSaju } from '@/lib/saju';
-import { buildBriefingPrompt, parseBriefing, containsBannedPhrases } from '@/lib/briefing';
+import { buildBriefingPrompt, parseBriefing, containsBannedPhrases, applyStartersFraming } from '@/lib/briefing';
 import { createLlmProvider } from '@/lib/llm';
 import { checkRateLimit } from '@/lib/rateLimit';
 
@@ -66,6 +66,12 @@ function classifyBriefingError(err: unknown): { category: string; upstreamStatus
 /** §1.2 — exactly one fixed-format line via console.error, no second (Error/object) argument. */
 function logBriefingFailure(rid: string, stage: string, action: string, category: string, upstreamStatus: string): void {
   console.error(`[briefing] rid=${rid} stage=${stage} action=${action} status=502 category=${category} upstreamStatus=${upstreamStatus}`);
+}
+
+/** BRIEF-100B-FIX2 §1.3 — observability for a starters removal (not a failure: status stays 200).
+ * Same [briefing] log family, but only a count — never the offending question text or any PII. */
+function logStartersRemoved(rid: string, count: number): void {
+  console.error(`[briefing] rid=${rid} stage=starters action=removed count=${count}`);
 }
 
 const RequestSchema = z.object({
@@ -200,9 +206,13 @@ export async function POST(request: Request) {
     );
   }
 
+  // ── F5 on starters (BRIEF-100B-FIX2 §1.2/§1.3) — 200 either way, never a retry/502. ─────────
+  const { briefing: finalBriefing, removedCount } = applyStartersFraming(briefing);
+  if (removedCount > 0) logStartersRemoved(rid, removedCount);
+
   // ── Response ────────────────────────────────────────────────────────────────
   return Response.json({
-    briefing,
+    briefing: finalBriefing,
     charts: {
       me: {
         dayMaster:    meChart.dayMaster,
