@@ -17,7 +17,7 @@ vi.mock('@/lib/llm', () => ({
 const {
   buildAskTurns, buildAskSystem, hasTodayIntroduced, themNameCandidates, hasPersonIntroduced, POST,
   detectAskMode, detectContinuationHint, STRICT_SCRIPT_PATTERNS, VERDICT_PROBE_PATTERNS, CONTINUATION_HINT_PATTERNS,
-  validateAskAnswer, UNDERSTAND_LABELS, DECIDE_LABELS,
+  validateAskAnswer, UNDERSTAND_LABELS, DECIDE_LABELS, parseScriptRequest,
 } = await import('./route');
 const { calculateSaju, getDailyPillars, pillarLabel, friendlyPillarName, STEM_NAMES } = await import('@/lib/saju');
 const { ARCHETYPES, ARCHETYPE_LOCALE } = await import('@/lib/interpretGuide');
@@ -1133,4 +1133,435 @@ describe('validateAskAnswer — known limitations, documented on purpose (BRIEF-
   });
 });
 
+// ══════════════════════════════════════════════════════════════════════════
+// BRIEF-100B-FIX v1 — Ask 응답의 사실성·출력 계약 집행
+// ══════════════════════════════════════════════════════════════════════════
+//
+// F1/F3(most rows)/F4 have no output validator (§4.5 gave no "existing-contract-unenforced"
+// evidence for them the way it did for F2, and a mocked LLM can't demonstrate real model
+// reasoning) — coverage there is prompt-content assertions confirming the new/reinforced rule
+// text is present, referencing the §2 table's own input examples in each test's description for
+// traceability. F2 and F5 get real validators, covered end-to-end via validateAskAnswer +
+// POST pipeline tests below.
+
+describe('buildAskSystem — F1 TEMPORAL STATE block (BRIEF-100B-FIX §1 F1, prompt-only)', () => {
+  const meChart = calculateSaju({ date: '1990-06-15', time: '14:30' });
+  const themChart = calculateSaju({ date: '1988-03-02', time: '09:00' });
+
+  it('person mode includes the TEMPORAL STATE block', () => {
+    const system = buildAskSystem('person', meChart, themChart, undefined, []);
+    expect(system).toContain('TEMPORAL STATE');
+  });
+
+  it('me/general modes do not include it (the "other person\'s reaction" concept is person-only)', () => {
+    for (const mode of ['me', 'general'] as const) {
+      const system = buildAskSystem(mode, meChart, null, undefined, []);
+      expect(system).not.toContain('TEMPORAL STATE');
+    }
+  });
+
+  it('음성 「그래서 내가 먼저 연락하기로 했어」/「내일 얘기 꺼내볼까 해」 — forbids presupposing a reaction to an unexecuted plan', () => {
+    const system = buildAskSystem('person', meChart, themChart, undefined, []);
+    expect(system).toContain('A stated intention');
+    expect(system).toContain('NOT a completed event');
+    expect(system).toContain("Never ask about, or write as if you already know, the other person's reaction to something that hasn't happened yet");
+  });
+
+  it('양성 「어제 연락했어」/「연락했는데 답이 없어」 — reactions/results ARE fair game once the user reports them', () => {
+    const system = buildAskSystem('person', meChart, themChart, undefined, []);
+    expect(system).toContain('Only bring up or ask about their reaction after the user reports the action actually happened');
+    expect(system).toContain('답이 없어');
+  });
+});
+
+describe('buildAskSystem — F3 FOLLOW-UP RULE reinforcement (BRIEF-100B-FIX §1 F3)', () => {
+  const meChart = calculateSaju({ date: '1990-06-15', time: '14:30' });
+  const themChart = calculateSaju({ date: '1988-03-02', time: '09:00' });
+
+  it('음성 「완성 문구·목록·정확한 출력 요청」 -> new rule states followUp is omitted entirely (all 3 modes)', () => {
+    for (const mode of ['me', 'person', 'general'] as const) {
+      const system = buildAskSystem(mode, meChart, mode === 'person' ? themChart : null, undefined, []);
+      expect(system).toContain('Omit followUp entirely when you just gave a complete, ready-to-use output');
+    }
+  });
+
+  it('음성 「아직 발생하지 않은 결과를 묻는 질문」 -> new rule ties followUp to TEMPORAL STATE (person mode)', () => {
+    const system = buildAskSystem('person', meChart, themChart, undefined, []);
+    expect(system).toContain("Never let followUp ask about the outcome or reaction to something that hasn't happened yet");
+  });
+
+  it('regression: 「이미 사용자가 답한 사실을 다시 묻는 질문 — 금지」 wording unchanged (all 3 modes)', () => {
+    for (const mode of ['me', 'person', 'general'] as const) {
+      const system = buildAskSystem(mode, meChart, mode === 'person' ? themChart : null, undefined, []);
+      expect(system).toContain('Never re-ask what the user already told you');
+    }
+  });
+});
+
+describe('buildAskSystem — F4 EVIDENCE FOR CLAIMS ABOUT THEM block (BRIEF-100B-FIX §1 F4, prompt-only)', () => {
+  const meChart = calculateSaju({ date: '1990-06-15', time: '14:30' });
+  const themChart = calculateSaju({ date: '1988-03-02', time: '09:00' });
+
+  it('person mode includes the block; me/general do not (no "other person" concept there)', () => {
+    const person = buildAskSystem('person', meChart, themChart, undefined, []);
+    expect(person).toContain('EVIDENCE FOR CLAIMS ABOUT THEM');
+    for (const mode of ['me', 'general'] as const) {
+      const system = buildAskSystem(mode, meChart, null, undefined, []);
+      expect(system).not.toContain('EVIDENCE FOR CLAIMS ABOUT THEM');
+    }
+  });
+
+  it('음성 「취향 언급이 없던 대화에서 은우가 좋아하는 X」 -> unfounded claims require the user to have actually said it', () => {
+    const system = buildAskSystem('person', meChart, themChart, undefined, []);
+    expect(system).toContain('never state the other person\'s tastes, private thoughts, or future reactions as a known fact unless the user actually told you');
+  });
+
+  it('양성 「사용자가 앞선 턴에 취향을 말한 대화」 -> using it is allowed AND not mandatory every turn (no forced avoidance, no forced repetition)', () => {
+    const system = buildAskSystem('person', meChart, themChart, undefined, []);
+    expect(system).toContain('Do NOT avoid a preference the user actually stated just to be safe');
+    expect(system).toContain('you just don\'t have to bring it up in every single answer');
+  });
+
+  it('양성 「조건형 표현 (평소 좋아한다고 말한 게 있다면)」 -> named as an allowed pattern', () => {
+    const system = buildAskSystem('person', meChart, themChart, undefined, []);
+    expect(system).toContain('평소 좋아한다고 말한 게 있다면');
+  });
+
+  it('음성 「근거 없는 낙관 — 은우가 사실 당신을 많이 좋아할 가능성이 커요」 -> possibility language still needs grounding', () => {
+    const system = buildAskSystem('person', meChart, themChart, undefined, []);
+    expect(system).toContain('"~일 가능성이 커요" still needs to connect to something the user told you or a repeated pattern');
+    expect(system).toContain('must not be the only explanation offered');
+  });
+
+  it('음성 「상대의 미래 반응 보장」 -> explicit banned examples, framed as never a guarantee', () => {
+    const system = buildAskSystem('person', meChart, themChart, undefined, []);
+    expect(system).toContain('Never promise how the other person will react');
+    expect(system).toContain('되어줄 거예요'); // the exact SMOKE defect #3 wording
+    expect(system).toContain('a reaction is always a possibility, never a guarantee');
+  });
+
+  it('regression: 「사용자가 감정만 고백 — 상대 반응을 차트로 설명하지 않음」 covered by the pre-existing BASIS PRIORITY fact-first ordering (no new rule needed, unchanged)', () => {
+    const system = buildAskSystem('person', meChart, themChart, undefined, []);
+    expect(system).toContain('Facts the user has told you');
+  });
+});
+
+describe('buildAskSystem — F5 NO HIDDEN-TRUTH FRAMING prompt block (BRIEF-100B-FIX §1 F5, prompt half)', () => {
+  const meChart = calculateSaju({ date: '1990-06-15', time: '14:30' });
+  const themChart = calculateSaju({ date: '1988-03-02', time: '09:00' });
+
+  it('person mode includes the block; me/general do not', () => {
+    const person = buildAskSystem('person', meChart, themChart, undefined, []);
+    expect(person).toContain('NO HIDDEN-TRUTH FRAMING');
+    for (const mode of ['me', 'general'] as const) {
+      const system = buildAskSystem(mode, meChart, null, undefined, []);
+      expect(system).not.toContain('NO HIDDEN-TRUTH FRAMING');
+    }
+  });
+
+  it('names the exact banned phrasing and the allowed limiting-form alternative', () => {
+    const system = buildAskSystem('person', meChart, themChart, undefined, []);
+    expect(system).toContain('진짜 마음을 읽을 수 있어요');
+    expect(system).toContain('진짜 이유를 알 수 있어요');
+    expect(system).toContain('a single reaction can\'t reveal someone\'s real feelings');
+  });
+});
+
+describe('buildAskSystem — STRICT_SCRIPT_BLOCK framing removed + unit nuance (BRIEF-100B-FIX §1 F2 / §5 결재)', () => {
+  const meChart = calculateSaju({ date: '1990-06-15', time: '14:30' });
+  const themChart = calculateSaju({ date: '1988-03-02', time: '09:00' });
+
+  it('the old "plus at most one short sentence of framing" allowance is gone', () => {
+    const system = buildAskSystem('person', meChart, themChart, undefined, [], 'Alex', 'Sam', undefined, false, false, 'strict_script', false);
+    expect(system).not.toContain('plus at most one short sentence of framing');
+    expect(system).toContain('Give EXACTLY the requested number of lines');
+    expect(system).toContain('nothing before them, nothing after them, no leading explanation, no closing remark');
+  });
+
+  it('states the sentence-vs-message unit distinction and the format-marker ban', () => {
+    const system = buildAskSystem('person', meChart, themChart, undefined, [], 'Alex', 'Sam', undefined, false, false, 'strict_script', false);
+    expect(system).toContain('If the count was for "문장"/sentences, each line is exactly one sentence');
+    expect(system).toContain('may be up to two short sentences when that reads naturally');
+    expect(system).toContain('No numbering, no bullets, no labels, no "/" separators');
+  });
+});
+
+describe('detectAskMode — "메시지 N개" gap fix (BRIEF-100B-FIX §1 F2, evidence gap vs §4.5)', () => {
+  it('"보낼 메시지 2개만 써줘" (the SMOKE brief\'s own §2 example) is now detected as strict_script — it was NOT before this BRIEF', () => {
+    expect(detectAskMode('보낼 메시지 2개만 써줘')).toBe('strict_script');
+  });
+
+  it('"멘트 두 개 써줘" still works (regression — not replaced, just extended)', () => {
+    expect(detectAskMode('멘트 두 개 써줘')).toBe('strict_script');
+  });
+});
+
+describe('parseScriptRequest (BRIEF-100B-FIX §1 F2)', () => {
+  it.each([
+    ['문장 두 개 써줘', { count: 2, unit: 'sentence' }],
+    ['문장 3개 써줘', { count: 3, unit: 'sentence' }],
+    ['3문장 써줘', { count: 3, unit: 'sentence' }],
+    ['멘트 두 개 써줘', { count: 2, unit: 'message' }],
+    ['메시지 2개만 써줘', { count: 2, unit: 'message' }],
+    ['write 2 lines', { count: 2, unit: 'message' }],
+    ['give me 3 messages', { count: 3, unit: 'message' }],
+    ['exactly 2 sentences', { count: 2, unit: 'sentence' }],
+  ] as const)('%s -> %o', (text, expected) => {
+    expect(parseScriptRequest(text)).toEqual(expected);
+  });
+
+  it('no explicit count -> null (a bare request like "보낼 문장 써줘" never reaches this — detectAskMode already requires a count)', () => {
+    expect(parseScriptRequest('그냥 편하게 얘기해줘')).toBeNull();
+  });
+});
+
+describe('validateAskAnswer — F2 script contract (BRIEF-100B-FIX §1/§2)', () => {
+  const scriptCtx = (latestUserText: string) =>
+    ({ askMode: 'strict_script' as const, personIntroduced: false, candidates: [] as string[], latestUserText });
+
+  it('양성 「문장 두 개」 — exactly 2 lines, no markers, no followUp -> no script_contract violations', () => {
+    const answer = { text: '오랜만이야.\n잘 지내?' };
+    const violations = validateAskAnswer(answer, scriptCtx('문장 두 개 써줘'));
+    expect(violations.filter(v => v.type === 'script_contract')).toEqual([]);
+  });
+
+  it('양성 「메시지 2개」 — each line may hold 2 short sentences, still no violation', () => {
+    const answer = { text: '오랜만이야! 잘 지내?\n한번 보자.' };
+    const violations = validateAskAnswer(answer, scriptCtx('메시지 2개만 써줘'));
+    expect(violations.filter(v => v.type === 'script_contract')).toEqual([]);
+  });
+
+  it('음성 count — 3 lines when 2 were requested -> script_contract(count)', () => {
+    const answer = { text: '하나.\n둘.\n셋.' };
+    const violations = validateAskAnswer(answer, scriptCtx('문장 두 개 써줘'));
+    expect(violations).toContainEqual({ type: 'script_contract', detail: 'count' });
+  });
+
+  it('음성 format — leading numbering -> script_contract(format)', () => {
+    const answer = { text: '1. 오랜만이야.\n2. 잘 지내?' };
+    const violations = validateAskAnswer(answer, scriptCtx('문장 두 개 써줘'));
+    expect(violations).toContainEqual({ type: 'script_contract', detail: 'format' });
+  });
+
+  it('음성 format — "/" separator within a line -> script_contract(format)', () => {
+    const answer = { text: '오랜만이야/잘 지내?\n한번 보자.' };
+    const violations = validateAskAnswer(answer, scriptCtx('문장 두 개 써줘'));
+    expect(violations).toContainEqual({ type: 'script_contract', detail: 'format' });
+  });
+
+  it('음성 followUp — present in a script answer -> script_contract(followup)', () => {
+    const answer = { text: '오랜만이야.\n잘 지내?', followUp: '보내고 나서 어땠는지 알려줘요.' };
+    const violations = validateAskAnswer(answer, scriptCtx('문장 두 개 써줘'));
+    expect(violations).toContainEqual({ type: 'script_contract', detail: 'followup' });
+  });
+
+  it('askMode is null (no explicit count) -> script_contract is never checked, regardless of shape', () => {
+    const answer = { text: '아무거나.\n여러 줄이어도.\n상관없어.', followUp: '괜찮아요?' };
+    const violations = validateAskAnswer(answer, { askMode: null, personIntroduced: false, candidates: [], latestUserText: '그냥 얘기해줘' });
+    expect(violations.filter(v => v.type === 'script_contract')).toEqual([]);
+  });
+});
+
+describe('validateAskAnswer — F5 hidden-truth framing (BRIEF-100B-FIX §1 F5)', () => {
+  const baseCtx = { askMode: null, personIntroduced: false, candidates: [] as string[], latestUserText: '' };
+
+  it('음성 「반응 속도를 보면 은우의 진짜 마음을 읽을 수 있어요」 -> 차단', () => {
+    const answer = { text: '반응 속도를 보면 은우의 진짜 마음을 읽을 수 있어요.' };
+    expect(validateAskAnswer(answer, baseCtx).some(v => v.type === 'hidden_truth_framing')).toBe(true);
+  });
+
+  it('음성 추천 칩(=followUp) 「은우가 연락을 줄인 진짜 이유는 뭘까?」 -> 차단', () => {
+    const answer = { text: '평범한 답변이에요.', followUp: '은우가 연락을 줄인 진짜 이유는 뭘까?' };
+    expect(validateAskAnswer(answer, baseCtx).some(v => v.type === 'hidden_truth_framing')).toBe(true);
+  });
+
+  it('양성 「진짜 마음을 한 번의 반응으로 알 수는 없어요」 -> 반드시 통과', () => {
+    const answer = { text: '진짜 마음을 한 번의 반응으로 알 수는 없어요.' };
+    expect(validateAskAnswer(answer, baseCtx).some(v => v.type === 'hidden_truth_framing')).toBe(false);
+  });
+
+  it('양성 「지금의 거리가 일시적인지 반복되는 패턴인지 가늠하는 데 도움이 될 거예요」 -> 통과', () => {
+    const answer = { text: '지금의 거리가 일시적인지 반복되는 패턴인지 가늠하는 데 도움이 될 거예요.' };
+    expect(validateAskAnswer(answer, baseCtx).some(v => v.type === 'hidden_truth_framing')).toBe(false);
+  });
+
+  it('checks all 3 parts[].text too, not just {text}', () => {
+    const answer = { parts: [
+      { label: 'x', text: '평범한 문장.' },
+      { label: 'y', text: '숨은 진심을 알아낼 수 있어요.' },
+      { label: 'z', text: '평범한 문장.' },
+    ] };
+    expect(validateAskAnswer(answer, baseCtx).some(v => v.type === 'hidden_truth_framing')).toBe(true);
+  });
+});
+
+describe('POST /api/ask — F2 script contract pipeline (BRIEF-100B-FIX §1/§2)', () => {
+  const personBaseBody = {
+    mode: 'person' as const,
+    me: { date: '1990-06-15', time: '14:30' },
+    them: { date: '1988-03-02', time: '09:00', name: 'Sam' },
+    history: [] as unknown[],
+  };
+
+  it('clean 2-line script answer -> served as-is, exactly 1 call, no correction', async () => {
+    mockGenerateJsonChat.mockClear();
+    mockGenerateJsonChat.mockResolvedValueOnce(JSON.stringify({ text: '오랜만이야.\n잘 지내?' }));
+
+    const res = await POST(makeAskRequest({ ...personBaseBody, question: '문장 두 개 써줘' }));
+    const data = await res.json() as { answer?: { text?: string } };
+
+    expect(mockGenerateJsonChat).toHaveBeenCalledTimes(1);
+    expect(data.answer?.text).toBe('오랜만이야.\n잘 지내?');
+  });
+
+  it('too many lines -> rejected once with SCRIPT LINE COUNT VIOLATION; still wrong after retry -> final disposition truncates to the requested count', async () => {
+    mockGenerateJsonChat.mockClear();
+    mockGenerateJsonChat
+      .mockResolvedValueOnce(JSON.stringify({ text: '하나.\n둘.\n셋.' }))
+      .mockResolvedValueOnce(JSON.stringify({ text: '하나.\n둘.\n셋.' }));
+
+    const res = await POST(makeAskRequest({ ...personBaseBody, question: '문장 두 개 써줘' }));
+    const data = await res.json() as { answer?: { text?: string } };
+
+    expect(mockGenerateJsonChat).toHaveBeenCalledTimes(2);
+    const correctionTurns = mockGenerateJsonChat.mock.calls[1][1] as Array<{ role: string; text: string }>;
+    expect(correctionTurns[correctionTurns.length - 1].text).toContain('SCRIPT LINE COUNT VIOLATION');
+    expect(res.status).toBe(200);
+    expect(data.answer?.text).toBe('하나.\n둘.');
+  });
+
+  it('followUp present on a script answer -> rejected once with SCRIPT FOLLOWUP VIOLATION; still present after retry -> final disposition strips it', async () => {
+    mockGenerateJsonChat.mockClear();
+    mockGenerateJsonChat
+      .mockResolvedValueOnce(JSON.stringify({ text: '오랜만이야.\n잘 지내?', followUp: '보내고 나서 어땠는지 알려줘요.' }))
+      .mockResolvedValueOnce(JSON.stringify({ text: '오랜만이야.\n잘 지내?', followUp: '보내고 나서 어땠는지 알려줘요.' }));
+
+    const res = await POST(makeAskRequest({ ...personBaseBody, question: '문장 두 개 써줘' }));
+    const data = await res.json() as { answer?: { text?: string; followUp?: string } };
+
+    expect(mockGenerateJsonChat).toHaveBeenCalledTimes(2);
+    const correctionTurns = mockGenerateJsonChat.mock.calls[1][1] as Array<{ role: string; text: string }>;
+    expect(correctionTurns[correctionTurns.length - 1].text).toContain('SCRIPT FOLLOWUP VIOLATION');
+    expect(res.status).toBe(200);
+    expect(data.answer?.followUp).toBeUndefined();
+    expect(data.answer?.text).toBe('오랜만이야.\n잘 지내?');
+  });
+
+  it('format markers (numbering) -> rejected once with SCRIPT FORMAT VIOLATION; still wrong after retry -> soft-served as-is (no safe auto-strip)', async () => {
+    mockGenerateJsonChat.mockClear();
+    mockGenerateJsonChat
+      .mockResolvedValueOnce(JSON.stringify({ text: '1. 오랜만이야.\n2. 잘 지내?' }))
+      .mockResolvedValueOnce(JSON.stringify({ text: '1. 오랜만이야.\n2. 잘 지내?' }));
+
+    const res = await POST(makeAskRequest({ ...personBaseBody, question: '문장 두 개 써줘' }));
+    const data = await res.json() as { answer?: { text?: string } };
+
+    expect(mockGenerateJsonChat).toHaveBeenCalledTimes(2);
+    const correctionTurns = mockGenerateJsonChat.mock.calls[1][1] as Array<{ role: string; text: string }>;
+    expect(correctionTurns[correctionTurns.length - 1].text).toContain('SCRIPT FORMAT VIOLATION');
+    expect(res.status).toBe(200);
+    expect(data.answer?.text).toBe('1. 오랜만이야.\n2. 잘 지내?'); // soft-served, unchanged
+  });
+
+  it('양성 「개수 지정 없는 일반 상담 질문」 — regression: normal 3-part card unaffected by the new F2 checks', async () => {
+    mockGenerateJsonChat.mockClear();
+    mockGenerateJsonChat.mockResolvedValueOnce(JSON.stringify({
+      parts: UNDERSTAND_LABELS.map(label => ({ label, text: 'A short specific read.' })),
+    }));
+
+    const res = await POST(makeAskRequest({ ...personBaseBody, question: 'How does Sam feel about this?' }));
+    const data = await res.json() as { answer?: { parts?: Array<{ label: string }> } };
+
+    expect(mockGenerateJsonChat).toHaveBeenCalledTimes(1);
+    expect(data.answer?.parts?.map(p => p.label)).toEqual([...UNDERSTAND_LABELS]);
+  });
+});
+
+describe('POST /api/ask — F5 hidden-truth framing pipeline (BRIEF-100B-FIX §1/§2)', () => {
+  const meBaseBody = {
+    mode: 'me' as const,
+    me: { date: '1990-06-15', time: '14:30' },
+    history: [] as unknown[],
+  };
+
+  it('a hidden-truth claim -> rejected once with HIDDEN-TRUTH FRAMING VIOLATION; still present after retry -> soft-served as-is', async () => {
+    mockGenerateJsonChat.mockClear();
+    mockGenerateJsonChat
+      .mockResolvedValueOnce(JSON.stringify({ text: '반응 속도를 보면 진짜 마음을 읽을 수 있어요.' }))
+      .mockResolvedValueOnce(JSON.stringify({ text: '반응 속도를 보면 진짜 마음을 읽을 수 있어요.' }));
+
+    const res = await POST(makeAskRequest({ ...meBaseBody, question: '그 사람 속마음이 궁금해' }));
+    const data = await res.json() as { answer?: { text?: string } };
+
+    expect(mockGenerateJsonChat).toHaveBeenCalledTimes(2);
+    const correctionTurns = mockGenerateJsonChat.mock.calls[1][1] as Array<{ role: string; text: string }>;
+    expect(correctionTurns[correctionTurns.length - 1].text).toContain('HIDDEN-TRUTH FRAMING VIOLATION');
+    expect(res.status).toBe(200);
+    expect(data.answer?.text).toBe('반응 속도를 보면 진짜 마음을 읽을 수 있어요.'); // soft-served
+  });
+
+  it('a hedged/limiting form of the same subject -> zero regenerations, exactly 1 call', async () => {
+    mockGenerateJsonChat.mockClear();
+    mockGenerateJsonChat.mockResolvedValueOnce(JSON.stringify({ text: '진짜 마음을 한 번의 반응으로 알 수는 없어요.' }));
+
+    const res = await POST(makeAskRequest({ ...meBaseBody, question: '그 사람 속마음이 궁금해' }));
+    const data = await res.json() as { answer?: { text?: string } };
+
+    expect(mockGenerateJsonChat).toHaveBeenCalledTimes(1);
+    expect(data.answer?.text).toBe('진짜 마음을 한 번의 반응으로 알 수는 없어요.');
+  });
+});
+
+describe('POST /api/ask — BRIEF-100B-FIX regression (§2 회귀)', () => {
+  const personBaseBody = {
+    mode: 'person' as const,
+    me: { date: '1990-06-15', time: '14:30' },
+    them: { date: '1988-03-02', time: '09:00', name: 'Sam' },
+  };
+  const [hanjaCandidate] = themNameCandidates(calculateSaju({ date: '1988-03-02', time: '09:00' }));
+
+  it('양성 「정체성 단어」 — reintroduction suppression still fires alongside the new F2/F5 checks (첫 소개 1회 외 누적 0회 유지)', async () => {
+    mockGenerateJsonChat.mockClear();
+    mockGenerateJsonChat.mockResolvedValueOnce(JSON.stringify({
+      parts: UNDERSTAND_LABELS.map((label, i) => ({
+        label, text: i === 0 ? `${hanjaCandidate}라 그런 편이에요.` : 'A short specific read.',
+      })),
+    })).mockResolvedValueOnce(JSON.stringify({
+      parts: UNDERSTAND_LABELS.map(label => ({ label, text: 'A short specific read, no identity words.' })),
+    }));
+
+    const history = [
+      { role: 'user' as const, text: 'Sam은 어떤 사람이야?' },
+      { role: 'assistant' as const, text: `Sam은 ${hanjaCandidate}라 직진형이에요.` },
+    ];
+    const res = await POST(makeAskRequest({ ...personBaseBody, history, question: '더 얘기해줘' }));
+    const data = await res.json() as { answer?: { parts?: Array<{ text: string }> } };
+
+    expect(mockGenerateJsonChat).toHaveBeenCalledTimes(2);
+    for (const p of data.answer?.parts ?? []) expect(p.text).not.toContain(hanjaCandidate);
+  });
+
+  it('양성 「전체 610 테스트」 — this file itself is part of that count; a plain unrelated question still resolves normally end-to-end', async () => {
+    mockGenerateJsonChat.mockClear();
+    mockGenerateJsonChat.mockResolvedValueOnce(JSON.stringify({ text: 'a clean, valid answer' }));
+
+    const res = await POST(makeAskRequest({ mode: 'me', me: { date: '1990-06-15', time: '14:30' }, history: [], question: 'What should I focus on?' }));
+    const data = await res.json() as { answer?: { text?: string } };
+
+    expect(res.status).toBe(200);
+    expect(data.answer?.text).toBe('a clean, valid answer');
+  });
+
+  it('양성 「호출 예산」 — usedExtraCall 경로의 최대 호출 횟수 불변: F2+F5 double-violation in the SAME answer still costs only 1 extra call', async () => {
+    mockGenerateJsonChat.mockClear();
+    // A single answer that violates BOTH script count (3 lines instead of 2) AND hidden-truth framing.
+    const badScript = JSON.stringify({ text: '하나.\n둘.\n진짜 마음을 읽을 수 있어요.' });
+    mockGenerateJsonChat.mockResolvedValueOnce(badScript).mockResolvedValueOnce(badScript);
+
+    const res = await POST(makeAskRequest({ ...personBaseBody, history: [], question: '문장 두 개 써줘' }));
+
+    expect(mockGenerateJsonChat).toHaveBeenCalledTimes(2); // never more than 1 primary + 1 shared extra call
+    expect(res.status).toBe(200); // final disposition serves it, never a 502
+  });
+});
 

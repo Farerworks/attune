@@ -147,6 +147,39 @@ function projectStemDisplayNames(text: string): string {
 
 const THEM_ARCHETYPE_WITHHELD = `THEM ARCHETYPE: (name withheld — it was already introduced earlier in this conversation; never re-name or re-explain it. The trait notes below are your private reasoning only.)`;
 
+// ── F5: hidden-truth framing (BRIEF-100B-FIX §1) — direction-based, not a vocabulary blacklist. ──
+// Flags a sentence only when it names the "real"/"hidden" truth AND makes a positive, unhedged claim
+// that it's knowable ("진짜 마음을 읽을 수 있어요", or a bare framing question like "진짜 이유는 뭘까?" with
+// no limiting language). A negation/limit word anywhere in the same sentence ("알 수는 없어요") clears it —
+// per §1 F5, the negated/limiting form is exactly what must pass, never get caught by an unhedged-only
+// pattern check. Deliberately narrow: bare "진심" alone is NOT a trigger (too common in benign use,
+// e.g. "그 사람 진심을 존중해주세요"), only the compound phrases actually observed in the SMOKE defect.
+const HIDDEN_TRUTH_SUBJECT = /(진짜\s*마음|진짜\s*이유|숨은\s*진심|숨은\s*진실|속마음(?:을|이)?\s*확정)/;
+const HIDDEN_TRUTH_NEGATION_NEARBY = /(없|어렵|힘들|모르|아니)/;
+
+function splitSentences(text: string): string[] {
+  return text.split(/(?<=[.!?。])\s+|\n+/).filter(s => s.trim().length > 0);
+}
+
+function findHiddenTruthFraming(text: string): boolean {
+  return splitSentences(text).some(s => HIDDEN_TRUTH_SUBJECT.test(s) && !HIDDEN_TRUTH_NEGATION_NEARBY.test(s));
+}
+
+/** Every user-visible string in an answer — 3-part card texts, plain {text}, and followUp — since F5
+ * must be checked "답변 본문 · followUp · 추천 칩 전부" (the "recommended chip" IS the rendered followUp
+ * text — src/app/(tabs)/ask/page.tsx has no separate model-generated chip field; confirmed by grep). */
+function collectAnswerText(answer: Record<string, unknown>): string[] {
+  const texts: string[] = [];
+  if (typeof answer.text === 'string') texts.push(answer.text);
+  if (Array.isArray(answer.parts)) {
+    for (const p of answer.parts as Array<{ text?: string }>) {
+      if (typeof p.text === 'string') texts.push(p.text);
+    }
+  }
+  if (typeof answer.followUp === 'string') texts.push(answer.followUp);
+  return texts;
+}
+
 // ── §3: askMode / continuation-hint detection (conservative — unsure => null/false) ──────────
 // Table-driven so tests can assert against the exact pattern list, not just the function's
 // aggregate decision (BRIEF-100B §3).
@@ -159,6 +192,10 @@ export const STRICT_SCRIPT_PATTERNS: RegExp[] = [
   new RegExp(`문장\\s*${COUNT_WORD}\\s*개`),                    // "문장 두 개", "문장 3개"
   new RegExp(`${COUNT_WORD}\\s*문장(?:만)?\\s*(?:써|만들|뽑)`), // "3문장 써", "두문장만 뽑아"
   new RegExp(`멘트\\s*${COUNT_WORD}\\s*개`),                    // "멘트 두 개"
+  // "메시지" (formal "message") — BRIEF-100B-FIX §4.5-style gap: the SMOKE brief's own §2 example
+  // ("보낼 메시지 2개만 써줘") used this word, which the pre-existing patterns above never covered
+  // (only the slangier "멘트" was). Added alongside "멘트", not replacing it.
+  new RegExp(`메시지\\s*${COUNT_WORD}\\s*개`),                  // "메시지 두 개"
   /\b(?:write|give|draft)\b(?:\s+me)?\s+\d+\s+(?:lines?|sentences?|messages?)\b/i,
   /\bexactly\s+\d+\s+(?:lines?|sentences?)\b/i,
 ];
@@ -195,9 +232,67 @@ export function detectContinuationHint(latestUserText: string): boolean {
   return CONTINUATION_HINT_PATTERNS.some(p => p.test(latestUserText));
 }
 
+// ── F2: output-contract enforcement (BRIEF-100B-FIX §1) ──────────────────────────────────────
+// §4.5's diagnosis: the count/no-followUp contract already existed in STRICT_SCRIPT_BLOCK but was
+// never checked. These helpers recover the requested count + unit from the SAME user text that
+// already triggered `askMode === 'strict_script'`, so validateAskAnswer can actually enforce it.
+
+const KOREAN_COUNT_WORDS: Record<string, number> = { 한: 1, 두: 2, 세: 3, 네: 4 };
+
+function parseCountToken(matched: string): number | null {
+  const digit = matched.match(/\d+/);
+  if (digit) return Number(digit[0]);
+  const word = matched.match(/[한두세네]/);
+  return word ? KOREAN_COUNT_WORDS[word[0]] : null;
+}
+
+/** "문장"/"sentences" -> exactly-N-sentences contract; "메시지"/"멘트"/"messages"/"lines" -> exactly-N-
+ * messages contract (each message may hold up to ~2 short sentences). Mirrors STRICT_SCRIPT_PATTERNS
+ * 1:1 — returns null only if askMode was somehow 'strict_script' without a pattern actually matching
+ * (shouldn't happen; stay defensive rather than throw). */
+export function parseScriptRequest(text: string): { count: number; unit: 'sentence' | 'message' } | null {
+  let m = text.match(new RegExp(`문장\\s*${COUNT_WORD}\\s*개`));
+  if (m) return { count: parseCountToken(m[0]) ?? 0, unit: 'sentence' };
+
+  m = text.match(new RegExp(`(${COUNT_WORD})\\s*문장(?:만)?\\s*(?:써|만들|뽑)`));
+  if (m) return { count: parseCountToken(m[1]) ?? 0, unit: 'sentence' };
+
+  m = text.match(new RegExp(`멘트\\s*${COUNT_WORD}\\s*개`));
+  if (m) return { count: parseCountToken(m[0]) ?? 0, unit: 'message' };
+
+  m = text.match(new RegExp(`메시지\\s*${COUNT_WORD}\\s*개`));
+  if (m) return { count: parseCountToken(m[0]) ?? 0, unit: 'message' };
+
+  m = text.match(/\b(?:write|give|draft)\b(?:\s+me)?\s+(\d+)\s+(lines?|sentences?|messages?)\b/i);
+  if (m) return { count: Number(m[1]), unit: /sentence/i.test(m[2]) ? 'sentence' : 'message' };
+
+  m = text.match(/\bexactly\s+(\d+)\s+(lines?|sentences?)\b/i);
+  if (m) return { count: Number(m[1]), unit: /sentence/i.test(m[2]) ? 'sentence' : 'message' };
+
+  return null;
+}
+
+function splitNonEmptyLines(text: string): string[] {
+  return text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+}
+
+// Format markers the contract forbids: leading numbering/bullets, "LABEL:" section headers, and a
+// "/" used to separate two alternatives within a line.
+const SCRIPT_LEADING_MARKER = /^(?:\d+[.)]|[-*•]|[①②③④⑤])\s+/;
+const SCRIPT_LABEL_HEADER   = /^[A-Z][A-Z 0-9]*:/;
+const SCRIPT_SLASH_SEPARATOR = /\S\/\S/;
+
+function hasScriptFormatMarker(lines: string[]): boolean {
+  return lines.some(l => SCRIPT_LEADING_MARKER.test(l) || SCRIPT_LABEL_HEADER.test(l) || SCRIPT_SLASH_SEPARATOR.test(l));
+}
+
 // ── §4: state-block verbatim strings (added to the prompt only when detected) ────────────────
 
-const STRICT_SCRIPT_BLOCK = `SCRIPT REQUEST — the user asked for message lines to send, with an explicit count. Contract for THIS answer: respond in shape 2 ({"text": ...}) — no parts, no labels, no headings. Give exactly the requested number of lines, each ready to send as-is, plus at most one short sentence of framing. No chart talk, no archetype, no day-pillar/today talk, no followUp. This contract outranks every other block for this turn, including TODAY first-mention duty — skip it here.`;
+// BRIEF-100B-FIX §1 F2 / §5 결재: "plus at most one short sentence of framing" removed — an explicit
+// count means ONLY that count, nothing else. Sentence-vs-message unit distinction and the format-marker
+// ban added so the prompt actually states what validateAskAnswer now enforces (§4.5's "계약은 있는데
+// 집행이 없다" gap — this closes the prompt side of it; the code side is the new script_contract check).
+const STRICT_SCRIPT_BLOCK = `SCRIPT REQUEST — the user asked for message lines to send, with an explicit count. Contract for THIS answer: respond in shape 2 ({"text": ...}) — no parts, no labels, no headings. Give EXACTLY the requested number of lines, each ready to send as-is, one per line — nothing before them, nothing after them, no leading explanation, no closing remark. If the count was for "문장"/sentences, each line is exactly one sentence. If the count was for "메시지"/"멘트"/messages/lines, each line may be up to two short sentences when that reads naturally (e.g. "오랜만이야! 잘 지내?"). No numbering, no bullets, no labels, no "/" separators between alternatives. No chart talk, no archetype, no day-pillar/today talk, no followUp. This contract outranks every other block for this turn, including TODAY first-mention duty — skip it here.`;
 
 const VERDICT_PROBE_BLOCK = `CHARACTER QUESTION — the user is asking whether this is the other person's fixed personality. Contract for THIS answer: (1) never open with a confirmation ("네", "맞아요", "Yes") and never confirm a fixed trait; (2) start with one short line of honest uncertainty — a few moments aren't enough to define someone; (3) offer at least two different situational readings of the same behavior; (4) give one concrete thing to watch next time that would tell the readings apart; (5) the chart may color a tendency but must never serve as proof of character. Keep it compact.`;
 
@@ -359,7 +454,13 @@ BALANCE: Explain both sides. Separate intent from impact — the user may have m
 
 NO CHARACTER VERDICTS: Never confirm a stable personality trait from a single incident. Without repeated observation, offer two plausible readings and one thing to watch next time. Even when the chart suggests a tendency: "the chart leans that way, but one moment isn't enough to be sure" — never "that's just how they are."
 
-SCRIPTS: Suggested lines must sound like something an adult actually says to a close adult — no exaggerated praise, no therapist/parent/teacher tone. Prefer: confirm the fact → name the misunderstanding → make the next request. An apology briefly acknowledges how it landed — not self-abasement. Stay close to the user's own register.`;
+SCRIPTS: Suggested lines must sound like something an adult actually says to a close adult — no exaggerated praise, no therapist/parent/teacher tone. Prefer: confirm the fact → name the misunderstanding → make the next request. An apology briefly acknowledges how it landed — not self-abasement. Stay close to the user's own register.
+
+TEMPORAL STATE — track what the user has actually done versus what they're only planning. A stated intention ("~하기로 했어", "~할까 해", "~해볼까 봐") is NOT a completed event. Never ask about, or write as if you already know, the other person's reaction to something that hasn't happened yet. Only bring up or ask about their reaction after the user reports the action actually happened (past tense, or a stated result like "답이 없어", "반응이 이랬어"). When the user only shares a plan, acknowledge the plan and help them prepare for it — do not jump ahead to how it went.
+
+EVIDENCE FOR CLAIMS ABOUT THEM — never state the other person's tastes, private thoughts, or future reactions as a known fact unless the user actually told you (this conversation or RELATIONSHIP NOTES). "은우가 좋아하는 커피" is fine ONLY if the user said Eun-woo likes coffee; otherwise use a conditional or optional framing ("평소 좋아한다고 말한 게 있다면", "부담이 적은 X처럼"). This is not a ban on possibility language — "~일 가능성이 커요" still needs to connect to something the user told you or a repeated pattern, and must not be the only explanation offered. Never promise how the other person will react ("반가워할 거예요", "마음의 문을 열 거예요", "되어줄 거예요") — a reaction is always a possibility, never a guarantee, even when the chart supports it. Do NOT avoid a preference the user actually stated just to be safe — use it naturally when relevant; you just don't have to bring it up in every single answer.
+
+NO HIDDEN-TRUTH FRAMING — never claim you or the user can find out the other person's "real" hidden feelings, motives, or reasons from their behavior, a chart reading, or a single reaction. Phrases like "진짜 마음을 읽을 수 있어요", "진짜 이유를 알 수 있어요" overclaim a certainty this app cannot have. It's fine to say the opposite — that a single reaction can't reveal someone's real feelings, and that patterns over time tell you more.`;
 
   const SELF_RULES = `RULES (non-negotiable):
 1. Use hedged language — "tends to", "may", "~하는 편이에요". Never certainty; never "will".
@@ -442,7 +543,7 @@ If you name an archetype in a Korean answer, use its Korean name (the KO value) 
 
 ${koreanVoice}
 
-FOLLOW-UP RULE: at most ONE followUp per answer. Never re-ask what the user already told you. Never stack questions. In Korean, no 당신 — e.g. "해보고 어땠는지 알려줘요" / "혹시 지현이 먼저 연락한 적도 있어요?". Skip it entirely on heavy or emotional moments where a question would feel pushy.${modeBlocksText}
+FOLLOW-UP RULE: at most ONE followUp per answer. Never re-ask what the user already told you. Omit followUp entirely when you just gave a complete, ready-to-use output — an exact script, a finished list, or a direct answer with nothing left open. Never let followUp ask about the outcome or reaction to something that hasn't happened yet. Never stack questions. In Korean, no 당신 — e.g. "해보고 어땠는지 알려줘요" / "혹시 지현이 먼저 연락한 적도 있어요?". Skip it entirely on heavy or emotional moments where a question would feel pushy.${modeBlocksText}
 
 ${outputSpec}`;
 }
@@ -535,7 +636,7 @@ function normalizeAnswer(
 
 // ── §6/§7: answer validator (pure — reads the answer, never mutates it) ──────────────────────
 
-export type AskViolationType = 'label_set' | 'label_order' | 'strict_script_parts' | 'reintroduction' | 'verdict_opening';
+export type AskViolationType = 'label_set' | 'label_order' | 'strict_script_parts' | 'reintroduction' | 'verdict_opening' | 'script_contract' | 'hidden_truth_framing';
 export interface AskViolation { type: AskViolationType; detail?: string }
 export interface AskValidationCtx {
   askMode: AskMode;
@@ -607,6 +708,28 @@ export function validateAskAnswer(answer: Record<string, unknown>, ctx: AskValid
     if (startsWithAffirm || affirmPattern) violations.push({ type: 'verdict_opening' });
   }
 
+  // F2 script contract (BRIEF-100B-FIX §1) — only meaningful once the answer is ALREADY in text
+  // shape (labels === null); the parts-shape case is already caught by strict_script_parts above,
+  // and gets fixed by downgrading BEFORE this check would ever see the resulting text (final
+  // disposition is a one-shot transform, not re-validated — see applyFinalDisposition).
+  if (ctx.askMode === 'strict_script' && labels === null && typeof answer.text === 'string') {
+    const request = parseScriptRequest(ctx.latestUserText);
+    if (request) {
+      const lines = splitNonEmptyLines(answer.text);
+      if (lines.length !== request.count) violations.push({ type: 'script_contract', detail: 'count' });
+      if (hasScriptFormatMarker(lines)) violations.push({ type: 'script_contract', detail: 'format' });
+    }
+    if (typeof answer.followUp === 'string' && answer.followUp) {
+      violations.push({ type: 'script_contract', detail: 'followup' });
+    }
+  }
+
+  // F5 hidden-truth framing (BRIEF-100B-FIX §1) — checked across the whole answer regardless of
+  // mode/askMode, since the rule applies to "답변 본문 · followUp · 추천 칩 전부".
+  if (collectAnswerText(answer).some(t => findHiddenTruthFraming(t))) {
+    violations.push({ type: 'hidden_truth_framing' });
+  }
+
   return violations;
 }
 
@@ -647,12 +770,31 @@ function downgradeToText(answer: Record<string, unknown>): Record<string, unknow
   return { ...rest, text: combined };
 }
 
+/** followUp removal — safe and unconditional, never fabricates content (BRIEF-100B-FIX §1 F2/F3). */
+function stripFollowUp(answer: Record<string, unknown>): Record<string, unknown> {
+  const { followUp: _f, ...rest } = answer;
+  void _f;
+  return rest;
+}
+
+/** Trims EXCESS lines down to the requested count — safe (only removes, never invents). Too FEW
+ * lines can't be safely fixed (no content to fabricate), so the caller leaves that case as a soft
+ * flag instead of calling this (BRIEF-100B-FIX §1 F2). */
+function truncateScriptLines(answer: Record<string, unknown>, count: number): Record<string, unknown> {
+  if (typeof answer.text !== 'string') return answer;
+  const lines = splitNonEmptyLines(answer.text);
+  if (lines.length <= count) return answer;
+  return { ...answer, text: lines.slice(0, count).join('\n') };
+}
+
 /** Final, deterministic disposition for whatever violations remain after the (at most one)
  * correction attempt — never returns null; only call/parse/schema/banned can hard-fail, and
- * those are handled before this is ever called (BRIEF-100B §1's disposition table). */
+ * those are handled before this is ever called (BRIEF-100B §1's disposition table). `ctx` is
+ * needed only to re-derive the requested script count for the excess-line trim (BRIEF-100B-FIX). */
 function applyFinalDisposition(
   answer: Record<string, unknown>,
   violations: AskViolation[],
+  ctx: AskValidationCtx,
 ): { answer: Record<string, unknown>; flags: Array<{ stage: string; action: string }> } {
   let out = answer;
   const flags: Array<{ stage: string; action: string }> = [];
@@ -665,8 +807,31 @@ function applyFinalDisposition(
     out = normalizeLabels(out);
     flags.push({ stage: 'labels', action: 'normalize' });
   }
+
+  const scriptViolations = violations.filter(v => v.type === 'script_contract');
+  if (scriptViolations.some(v => v.detail === 'followup')) {
+    out = stripFollowUp(out);
+    flags.push({ stage: 'script', action: 'strip_followup' });
+  }
+  if (scriptViolations.some(v => v.detail === 'count')) {
+    const request = parseScriptRequest(ctx.latestUserText);
+    const lineCount = typeof out.text === 'string' ? splitNonEmptyLines(out.text).length : -1;
+    if (request && lineCount > request.count) {
+      out = truncateScriptLines(out, request.count);
+      flags.push({ stage: 'script', action: 'truncate' });
+    } else {
+      // Too few lines to fabricate the rest, or the count couldn't be re-derived — leave as-is.
+      flags.push({ stage: 'script', action: 'soft' });
+    }
+  }
+  if (scriptViolations.some(v => v.detail === 'format')) {
+    // No safe auto-strip that can't risk mangling real content — soft flag only.
+    flags.push({ stage: 'script', action: 'soft' });
+  }
+
   if (hasType('reintroduction')) flags.push({ stage: 'reintro', action: 'soft' });
   if (hasType('verdict_opening')) flags.push({ stage: 'verdict', action: 'soft' });
+  if (hasType('hidden_truth_framing')) flags.push({ stage: 'framing', action: 'soft' });
   return { answer: out, flags };
 }
 
@@ -676,11 +841,14 @@ function stageOf(type: AskViolationType): string {
     case 'label_order':
       return 'labels';
     case 'strict_script_parts':
+    case 'script_contract':
       return 'script';
     case 'reintroduction':
       return 'reintro';
     case 'verdict_opening':
       return 'verdict';
+    case 'hidden_truth_framing':
+      return 'framing';
   }
 }
 
@@ -701,6 +869,14 @@ function buildCorrectionWarnings(schemaInvalid: boolean, banned: string[], viola
         break;
       case 'verdict_opening':
         warnings.push('⚠ VERDICT OPENING VIOLATION — Do not open by confirming a fixed personality trait. Start with honest uncertainty and offer two situational readings instead. Regenerate.');
+        break;
+      case 'script_contract':
+        if (v.detail === 'count') warnings.push('⚠ SCRIPT LINE COUNT VIOLATION — The number of lines did not match the count the user asked for. Regenerate with EXACTLY that many lines, one per line, nothing else.');
+        else if (v.detail === 'format') warnings.push('⚠ SCRIPT FORMAT VIOLATION — No numbering, bullets, labels, or "/" separators are allowed in a script answer. Regenerate as plain lines only.');
+        else if (v.detail === 'followup') warnings.push('⚠ SCRIPT FOLLOWUP VIOLATION — A script answer must not include a followUp. Regenerate without one.');
+        break;
+      case 'hidden_truth_framing':
+        warnings.push('⚠ HIDDEN-TRUTH FRAMING VIOLATION — Do not claim the other person\'s real feelings or reasons can be known from a reaction or the chart. Regenerate without that claim — a limiting/uncertain phrasing is fine.');
         break;
       case 'label_order':
         break; // fixed in place, never reaches here
@@ -918,7 +1094,7 @@ export async function POST(request: Request) {
       // Budget already spent on a call/parse retry — resolve deterministically, no more calls.
       if (!answer) { logAsk(rid, 'schema', 'fail', {}); return errorResponse('schema', 502); }
       if (banned.length > 0) { logAsk(rid, 'banned', 'fail', {}); return errorResponse('banned', 502); }
-      const disposition = applyFinalDisposition(answer, violations);
+      const disposition = applyFinalDisposition(answer, violations, ctx);
       for (const f of disposition.flags) logAsk(rid, f.stage, f.action, {});
       return Response.json({ answer: disposition.answer });
     }
@@ -960,7 +1136,7 @@ export async function POST(request: Request) {
 
     violations = validateAskAnswer(answer, ctx);
     if (violations.length > 0) {
-      const disposition = applyFinalDisposition(answer, violations);
+      const disposition = applyFinalDisposition(answer, violations, ctx);
       for (const f of disposition.flags) logAsk(rid, f.stage, f.action, {});
       return Response.json({ answer: disposition.answer });
     }
