@@ -792,3 +792,53 @@ describe('AskPage — 출시 차단 3건 (BRIEF-094H)', () => {
     expect(disclaimer.style.color).toBe('var(--c-ink-body)');
   });
 });
+
+describe('AskPage — MessageBubble 줄바꿈 표시 (BRIEF-103)', () => {
+  function seedProfile() {
+    localStorage.setItem('attune.profile', JSON.stringify({
+      date: '1990-06-15', time: '14:30', gender: 'other', createdAt: new Date().toISOString(),
+    }));
+  }
+
+  it('1. text 형태(shape 2) 답 "줄1\\n줄2" 렌더 시 그 <p>가 white-space: pre-line을 가진다', async () => {
+    seedProfile();
+    localStorage.setItem('attune.ask.threads', JSON.stringify({
+      me: [
+        { id: 'a1', role: 'assistant', mode: 'me', text: '줄1\n줄2', createdAt: '2026-07-19T10:00:05.000Z' },
+      ],
+    }));
+
+    const { default: AskPage } = await import('./page');
+    const { container } = render(<AskPage />);
+
+    const p = await waitFor(() => {
+      const found = Array.from(container.querySelectorAll('p')).find(el => el.textContent === '줄1\n줄2');
+      expect(found).toBeTruthy();
+      return found as HTMLParagraphElement;
+    });
+    expect(p.style.whiteSpace).toBe('pre-line');
+  });
+
+  it('2. 한 줄짜리 text 답의 렌더 결과는 기존과 동일 — pre-line은 연속 공백만 접고 개행 없는 문장은 그대로 보인다(회귀 없음, 기존 렌더 테스트들이 이미 단언)', async () => {
+    seedProfile();
+    localStorage.setItem('attune.ask.threads', JSON.stringify({
+      me: [
+        { id: 'a1', role: 'assistant', mode: 'me', text: 'answer without newlines', createdAt: '2026-07-19T10:00:05.000Z' },
+      ],
+    }));
+
+    const { default: AskPage } = await import('./page');
+    const { container } = render(<AskPage />);
+
+    const p = await waitFor(() => {
+      const found = Array.from(container.querySelectorAll('p')).find(el => el.textContent === 'answer without newlines');
+      expect(found).toBeTruthy();
+      return found as HTMLParagraphElement;
+    });
+    // whiteSpace: pre-line은 있지만, 개행이 없는 한 줄짜리 텍스트의 시각적 렌더(줄바꿈 없이 한 줄)는
+    // 기존과 동일하다 — 이 파일의 다른 render(<AskPage />) 테스트들이 이미 단일 줄 텍스트 렌더를
+    // 폭넓게 단언하고 있으므로(예: 'mocked reply', 'answer N' 등) 별도 회귀 테스트를 늘리지 않는다.
+    expect(p.style.whiteSpace).toBe('pre-line');
+    expect(p.textContent).toBe('answer without newlines');
+  });
+});

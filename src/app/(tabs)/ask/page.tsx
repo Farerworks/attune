@@ -1203,6 +1203,7 @@ function MessageBubble({ msg }: { msg: Msg; chipColor: string }) {
             margin: 0,
             fontFamily: "var(--font-inter,system-ui)", fontSize: 15,
             color: 'var(--c-ink)', lineHeight: 1.55,
+            whiteSpace: 'pre-line',
           }}>
             {typeof m.text === 'string' ? m.text : ''}
           </p>
