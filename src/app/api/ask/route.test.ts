@@ -21,6 +21,7 @@ const {
   COMPLETION_PATTERNS, COMPLETION_EXCLUSIONS,
   COMPLETION_SEGMENT_SPLIT, COMPLETION_QUOTE_SPAN, COMPLETION_REPORT_MARKER, COMPLETION_FORBID,
   COMPLETION_CANCEL, COMPLETION_REQUEST_ENDINGS, splitCompletionParts, detectCompletionRequest,
+  repairControlCharsInStrings, tryParse, tryPlainTextFallback,
 } = await import('./route');
 const { splitSentences } = await import('@/lib/hiddenTruth');
 const { calculateSaju, getDailyPillars, pillarLabel, friendlyPillarName, STEM_NAMES } = await import('@/lib/saju');
@@ -1811,11 +1812,11 @@ describe('POST /api/ask — BRIEF-100B-FIX3 회귀 (§2.4)', () => {
     expect(res.status).toBe(200); // 최종 처분이 서빙 — 502 아님
   });
 
-  it('양성 「502 반환 지점·status·body」 — 파싱 실패 경로는 completion 도입 후에도 무변경', async () => {
+  it('양성 「502 반환 지점·status·body」 — askMode가 null인 파싱 실패 경로는 completion 도입 후에도 무변경(BRIEF-100B-FIX6 이후: completion/strict_script 한정 fallback 대상이 아닌 경우)', async () => {
     mockGenerateJsonChat.mockClear();
     mockGenerateJsonChat.mockResolvedValueOnce('not json').mockResolvedValueOnce('still not json');
 
-    const res = await POST(makeAskRequest({ ...meBaseBody, question: '메시지 좀 써줘' }));
+    const res = await POST(makeAskRequest({ ...meBaseBody, question: '오늘 컨디션이 어때?' }));
     const data = await res.json() as { code?: string };
 
     expect(res.status).toBe(502);
@@ -2089,6 +2090,335 @@ describe('구조 회귀 — BRIEF-100B-FIX4-C §2.3', () => {
     const ctx: { askMode: null; personIntroduced: boolean; candidates: string[]; latestUserText: string } =
       { askMode: null, personIntroduced: false, candidates: [], latestUserText: '' };
     expect(validateAskAnswer(answer, ctx)).toEqual([]);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// BRIEF-100B-FIX6 — Ask 응답 파싱 실패(502) 결정적 복구
+// ══════════════════════════════════════════════════════════════════════════
+
+const meBody = { mode: 'me' as const, me: { date: '1990-06-15', time: '14:30' }, history: [] as unknown[] };
+
+describe('repairControlCharsInStrings (BRIEF-100B-FIX6 §2.1)', () => {
+  it('④ 문자열 안의 실제 LF를 텍스트 \\n으로 치환한다', () => {
+    const raw = '{"text":"a\nb"}'; // a와 b 사이가 실제 개행 문자
+    const repaired = repairControlCharsInStrings(raw);
+    expect(repaired).toBe('{"text":"a\\nb"}');
+    expect(JSON.parse(repaired)).toEqual({ text: 'a\nb' });
+  });
+
+  it('⑤ 문자열 밖의 개행(들여쓰기된 JSON)은 훼손하지 않는다', () => {
+    const pretty = '{\n  "text": "hello"\n}';
+    expect(repairControlCharsInStrings(pretty)).toBe(pretty);
+  });
+
+  it('⑥ 이스케이프된 따옴표(\\")·백슬래시(\\\\)를 문자열 경계로 오인하지 않고, 내부 실제 개행만 정확히 수리한다', () => {
+    const raw = '{"text":"she said \\"hi\\" and used \\\\ then\nnext"}';
+    const repaired = repairControlCharsInStrings(raw);
+    const parsed = JSON.parse(repaired) as { text: string };
+    expect(parsed.text).toBe('she said "hi" and used \\ then\nnext');
+  });
+
+  it('⑭c 문자열 안의 실제 CR·TAB도 LF와 동일하게 수리한다', () => {
+    const raw = '{"text":"a\rb\tc"}';
+    const repaired = repairControlCharsInStrings(raw);
+    expect(JSON.parse(repaired)).toEqual({ text: 'a\rb\tc' });
+  });
+});
+
+describe('tryParse — D-상태 분류 (BRIEF-100B-FIX6 §1/§2.2)', () => {
+  it('① 정상 JSON(D1) — 무변경 통과', () => {
+    const res = tryParse('{"text":"hi"}');
+    expect(res.ok).toBe(true);
+    if (res.ok) { expect(res.value).toEqual({ text: 'hi' }); expect(res.repaired).toBe(false); }
+  });
+
+  it('② 펜스로 감싼 JSON(D2) — 정상 파싱', () => {
+    const res = tryParse('```json\n{"text":"hi"}\n```');
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.value).toEqual({ text: 'hi' });
+  });
+
+  it('③ 앞뒤 설명 포함 JSON(D3) — 정상 파싱', () => {
+    const res = tryParse('Here you go:\n{"text":"hi"}\nHope that helps!');
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.value).toEqual({ text: 'hi' });
+  });
+
+  it('④ 문자열 내부 실제 줄바꿈(D4) — 수리 후 파싱 성공, repaired=true', () => {
+    const res = tryParse('{"text":"a\nb"}');
+    expect(res.ok).toBe(true);
+    if (res.ok) { expect(res.value).toEqual({ text: 'a\nb' }); expect(res.repaired).toBe(true); }
+  });
+
+  it('⑦ 잘린 JSON({"text":"... 끝) — 수리 거부(변경 없음) → 실패, shape=object_invalid, repair=none', () => {
+    const res = tryParse('{"text":"abc');
+    expect(res.ok).toBe(false);
+    if (!res.ok) { expect(res.shape).toBe('object_invalid'); expect(res.repair).toBe('none'); expect(res.brace).toBe(true); }
+  });
+
+  it('⑧ object-like 불법 텍스트({ 있으나 파싱 불가) — shape=object_invalid(D5), fallback 대상 아님', () => {
+    const res = tryParse('{ this is not valid json, sorry }');
+    expect(res.ok).toBe(false);
+    if (!res.ok) { expect(res.shape).toBe('object_invalid'); expect(res.brace).toBe(true); }
+  });
+
+  it('명백한 일반 텍스트(D6) — shape=plain, brace=false, fence=false', () => {
+    const res = tryParse('오랜만이야.\n잘 지내?');
+    expect(res.ok).toBe(false);
+    if (!res.ok) { expect(res.shape).toBe('plain'); expect(res.brace).toBe(false); expect(res.fence).toBe(false); }
+  });
+
+  it('⑭ 펜스만 있고 내부 일반 텍스트(D7) — shape=fence_plain', () => {
+    const res = tryParse('```\n오랜만이야.\n잘 지내?\n```');
+    expect(res.ok).toBe(false);
+    if (!res.ok) { expect(res.shape).toBe('fence_plain'); expect(res.fence).toBe(true); expect(res.brace).toBe(false); }
+  });
+});
+
+describe('tryPlainTextFallback — 단위 (BRIEF-100B-FIX6 §2.3)', () => {
+  const strictCtx = (latestUserText: string) =>
+    ({ askMode: 'strict_script' as const, personIntroduced: false, candidates: [] as string[], latestUserText });
+  const completionCtx = { askMode: 'completion' as const, personIntroduced: false, candidates: [] as string[], latestUserText: '메시지 좀 써줘' };
+  const nullCtx = { askMode: null, personIntroduced: false, candidates: [] as string[], latestUserText: '오늘 기분이 어때?' };
+
+  it('D5(object_invalid)에는 절대 발동하지 않는다', () => {
+    const parseFail = tryParse('{ broken') as Exclude<ReturnType<typeof tryParse>, { ok: true }>;
+    expect(tryPlainTextFallback(parseFail, '{ broken', 'me', completionCtx)).toBeNull();
+  });
+
+  it('⑬ askMode가 strict_script/completion이 아니면 D6이어도 발동하지 않는다', () => {
+    const raw = '오랜만이야.\n잘 지내?';
+    const parseFail = tryParse(raw) as Exclude<ReturnType<typeof tryParse>, { ok: true }>;
+    expect(tryPlainTextFallback(parseFail, raw, 'me', nullCtx)).toBeNull();
+  });
+
+  it('⑨ strict_script + 요청 개수와 일치하는 일반 텍스트 -> 채택', () => {
+    const raw = '오랜만이야.\n잘 지내?';
+    const parseFail = tryParse(raw) as Exclude<ReturnType<typeof tryParse>, { ok: true }>;
+    const fb = tryPlainTextFallback(parseFail, raw, 'me', strictCtx('지금 보낼 문장 2개만 써줘'));
+    expect(fb).toEqual({ text: raw });
+  });
+
+  it('⑪ 특혜 금지 — 요청 개수와 다른 일반 텍스트는 폐기', () => {
+    const raw = '하나.\n둘.\n셋.';
+    const parseFail = tryParse(raw) as Exclude<ReturnType<typeof tryParse>, { ok: true }>;
+    const fb = tryPlainTextFallback(parseFail, raw, 'me', strictCtx('지금 보낼 문장 2개만 써줘'));
+    expect(fb).toBeNull();
+  });
+
+  it('⑫ 금지어 포함 텍스트는 폐기(D8)', () => {
+    const raw = '이건 weakness를 이용하는 문장입니다.';
+    const parseFail = tryParse(raw) as Exclude<ReturnType<typeof tryParse>, { ok: true }>;
+    const fb = tryPlainTextFallback(parseFail, raw, 'me', completionCtx);
+    expect(fb).toBeNull();
+  });
+});
+
+describe('POST /api/ask — BRIEF-100B-FIX6 파이프라인 (§3 ⑨~⑬·⑭d·⑭e)', () => {
+  it('⑨ 명백한 일반 텍스트(2줄) + askMode=strict_script(요청 2개) -> fallback 채택, 200, 호출 1회', async () => {
+    mockGenerateJsonChat.mockClear();
+    mockGenerateJsonChat.mockResolvedValueOnce('오랜만이야.\n잘 지내?');
+
+    const res = await POST(makeAskRequest({ ...meBody, question: '지금 보낼 문장 2개만 써줘' }));
+    const data = await res.json() as { answer?: { text?: string } };
+
+    expect(res.status).toBe(200);
+    expect(data.answer?.text).toBe('오랜만이야.\n잘 지내?');
+    expect(mockGenerateJsonChat).toHaveBeenCalledTimes(1); // ⑭d
+  });
+
+  it('⑩ 같은 텍스트 + askMode=completion -> fallback 채택, 200, 호출 1회', async () => {
+    mockGenerateJsonChat.mockClear();
+    mockGenerateJsonChat.mockResolvedValueOnce('오랜만이야.\n잘 지내?');
+
+    const res = await POST(makeAskRequest({ ...meBody, question: '메시지 좀 써줘' }));
+    const data = await res.json() as { answer?: { text?: string } };
+
+    expect(res.status).toBe(200);
+    expect(data.answer?.text).toBe('오랜만이야.\n잘 지내?');
+    expect(mockGenerateJsonChat).toHaveBeenCalledTimes(1); // ⑭d
+  });
+
+  it('⑪ 줄 수 불일치(요청 2, 텍스트 3줄) -> fallback 폐기(특혜 금지), 재시도도 같으면 502, 호출 2회', async () => {
+    mockGenerateJsonChat.mockClear();
+    const bad = '하나.\n둘.\n셋.';
+    mockGenerateJsonChat.mockResolvedValueOnce(bad).mockResolvedValueOnce(bad);
+
+    const res = await POST(makeAskRequest({ ...meBody, question: '지금 보낼 문장 2개만 써줘' }));
+    const data = await res.json() as { code?: string };
+
+    expect(mockGenerateJsonChat).toHaveBeenCalledTimes(2);
+    expect(res.status).toBe(502);
+    expect(data.code).toBe('parse');
+  });
+
+  it('⑫ 금지어 포함 일반 텍스트 -> fallback 폐기(D8), 재시도도 같으면 502', async () => {
+    mockGenerateJsonChat.mockClear();
+    const bad = '이건 weakness를 이용하는 문장입니다.';
+    mockGenerateJsonChat.mockResolvedValueOnce(bad).mockResolvedValueOnce(bad);
+
+    const res = await POST(makeAskRequest({ ...meBody, question: '메시지 좀 써줘' }));
+    const data = await res.json() as { code?: string };
+
+    expect(mockGenerateJsonChat).toHaveBeenCalledTimes(2);
+    expect(res.status).toBe(502);
+    expect(data.code).toBe('parse');
+  });
+
+  it('⑬ askMode=null(일반 턴)의 일반 텍스트 -> fallback 발동 안 함, 기존 실패 경로(502) 그대로', async () => {
+    mockGenerateJsonChat.mockClear();
+    mockGenerateJsonChat.mockResolvedValueOnce('그냥 평범한 대답입니다.').mockResolvedValueOnce('역시 평범한 대답입니다.');
+
+    const res = await POST(makeAskRequest({ ...meBody, question: '오늘 기분이 어때?' }));
+    const data = await res.json() as { code?: string };
+
+    expect(res.status).toBe(502);
+    expect(data.code).toBe('parse');
+  });
+
+  it('⑭ 펜스만 있고 내부 일반 텍스트(D7) + strict_script -> D6과 동일 규칙으로 fallback 채택', async () => {
+    mockGenerateJsonChat.mockClear();
+    mockGenerateJsonChat.mockResolvedValueOnce('```\n오랜만이야.\n잘 지내?\n```');
+
+    const res = await POST(makeAskRequest({ ...meBody, question: '지금 보낼 문장 2개만 써줘' }));
+    const data = await res.json() as { answer?: { text?: string } };
+
+    expect(res.status).toBe(200);
+    expect(data.answer?.text).toBe('오랜만이야.\n잘 지내?');
+  });
+
+  it('⑭e 1차 fallback 폐기 -> 공유 재시도 1회 -> 재시도가 정상 JSON이면 총 2회 호출로 성공', async () => {
+    mockGenerateJsonChat.mockClear();
+    const badFirst = '하나.\n둘.\n셋.'; // 개수 불일치로 fallback 폐기
+    const goodSecond = JSON.stringify({ text: '오랜만이야.\n잘 지내?' });
+    mockGenerateJsonChat.mockResolvedValueOnce(badFirst).mockResolvedValueOnce(goodSecond);
+
+    const res = await POST(makeAskRequest({ ...meBody, question: '지금 보낼 문장 2개만 써줘' }));
+    const data = await res.json() as { answer?: { text?: string } };
+
+    expect(mockGenerateJsonChat).toHaveBeenCalledTimes(2);
+    expect(res.status).toBe(200);
+    expect(data.answer?.text).toBe('오랜만이야.\n잘 지내?');
+  });
+
+  it('D4 수리 성공은 askMode와 무관하게 동작한다 (일반 턴에서도 수리 후 정상 200)', async () => {
+    mockGenerateJsonChat.mockClear();
+    mockGenerateJsonChat.mockResolvedValueOnce('{"text":"오랜만이야.\n잘 지내?"}'); // 실제 개행 포함
+
+    const res = await POST(makeAskRequest({ ...meBody, question: '오늘 기분이 어때?' }));
+    const data = await res.json() as { answer?: { text?: string } };
+
+    expect(res.status).toBe(200);
+    expect(data.answer?.text).toBe('오랜만이야.\n잘 지내?');
+  });
+});
+
+describe('로그 계약 (BRIEF-100B-FIX6 §2.5, 테스트 ⑭f)', () => {
+  it('파싱 실패·fallback 폐기 로그에 필수 필드가 전부 있고, 원문 내용은 로그에 없다', async () => {
+    mockGenerateJsonChat.mockClear();
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const bad = '하나.\n둘.\n셋.';
+      mockGenerateJsonChat.mockResolvedValueOnce(bad).mockResolvedValueOnce(bad);
+
+      await POST(makeAskRequest({ ...meBody, question: '지금 보낼 문장 2개만 써줘' }));
+
+      const lines = errorSpy.mock.calls.map(c => c.join(' ')).filter(l => l.startsWith('[ask]'));
+      const parseLines = lines.filter(l => l.includes('stage=parse'));
+      expect(parseLines.length).toBeGreaterThan(0);
+      for (const line of parseLines) {
+        expect(line).toMatch(/shape=(object_repaired|object_invalid|plain|fence_plain)/);
+        expect(line).toMatch(/firstChar=(brace|quote|fence|hangul|latin|space|other)/);
+        expect(line).toMatch(/brace=[yn]/);
+        expect(line).toMatch(/fence=[yn]/);
+        expect(line).toMatch(/repair=(none|ctrl_fixed|failed)/);
+        expect(line).not.toContain('하나');
+        expect(line).not.toContain('둘');
+        expect(line).not.toContain('셋');
+      }
+      expect(lines.some(l => l.includes('fallback=rejected'))).toBe(true);
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+
+  it('D4 수리 성공 로그 — shape=object_repaired repair=ctrl_fixed, 원문 내용은 없음', async () => {
+    mockGenerateJsonChat.mockClear();
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      mockGenerateJsonChat.mockResolvedValueOnce('{"text":"오랜만이야.\n잘 지내?"}');
+      const res = await POST(makeAskRequest({ ...meBody, question: '오늘 기분이 어때?' }));
+      expect(res.status).toBe(200);
+
+      const lines = errorSpy.mock.calls.map(c => c.join(' ')).filter(l => l.startsWith('[ask]'));
+      const repairedLine = lines.find(l => l.includes('shape=object_repaired'));
+      expect(repairedLine).toBeDefined();
+      expect(repairedLine).toContain('repair=ctrl_fixed');
+      expect(repairedLine).not.toContain('오랜만이야');
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+
+  it('fallback 채택 로그 — fallback=used, 원문 내용은 없음', async () => {
+    mockGenerateJsonChat.mockClear();
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      mockGenerateJsonChat.mockResolvedValueOnce('오랜만이야.\n잘 지내?');
+      await POST(makeAskRequest({ ...meBody, question: '지금 보낼 문장 2개만 써줘' }));
+
+      const lines = errorSpy.mock.calls.map(c => c.join(' ')).filter(l => l.startsWith('[ask]'));
+      const usedLine = lines.find(l => l.includes('fallback=used'));
+      expect(usedLine).toBeDefined();
+      expect(usedLine).not.toContain('오랜만이야');
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+});
+
+describe('프롬프트 이스케이프 보조 문장 (BRIEF-100B-FIX6 §2.4, 테스트 ⑭b)', () => {
+  const meChart = calculateSaju({ date: '1990-06-15', time: '14:30' });
+
+  it('STRICT_SCRIPT_BLOCK — 런타임 값에 백슬래시 1개+n(2문자) 시퀀스가 있고, 그 자리에 실제 개행은 없다', () => {
+    const system = buildAskSystem('me', meChart, null, undefined, [], 'Alex', undefined, undefined, false, undefined, 'strict_script', false);
+    expect(system).toContain('Newlines inside "text" must be written as \\n, never as a raw line break.');
+    const idx = system.indexOf('Output format reminder');
+    const end = system.indexOf('raw line break.', idx);
+    expect(idx).toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(idx);
+    const sentence = system.slice(idx, end + 'raw line break.'.length);
+    expect(sentence.includes('\n')).toBe(false);
+  });
+
+  it('COMPLETION_BLOCK — 런타임 값에 백슬래시 1개+n(2문자) 시퀀스가 있고, 그 자리에 실제 개행은 없다', () => {
+    const system = buildAskSystem('me', meChart, null, undefined, [], 'Alex', undefined, undefined, false, undefined, 'completion', false);
+    expect(system).toContain('Newlines inside "text" must be written as \\n, never as a raw line break.');
+    const idx = system.indexOf('Output format reminder');
+    const end = system.indexOf('raw line break.', idx);
+    expect(idx).toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(idx);
+    const sentence = system.slice(idx, end + 'raw line break.'.length);
+    expect(sentence.includes('\n')).toBe(false);
+  });
+});
+
+describe('구조 회귀 — BRIEF-100B-FIX6 §4 (분류 로직 무접촉)', () => {
+  it('COMPLETION_PATTERNS·COMPLETION_EXCLUSIONS·STRICT_SCRIPT_PATTERNS·VERDICT_PROBE_PATTERNS 무변경(길이 그대로)', () => {
+    expect(COMPLETION_PATTERNS).toHaveLength(3);
+    expect(COMPLETION_EXCLUSIONS).toHaveLength(8);
+    expect(STRICT_SCRIPT_PATTERNS).toHaveLength(6);
+    expect(VERDICT_PROBE_PATTERNS).toHaveLength(6);
+  });
+
+  it('⑮ 분류 무변경 — 대표 샘플 재확인(전건 증거는 이 파일의 기존 X38/L/E75 + it.fails 4건이 그대로 재실행되는 것)', () => {
+    // detectAskMode·detectCompletionRequest·splitCompletionParts·COMPLETION_* 상수는 이 BRIEF에서
+    // 손대지 않았으므로, FIX5에서 고정된 TESTSET v1.2 115건 corpus의 테스트 블록이 이 파일 안에서
+    // 그대로 재실행돼 동일하게 통과하는 것 자체가 ⑮의 증거다(코드가 물리적으로 무변경).
+    expect(detectAskMode('메시지 써줘')).toBe('completion');
+    expect(detectAskMode('답장 써봤어')).toBe(null);
+    expect(detectAskMode('메시지 써주지 마')).toBe(null);
   });
 });
 

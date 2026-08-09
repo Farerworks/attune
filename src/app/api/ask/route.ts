@@ -46,6 +46,60 @@ function extractJson(raw: string): unknown {
   return JSON.parse(jsonStr);
 }
 
+// ── BRIEF-100B-FIX6 §2.1 — decisive, single-pass repair for literal control chars inside JSON
+// string literals (the observed 502 cause: the model sometimes emits a raw LF instead of the
+// escape sequence \n inside "text"). No regex — a regex can't reliably track quote-nesting state
+// across escaped quotes (\") and escaped backslashes (\\) (BRIEF-100B-FIX6 §2.1 test ⑥). Chars
+// OUTSIDE a string (e.g. pretty-print whitespace between braces) are never touched (test ⑤).
+export function repairControlCharsInStrings(raw: string): string {
+  let out = '';
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < raw.length; i++) {
+    const ch = raw[i];
+    if (!inString) {
+      out += ch;
+      if (ch === '"') inString = true;
+      continue;
+    }
+    if (escaped) {
+      out += ch;
+      escaped = false;
+      continue;
+    }
+    if (ch === '\\') { out += ch; escaped = true; continue; }
+    if (ch === '"') { out += ch; inString = false; continue; }
+    if (ch === '\n') { out += '\\n'; continue; }
+    if (ch === '\r') { out += '\\r'; continue; }
+    if (ch === '\t') { out += '\\t'; continue; }
+    out += ch;
+  }
+  return out;
+}
+
+/** First non-whitespace-aware raw character, for [ask] log diagnostics only (BRIEF-100B-FIX6 §2.5). */
+function classifyFirstChar(raw: string): 'brace' | 'quote' | 'fence' | 'hangul' | 'latin' | 'space' | 'other' {
+  const c = raw[0];
+  if (c === undefined) return 'other';
+  if (raw.startsWith('```')) return 'fence';
+  if (/\s/.test(c)) return 'space';
+  if (c === '{') return 'brace';
+  if (c === '"' || c === '\'' || c === '“' || c === '”') return 'quote';
+  if (/[가-힣]/.test(c)) return 'hangul';
+  if (/[a-zA-Z]/.test(c)) return 'latin';
+  return 'other';
+}
+
+/** Fence-stripped, trimmed text — used ONLY for the §2.3 plain-text fallback's candidate `T`.
+ * Always derived from the ORIGINAL raw, never from a repaired string: repair's `inString` tracker
+ * keys off literal `"` characters, and plain prose can contain a stray quote (a casual "quote")
+ * that would flip it on and start mangling unrelated text after it. Using the untouched raw for
+ * a plain-text candidate sidesteps that risk entirely (user-clarified requirement). */
+function stripFenceAndTrim(raw: string): string {
+  const fence = raw.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+  return (fence ? fence[1] : raw).trim();
+}
+
 function findBanned(text: string): string[] {
   const lower = text.toLowerCase();
   return BANNED.filter(w => lower.includes(w));
@@ -402,14 +456,18 @@ function hasScriptFormatMarker(lines: string[]): boolean {
 // count means ONLY that count, nothing else. Sentence-vs-message unit distinction and the format-marker
 // ban added so the prompt actually states what validateAskAnswer now enforces (§4.5's "계약은 있는데
 // 집행이 없다" gap — this closes the prompt side of it; the code side is the new script_contract check).
-const STRICT_SCRIPT_BLOCK = `SCRIPT REQUEST — the user asked for message lines to send, with an explicit count. Contract for THIS answer: respond in shape 2 ({"text": ...}) — no parts, no labels, no headings. Give EXACTLY the requested number of lines, each ready to send as-is, one per line — nothing before them, nothing after them, no leading explanation, no closing remark. If the count was for "문장"/sentences, each line is exactly one sentence. If the count was for "메시지"/"멘트"/messages/lines, each line may be up to two short sentences when that reads naturally (e.g. "오랜만이야! 잘 지내?"). No numbering, no bullets, no labels, no "/" separators between alternatives. No chart talk, no archetype, no day-pillar/today talk, no followUp. This contract outranks every other block for this turn, including TODAY first-mention duty — skip it here.`;
+// BRIEF-100B-FIX6 §2.4: the trailing sentence closes off the "nothing before it, nothing after
+// it" instructions being misread as "drop the JSON envelope too" — the observed 502 cause. Typed
+// as \\n (2 source backslashes) so the RUNTIME string holds \n (1 backslash + n, 2 chars) — never
+// an actual line break (verified by test ⑭b).
+const STRICT_SCRIPT_BLOCK = `SCRIPT REQUEST — the user asked for message lines to send, with an explicit count. Contract for THIS answer: respond in shape 2 ({"text": ...}) — no parts, no labels, no headings. Give EXACTLY the requested number of lines, each ready to send as-is, one per line — nothing before them, nothing after them, no leading explanation, no closing remark. If the count was for "문장"/sentences, each line is exactly one sentence. If the count was for "메시지"/"멘트"/messages/lines, each line may be up to two short sentences when that reads naturally (e.g. "오랜만이야! 잘 지내?"). No numbering, no bullets, no labels, no "/" separators between alternatives. No chart talk, no archetype, no day-pillar/today talk, no followUp. This contract outranks every other block for this turn, including TODAY first-mention duty — skip it here. Output format reminder: your entire reply must still be exactly one JSON object {"text": "..."} — every rule above describes the VALUE of "text", not the reply envelope. Newlines inside "text" must be written as \\n, never as a raw line break.`;
 
 const VERDICT_PROBE_BLOCK = `CHARACTER QUESTION — the user is asking whether this is the other person's fixed personality. Contract for THIS answer: (1) never open with a confirmation ("네", "맞아요", "Yes") and never confirm a fixed trait; (2) start with one short line of honest uncertainty — a few moments aren't enough to define someone; (3) offer at least two different situational readings of the same behavior; (4) give one concrete thing to watch next time that would tell the readings apart; (5) the chart may color a tendency but must never serve as proof of character. Keep it compact.`;
 
 const CONTINUATION_HINT_BLOCK = `CONTINUATION HINT — the latest message reads as a continuation of the same scene (added facts, their reaction, or a correction), not a new question. Shape 2 (short {"text"}) is almost certainly right here; do not restart the 3-part card unless it is clearly a new independent question.`;
 
 // BRIEF-100B-FIX3 §1.3 — verbatim per the brief (no count given, so no "exactly N" language).
-const COMPLETION_BLOCK = `COMPLETION REQUEST — the user asked you to write something they can send, without giving a count. Contract for THIS answer: respond in shape 2 ({"text": ...}) — no parts, no labels, no headings. Give only the sendable text itself, ready to copy as-is. Nothing before it, nothing after it: no leading explanation, no framing sentence, no closing remark, no commentary on why it works. One option by default; if two genuinely different directions are worth showing, put each on its own line. No numbering, no bullets, no labels, no "/" separators between alternatives. No chart talk, no archetype, no day-pillar/today talk, no followUp. This contract outranks every other block for this turn, including TODAY first-mention duty — skip it here.`;
+const COMPLETION_BLOCK = `COMPLETION REQUEST — the user asked you to write something they can send, without giving a count. Contract for THIS answer: respond in shape 2 ({"text": ...}) — no parts, no labels, no headings. Give only the sendable text itself, ready to copy as-is. Nothing before it, nothing after it: no leading explanation, no framing sentence, no closing remark, no commentary on why it works. One option by default; if two genuinely different directions are worth showing, put each on its own line. No numbering, no bullets, no labels, no "/" separators between alternatives. No chart talk, no archetype, no day-pillar/today talk, no followUp. This contract outranks every other block for this turn, including TODAY first-mention duty — skip it here. Output format reminder: your entire reply must still be exactly one JSON object {"text": "..."} — every rule above describes the VALUE of "text", not the reply envelope. Newlines inside "text" must be written as \\n, never as a raw line break.`;
 
 // ── Prompt builder ─────────────────────────────────────────────────────────────
 
@@ -1077,9 +1135,90 @@ async function callModel(system: string, turns: ChatTurn[], timeoutMs: number): 
   }
 }
 
-function tryParse(raw: string): { ok: true; value: unknown } | { ok: false; errName: string } {
-  try { return { ok: true, value: extractJson(raw) }; }
-  catch (err) { return { ok: false, errName: err instanceof Error ? err.name : 'Error' }; }
+// ── BRIEF-100B-FIX6 §1/§2.2 — the 10-state table's decisive classification, all in one pass. ────
+interface ParseOk { ok: true; value: unknown; repaired: boolean }
+export type ParseFailShape = 'object_invalid' | 'plain' | 'fence_plain';
+export type ParseFailFirstChar = ReturnType<typeof classifyFirstChar>;
+export interface ParseFail {
+  ok: false;
+  errName: string;
+  shape: ParseFailShape;
+  firstChar: ParseFailFirstChar;
+  brace: boolean;
+  fence: boolean;
+  repair: 'none' | 'failed';
+}
+type ParseResult = ParseOk | ParseFail;
+
+/**
+ * ① `extractJson(raw)` (unchanged, handles D1/D2/D3 exactly as before).
+ * ② On failure, `repairControlCharsInStrings` once, then `extractJson` again (D4 — succeeds here
+ *    only when the raw had a literal control char inside a JSON string and nothing else wrong).
+ * ③ Still failing: classify D5/D6/D7 by brace/fence presence (never regex-guesses content) so the
+ *    caller can decide whether the §2.3 plain-text fallback even applies. No extra LLM call here —
+ *    this whole function is a pure string transform (BRIEF-100B-FIX6 §2.2/§4 "추가 호출 신설 금지").
+ */
+export function tryParse(raw: string): ParseResult {
+  let lastErrName = 'Error';
+  try {
+    return { ok: true, value: extractJson(raw), repaired: false };
+  } catch (err) {
+    lastErrName = err instanceof Error ? err.name : 'Error';
+  }
+
+  const repaired = repairControlCharsInStrings(raw);
+  const repairChanged = repaired !== raw;
+  if (repairChanged) {
+    try {
+      return { ok: true, value: extractJson(repaired), repaired: true };
+    } catch (err) {
+      lastErrName = err instanceof Error ? err.name : 'Error';
+    }
+  }
+
+  const fence = raw.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+  const candidate = fence ? fence[1].trim() : raw.trim();
+  const brace = candidate.includes('{');
+  const hasFence = fence !== null;
+  const shape: ParseFailShape = brace ? 'object_invalid' : (hasFence ? 'fence_plain' : 'plain');
+
+  return {
+    ok: false,
+    errName: lastErrName,
+    shape,
+    firstChar: classifyFirstChar(raw),
+    brace,
+    fence: hasFence,
+    repair: repairChanged ? 'failed' : 'none',
+  };
+}
+
+// ── BRIEF-100B-FIX6 §2.3 — plain-text fallback: narrow, no special treatment. ────────────────────
+/**
+ * D6/D7 only, and only for the two modes whose contract is already a bare {"text": ...} turn.
+ * `T` is fence-stripped/trimmed from the ORIGINAL raw (never the repaired string — see
+ * `stripFenceAndTrim`'s doc comment). The candidate is rejected (returns null) unless it clears
+ * every check in the brief's "기존 검사 대응표" — the exact same checks a normal answer must pass,
+ * no relaxed treatment. Rejection means "do exactly what would have happened without this BRIEF."
+ */
+export function tryPlainTextFallback(
+  parseFail: ParseFail,
+  raw: string,
+  mode: 'me' | 'person' | 'general',
+  ctx: AskValidationCtx,
+): Record<string, unknown> | null {
+  if (parseFail.shape !== 'plain' && parseFail.shape !== 'fence_plain') return null;
+  if (ctx.askMode !== 'strict_script' && ctx.askMode !== 'completion') return null;
+
+  const text = stripFenceAndTrim(raw);
+  if (!text) return null;
+
+  const candidate = normalizeAnswer(mode, { text });
+  if (!candidate) return null;
+  if (findBanned(JSON.stringify(candidate)).length > 0) return null;
+  if (validateAskAnswer(candidate, ctx).length > 0) return null;
+
+  return candidate;
 }
 
 /** [ask] rid=<rid> stage=<...> action=<...> status=<숫자|-> timeout=<y|n> [rawLen=<n>] [err=<name>]
@@ -1089,18 +1228,63 @@ function logAsk(
   rid: string,
   stage: string,
   action: string,
-  opts: { status?: number; timeout?: boolean; rawLen?: number; errName?: string } = {},
+  opts: {
+    status?: number; timeout?: boolean; rawLen?: number; errName?: string;
+    // BRIEF-100B-FIX6 §2.5 — parse-diagnostic fields, never raw content/PII.
+    shape?: string; firstChar?: string; brace?: boolean; fence?: boolean;
+    repair?: string; fallback?: string;
+  } = {},
 ): void {
   const status = opts.status !== undefined ? String(opts.status) : '-';
   const timeout = opts.timeout ? 'y' : 'n';
   let line = `[ask] rid=${rid} stage=${stage} action=${action} status=${status} timeout=${timeout}`;
   if (opts.rawLen !== undefined) line += ` rawLen=${opts.rawLen}`;
   if (opts.errName) line += ` err=${opts.errName}`;
+  if (opts.shape) line += ` shape=${opts.shape}`;
+  if (opts.firstChar) line += ` firstChar=${opts.firstChar}`;
+  if (opts.brace !== undefined) line += ` brace=${opts.brace ? 'y' : 'n'}`;
+  if (opts.fence !== undefined) line += ` fence=${opts.fence ? 'y' : 'n'}`;
+  if (opts.repair) line += ` repair=${opts.repair}`;
+  if (opts.fallback) line += ` fallback=${opts.fallback}`;
   console.error(line);
 }
 
 function errorResponse(code: 'call' | 'parse' | 'schema' | 'banned', status: number) {
   return Response.json({ error: "Attune couldn't finish that thought — ask again.", code }, { status });
+}
+
+/**
+ * BRIEF-100B-FIX6 — one parse failure's full handling, used at all 3 `tryParse` failure sites.
+ * Tries the §2.3 fallback first; on success returns a ready 200 Response (no more calls needed —
+ * this is what keeps §3 ⑭d's "fallback 채택 시 총 1회" true). On rejection/non-applicability, logs
+ * the enriched [ask] line (same `action` the call site would have logged anyway — 'retry' or
+ * 'fail') and returns null so the caller proceeds with its EXISTING retry/502 logic unchanged.
+ */
+function handleParseFailure(
+  rid: string,
+  action: 'retry' | 'fail',
+  parseFail: ParseFail,
+  raw: string,
+  mode: 'me' | 'person' | 'general',
+  ctx: AskValidationCtx,
+): Response | null {
+  const fb = tryPlainTextFallback(parseFail, raw, mode, ctx);
+  if (fb) {
+    logAsk(rid, 'parse', 'fallback_used', {
+      rawLen: raw.length, shape: parseFail.shape, firstChar: parseFail.firstChar,
+      brace: parseFail.brace, fence: parseFail.fence, repair: parseFail.repair, fallback: 'used',
+    });
+    return Response.json({ answer: fb });
+  }
+  const eligibleForFallback =
+    (parseFail.shape === 'plain' || parseFail.shape === 'fence_plain') &&
+    (ctx.askMode === 'strict_script' || ctx.askMode === 'completion');
+  logAsk(rid, 'parse', action, {
+    rawLen: raw.length, errName: parseFail.errName, shape: parseFail.shape, firstChar: parseFail.firstChar,
+    brace: parseFail.brace, fence: parseFail.fence, repair: parseFail.repair,
+    fallback: eligibleForFallback ? 'rejected' : 'none',
+  });
+  return null;
 }
 
 // ── Request schema ─────────────────────────────────────────────────────────────
@@ -1228,10 +1412,12 @@ export async function POST(request: Request) {
 
   if (!parseRes.ok) {
     if (usedExtraCall) {
-      logAsk(rid, 'parse', 'fail', { rawLen: raw.length, errName: parseRes.errName });
+      const resp = handleParseFailure(rid, 'fail', parseRes, raw, mode, ctx);
+      if (resp) return resp;
       return errorResponse('parse', 502);
     }
-    logAsk(rid, 'parse', 'retry', { rawLen: raw.length, errName: parseRes.errName });
+    const respEarly = handleParseFailure(rid, 'retry', parseRes, raw, mode, ctx);
+    if (respEarly) return respEarly;
     usedExtraCall = true;
     const retryCall = await callModel(system, turns, RETRY_CALL_TIMEOUT);
     if (!retryCall.ok) {
@@ -1241,9 +1427,13 @@ export async function POST(request: Request) {
     raw = retryCall.raw;
     parseRes = tryParse(raw);
     if (!parseRes.ok) {
-      logAsk(rid, 'parse', 'fail', { rawLen: raw.length, errName: parseRes.errName });
+      const resp2 = handleParseFailure(rid, 'fail', parseRes, raw, mode, ctx);
+      if (resp2) return resp2;
       return errorResponse('parse', 502);
     }
+  }
+  if (parseRes.ok && parseRes.repaired) {
+    logAsk(rid, 'parse', 'repaired', { rawLen: raw.length, shape: 'object_repaired', repair: 'ctrl_fixed' });
   }
 
   let answer = normalizeAnswer(mode, parseRes.value);
@@ -1285,8 +1475,12 @@ export async function POST(request: Request) {
     raw = correctionRes.raw;
     parseRes = tryParse(raw);
     if (!parseRes.ok) {
-      logAsk(rid, 'parse', 'fail', { rawLen: raw.length, errName: parseRes.errName });
+      const resp3 = handleParseFailure(rid, 'fail', parseRes, raw, mode, ctx);
+      if (resp3) return resp3;
       return errorResponse('parse', 502);
+    }
+    if (parseRes.repaired) {
+      logAsk(rid, 'parse', 'repaired', { rawLen: raw.length, shape: 'object_repaired', repair: 'ctrl_fixed' });
     }
 
     answer = normalizeAnswer(mode, parseRes.value);
