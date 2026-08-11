@@ -8,11 +8,12 @@ vi.mock('next/navigation', () => ({
 
 const mockGetSyncSession = vi.fn(() => Promise.resolve(null) as Promise<unknown>);
 const mockDeleteBackup = vi.fn();
+const mockPullBackup = vi.fn(() => Promise.resolve(null) as Promise<unknown>);
 
 vi.mock('@/lib/sync', () => ({
   getSyncSession: () => mockGetSyncSession(),
   pushBackup: vi.fn(),
-  pullBackup: vi.fn(),
+  pullBackup: () => mockPullBackup(),
   deleteBackup: () => mockDeleteBackup(),
   applySnapshot: vi.fn(),
   LS_LAST_BACKUP: 'attune.lastBackup',
@@ -23,6 +24,7 @@ afterEach(() => {
   vi.restoreAllMocks();
   mockGetSyncSession.mockReset().mockReturnValue(Promise.resolve(null));
   mockDeleteBackup.mockReset();
+  mockPullBackup.mockReset().mockReturnValue(Promise.resolve(null));
 });
 
 describe('SettingsPage — version footer', () => {
@@ -52,21 +54,23 @@ describe('SettingsPage — title in the fixed top bar (BRIEF-094F)', () => {
 });
 
 describe('SettingsPage — Clear all data confirm copy by backup state (BRIEF-089)', () => {
-  it('no backup (signed out): warns that erasure is permanent with no backup', async () => {
+  // BRIEF-102로 버튼 비활성화 — 재활성화 판에서 BRIEF-089의 confirm 문구 검증을 복원할 것.
+  it('no backup (signed out): "Clear all data" is disabled and click does not open confirm', async () => {
     mockGetSyncSession.mockReturnValue(Promise.resolve(null));
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
 
     const { default: SettingsPage } = await import('./page');
     render(<SettingsPage />);
 
+    const button = screen.getByText('Clear all data').closest('button');
+    expect(button?.disabled).toBe(true);
+
     fireEvent.click(screen.getByText('Clear all data'));
 
-    expect(confirmSpy).toHaveBeenCalledWith(
-      'Clear all readings and your birth info? There is no backup — this permanently erases everything on this phone.',
-    );
+    expect(confirmSpy).not.toHaveBeenCalled();
   });
 
-  it('signed in with backup: warns that the Google backup is also deleted', async () => {
+  it('signed in with backup: "Clear all data" is disabled and click does not open confirm', async () => {
     mockGetSyncSession.mockReturnValue(Promise.resolve({ user: { email: 'a@b.com' } } as never));
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
 
@@ -74,11 +78,40 @@ describe('SettingsPage — Clear all data confirm copy by backup state (BRIEF-08
     render(<SettingsPage />);
 
     await waitFor(() => expect(screen.getByText('a@b.com')).toBeTruthy());
+    const button = screen.getByText('Clear all data').closest('button');
+    expect(button?.disabled).toBe(true);
+
     fireEvent.click(screen.getByText('Clear all data'));
 
-    expect(confirmSpy).toHaveBeenCalledWith(
-      'Clear all readings and your birth info? This also deletes your Google backup. This cannot be undone.',
-    );
+    expect(confirmSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe('SettingsPage — About sheet privacy paragraph removed (BRIEF-102)', () => {
+  it('opening "About Attune" does not show the false server-storage claim, but the sheet did open', async () => {
+    const { default: SettingsPage } = await import('./page');
+    render(<SettingsPage />);
+
+    fireEvent.click(screen.getByText('About Attune'));
+
+    expect(screen.queryByText(/Nothing is sent to a server/)).toBeNull();
+    expect(screen.getByText('Made by farerworks')).toBeTruthy();
+  });
+});
+
+describe('SettingsPage — restore failure copy (BRIEF-102)', () => {
+  it('failed restore shows "Restore failed — try again.", not the backup-failed copy', async () => {
+    mockGetSyncSession.mockReturnValue(Promise.resolve({ user: { email: 'a@b.com' } } as never));
+    mockPullBackup.mockReturnValue(Promise.resolve({ ok: false }) as unknown as Promise<unknown>);
+
+    const { default: SettingsPage } = await import('./page');
+    render(<SettingsPage />);
+
+    await waitFor(() => expect(screen.getByText('a@b.com')).toBeTruthy());
+    fireEvent.click(screen.getByText('Restore from backup'));
+
+    await waitFor(() => expect(screen.getByText('Restore failed — try again.')).toBeTruthy());
+    expect(screen.queryByText('Backup failed — try again.')).toBeNull();
   });
 });
 

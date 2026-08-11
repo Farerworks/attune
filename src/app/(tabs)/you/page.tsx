@@ -103,7 +103,8 @@ export default function YouPage() {
             pillars: c.pillars,
           });
         } catch (e) {
-          setError(e instanceof Error ? e.message : 'Could not calculate chart');
+          console.error(e);
+          setError("Attune couldn't load your chart — try again in a moment.");
         }
 
         // Load mySpectrums from most recent reading that has them
@@ -121,7 +122,7 @@ export default function YouPage() {
         setStrong(readings.filter(r => r.briefing?.dynamic?.resonance === 'strong-current').length);
         setDaysIn(getDaysIn());
       })
-      .catch(e => setError(String(e)));
+      .catch(e => { console.error(e); setError("Attune couldn't load your chart — try again in a moment."); });
   }, [router]);
 
   const domEl = chart

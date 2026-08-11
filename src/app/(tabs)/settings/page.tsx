@@ -104,13 +104,6 @@ function AboutSheet({ onClose }: { onClose: () => void }) {
           fontSize: 13, lineHeight: 1.6,
           color: 'var(--c-muted)', marginBottom: 24,
         }}>
-          All readings are stored locally on your device. Nothing is sent to a server except the birth dates needed to generate a briefing. No account required. Free to use.
-        </p>
-        <p style={{
-          fontFamily: 'var(--font-inter)',
-          fontSize: 13, lineHeight: 1.6,
-          color: 'var(--c-muted)', marginBottom: 24,
-        }}>
           Made by farerworks
         </p>
         <button
@@ -137,9 +130,10 @@ interface RowProps {
   danger?: boolean;
   chevron?: boolean;
   onClick?: () => void;
+  disabled?: boolean;
 }
 
-function Row({ label, href, danger, chevron, onClick }: RowProps) {
+function Row({ label, href, danger, chevron, onClick, disabled }: RowProps) {
   const style: CSSProperties = {
     display: 'flex',
     alignItems: 'center',
@@ -164,7 +158,19 @@ function Row({ label, href, danger, chevron, onClick }: RowProps) {
   }
 
   return (
-    <button type="button" className="pressable" style={{ ...style, width: '100%', border: 'none' as const, textAlign: 'left' as const }} onClick={onClick}>
+    <button
+      type="button"
+      className={disabled ? undefined : 'pressable'}
+      style={{
+        ...style,
+        width: '100%',
+        border: 'none' as const,
+        textAlign: 'left' as const,
+        ...(disabled ? { opacity: 0.35, cursor: 'default' as const } : {}),
+      }}
+      disabled={disabled}
+      onClick={onClick}
+    >
       <span>{label}</span>
       {chevron && <ChevronIcon width={18} height={18} style={{ color: 'var(--c-muted)' }} />}
     </button>
@@ -277,7 +283,7 @@ export default function SettingsPage() {
       return;
     }
     if (!res.ok) {
-      setRestoreMsg('Backup failed — try again.');
+      setRestoreMsg('Restore failed — try again.');
       return;
     }
     const dateStr = new Date(res.updatedAt).toLocaleDateString();
@@ -342,7 +348,7 @@ export default function SettingsPage() {
           Backup is optional. Your data stays on this phone unless you turn it on.
         </p>
 
-        <Row label="Clear all data" danger onClick={() => void handleClearData()} />
+        <Row label="Clear all data" danger disabled onClick={() => void handleClearData()} />
 
         <p style={{
           fontFamily: 'var(--font-space-mono)', fontSize: 10.5, letterSpacing: '0.08em',

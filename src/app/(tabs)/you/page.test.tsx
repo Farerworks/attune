@@ -124,4 +124,30 @@ describe('YouPage', () => {
     expect(container2.textContent).not.toContain('↗️');
     expect(container2.querySelector('svg')).toBeTruthy();
   });
+
+  it('chart calculation failure shows the canonical copy, not the raw error, and logs to console (BRIEF-102)', async () => {
+    localStorage.setItem('attune.profile', JSON.stringify({
+      date: '1990-06-15', time: '14:30', gender: 'other', createdAt: new Date().toISOString(),
+    }));
+
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const rawError = new Error('raw internal boom');
+
+    vi.resetModules();
+    vi.doMock('@/lib/saju', () => ({
+      calculateSaju: () => { throw rawError; },
+    }));
+
+    const { default: YouPage } = await import('./page');
+    render(<YouPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Attune couldn't load your chart — try again in a moment.")).toBeTruthy();
+    });
+    expect(screen.queryByText(/raw internal boom/)).toBeNull();
+    expect(consoleErrorSpy).toHaveBeenCalledWith(rawError);
+
+    vi.doUnmock('@/lib/saju');
+    vi.resetModules();
+  });
 });
