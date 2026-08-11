@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { calculateSaju, getDailyPillars, pillarLabel, friendlyPillarName, STEM_NAMES } from '@/lib/saju';
-import type { SajuChart, DailyPillar, Pillar, Element, TenStem } from '@/lib/saju';
+import { calculateSaju, getDailyPillars, pillarLabel, friendlyPillarName, STEM_NAMES, BRANCH_NAMES } from '@/lib/saju';
+import type { SajuChart, DailyPillar, Pillar, Element, TenStem, TwelveBranch } from '@/lib/saju';
 import { getArchetype, getElementRelationship, localeVoiceBlock, ARCHETYPE_LOCALE } from '@/lib/interpretGuide';
 import { formatChart } from '@/lib/briefing';
 import { createLlmProvider, type ChatTurn } from '@/lib/llm';
@@ -218,6 +218,17 @@ function collectAnswerText(answer: Record<string, unknown>): string[] {
     }
   }
   if (typeof answer.followUp === 'string') texts.push(answer.followUp);
+  return texts;
+}
+
+/** Same scope as `collectAnswerText` (parts/text/followUp) PLUS `timing` — BRIEF-105 §2.2.2
+ * explicitly widens the scope to include it for the date–pillar check only; `collectAnswerText`
+ * itself is left unchanged since F5 (hidden-truth framing) and other callers rely on its existing
+ * scope (a `timing` string is never prose the model free-writes about feelings, so F5 has no need
+ * for it — this is a date–pillar-specific widening, not a general fix). */
+function collectAnswerTextWithTiming(answer: Record<string, unknown>): string[] {
+  const texts = collectAnswerText(answer);
+  if (typeof answer.timing === 'string') texts.push(answer.timing);
   return texts;
 }
 
@@ -567,9 +578,9 @@ ${memory.map(f => `- ${f}`).join('\n')}`;
   const todayLine = `TODAY — ${today}: ${pillarLabel(todayChart.pillars.year)} year · ${pillarLabel(todayChart.pillars.month)} month · ${pillarLabel(todayChart.pillars.day)} day. Friendly day name: ${todayFriendly.en} (${todayFriendly.ko}). Hour is unknown.`;
 
   const todayNamingBlock = todayIntroduced
-    ? `TODAY ALREADY INTRODUCED earlier in this conversation. Do NOT announce or restate today's day name in any answer opening — never begin with "오늘은" + the day name in any form (formal, friendly, or element words). If the day genuinely matters mid-answer, weave the short handle once ("물 호랑이 기운이…"); otherwise leave it out entirely.`
-    : `FIRST mention of today in a conversation: Korean → 「오늘은 임인(壬寅)일 — '물 호랑이' 날이에요」 style (formal name + friendly gloss, once). English → "a Water Tiger day" (short name only; ganzhi optional in parentheses).
-AFTER that: use only the short handle, woven in ("물 호랑이 기운이…" / "with this Water Tiger energy…") — never repeat the full announcement.`;
+    ? `TODAY ALREADY INTRODUCED earlier in this conversation. Do NOT announce or restate today's day name in any answer opening — never begin with "오늘은" + the day name in any form (formal, friendly, or element words). If the day genuinely matters mid-answer, weave the short handle once ("<날 이름> 기운이…"); otherwise leave it out entirely.`
+    : `FIRST mention of today in a conversation: Korean → 「오늘은 <간지>(<한자>)일 — '<날 이름>' 날이에요」 style (formal name + friendly gloss, once). English → "a <Day Name> day" (short name only; ganzhi optional in parentheses).
+AFTER that: use only the short handle, woven in ("<날 이름> 기운이…" / "with this <Day Name> energy…") — never repeat the full announcement.`;
 
   // Output schema per mode
   const outputSpec = mode === 'person'
@@ -701,7 +712,7 @@ When the user asks what today is, today's energy, or today's saju, state today's
 Use ONLY the names given in TODAY — never derive or translate day names yourself.
 ${todayNamingBlock}
 TODAY-MENTION RESTRAINT — same discipline as identity mentions: do NOT re-announce today's pillars in answer after answer. Name them when the user asks about today/timing or when a specific day genuinely drives the answer — once per day of conversation is plenty. Otherwise leave the date out or refer to it implicitly ("with today's restless energy"), and never open consecutive answers with the same "오늘은 ~일이라" formula.
-If today was already named earlier in this conversation, never cold-open with the announcement again — acknowledge briefly ("아까 말한 물 호랑이 날 흐름대로 —") and move straight to the answer. Two consecutive answers must never begin with the same sentence.
+If today was already named earlier in this conversation, never cold-open with the announcement again — acknowledge briefly ("아까 말한 <날 이름> 날 흐름대로 —") and move straight to the answer. Two consecutive answers must never begin with the same sentence.
 
 ${mode === 'person' ? PERSON_RULES : SELF_RULES}
 
@@ -808,13 +819,163 @@ function normalizeAnswer(
 
 // ── §6/§7: answer validator (pure — reads the answer, never mutates it) ──────────────────────
 
-export type AskViolationType = 'label_set' | 'label_order' | 'strict_script_parts' | 'reintroduction' | 'verdict_opening' | 'script_contract' | 'hidden_truth_framing' | 'completion_parts' | 'completion_contract';
+export type AskViolationType = 'label_set' | 'label_order' | 'strict_script_parts' | 'reintroduction' | 'verdict_opening' | 'script_contract' | 'hidden_truth_framing' | 'completion_parts' | 'completion_contract' | 'date_pillar_mismatch';
 export interface AskViolation { type: AskViolationType; detail?: string }
 export interface AskValidationCtx {
   askMode: AskMode;
   personIntroduced?: boolean;
   candidates: string[];
   latestUserText: string;
+  // BRIEF-105 §2.2.2 — optional so every existing caller/test literal stays valid unchanged.
+  // When absent, the date–pillar check (below) is simply skipped for that call.
+  dailyPillarLookup?: Map<string, DailyPillarLookupEntry>;
+  todayDate?: string;
+}
+
+// ── BRIEF-105 §2.2 — date–pillar factual check ────────────────────────────────────────────────
+// The model sometimes states a WRONG ganzi/day-name for a date it also names correctly elsewhere
+// (BRIEF-104A voice baseline caught a live case: "8월 18일(물 호랑이 날)" when 2026-08-18 is really
+// 甲子 / 나무 쥐, not 壬寅 / 물 호랑이). The correct answer is already server-computed in
+// `dailyPillars`, so this is checked deterministically instead of trusted to the model's prose.
+
+export interface DailyPillarLookupEntry {
+  stemEn: TenStem;
+  branchEn: TwelveBranch;
+  element: Element;
+  friendlyKo: string;
+  friendlyEn: string;
+  ganziHangul: string;
+  ganziHanja: string;
+}
+
+/** Builds date -> pillar lookup from the SAME `dailyPillars` array passed to `buildAskSystem` — no
+ * new saju calculation, only reads already-exported `STEM_NAMES`/`BRANCH_NAMES`/`friendlyPillarName`
+ * (BRIEF-105 §2.2.1 — `src/lib/saju.ts` stays read-only). */
+export function buildDailyPillarLookup(dailyPillars: DailyPillar[]): Map<string, DailyPillarLookupEntry> {
+  const map = new Map<string, DailyPillarLookupEntry>();
+  for (const p of dailyPillars) {
+    const stemInfo = STEM_NAMES[p.stem];
+    const branchInfo = BRANCH_NAMES[p.branch];
+    const pillar: Pillar = { stem: p.stem, branch: p.branch, stemHanja: stemInfo.hanja, branchHanja: branchInfo.hanja };
+    const friendly = friendlyPillarName(pillar);
+    map.set(p.date, {
+      stemEn: p.stem,
+      branchEn: p.branch,
+      element: stemInfo.element,
+      friendlyKo: friendly.ko,
+      friendlyEn: friendly.en,
+      ganziHangul: `${stemInfo.ko}${branchInfo.ko}`,
+      ganziHanja: `${stemInfo.hanja}${branchInfo.hanja}`,
+    });
+  }
+  return map;
+}
+
+// `stemEn` = exact-stem match required (ganzi hangul/hanja tokens encode yin/yang, e.g. 갑자 vs
+// 을축 are never confusable). `element` = element-only match (friendly-name tokens DON'T encode
+// yin/yang — "물 호랑이"/"Water Tiger" is identical text whether the day is 壬寅 (Yang Water) or
+// (hypothetically) a Yin Water day; exactly one of the two fields is ever set per token).
+interface GanziToken { token: string; branchEn: TwelveBranch; stemEn?: TenStem; element?: Element }
+
+/** Every (stem, branch) pairing's ko/hanja ganzi form (stem-exact) and ko/en friendly form
+ * (element-only — see `GanziToken` above) — a superset of the true 60-jiazi cycle (10x12=120
+ * pairs, not just the 60 that actually occur in a real calendar), because this is a
+ * TEXT-RECOGNITION vocabulary, not a validity check: whatever a sentence claims gets compared
+ * against the one CORRECT entry for its date either way (see `checkDatePillarSentence` below).
+ * Deduped by token text — two different stems sharing an element (e.g. Yang/Yin Water) would
+ * otherwise register the identical friendly-name string twice. Built once at module load. */
+const GANZI_VOCABULARY: GanziToken[] = (() => {
+  const stems = Object.keys(STEM_NAMES) as TenStem[];
+  const branches = Object.keys(BRANCH_NAMES) as TwelveBranch[];
+  const seen = new Map<string, GanziToken>();
+  const add = (entry: GanziToken) => { if (!seen.has(entry.token)) seen.set(entry.token, entry); };
+  for (const stemEn of stems) {
+    for (const branchEn of branches) {
+      const s = STEM_NAMES[stemEn];
+      const b = BRANCH_NAMES[branchEn];
+      const pillar: Pillar = { stem: stemEn, branch: branchEn, stemHanja: s.hanja, branchHanja: b.hanja };
+      const friendly = friendlyPillarName(pillar);
+      add({ token: `${s.ko}${b.ko}`, branchEn, stemEn });
+      add({ token: `${s.hanja}${b.hanja}`, branchEn, stemEn });
+      add({ token: friendly.ko, branchEn, element: s.element });
+      add({ token: friendly.en, branchEn, element: s.element });
+    }
+  }
+  return [...seen.values()];
+})();
+
+/** Word-boundary-safe match for one token. Hangul has no reliable `\b` (same reasoning as
+ * `normalizeForMatch`/the verdict-probe patterns elsewhere in this file), so 2-syllable ganzi
+ * tokens use a not-adjacent-to-another-Hangul-syllable guard instead (blocks e.g. "갑자" matching
+ * inside "갑자기"). ASCII friendly names use a normal `\b`. */
+function tokenBoundaryRegex(token: string): RegExp {
+  const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  if (/[가-힣]/.test(token)) {
+    return new RegExp(`(?<![가-힣])${escaped}(?![가-힣])`);
+  }
+  return new RegExp(`\\b${escaped}\\b`, 'i');
+}
+
+const EN_MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+
+/** Resolves every date mentioned in ONE sentence to a YYYY-MM-DD key present in `lookup` — BRIEF-105
+ * §2.2.3's date rules: exact ISO; "M월 D일"/"Month D" WITHOUT a year (resolved against the lookup's
+ * 90-day window ONLY when exactly one candidate matches — 0 or 2+ matches are left unresolved,
+ * never guessed); 오늘/today against `todayDate`. Dates outside the lookup's window are never
+ * returned (never judged a mismatch — §2.2.3 "범위 밖은 mismatch로 판정하지 않는다"). */
+function extractDateMentions(sentence: string, lookup: Map<string, DailyPillarLookupEntry>, todayDate?: string): string[] {
+  const found = new Set<string>();
+
+  for (const m of sentence.matchAll(/\b\d{4}-\d{2}-\d{2}\b/g)) {
+    if (lookup.has(m[0])) found.add(m[0]);
+  }
+
+  const byMonthDay = (month: string, day: string) =>
+    [...lookup.keys()].filter(d => d.slice(5, 7) === month && d.slice(8, 10) === day);
+
+  for (const m of sentence.matchAll(/(\d{1,2})월\s*(\d{1,2})일/g)) {
+    const candidates = byMonthDay(m[1].padStart(2, '0'), m[2].padStart(2, '0'));
+    if (candidates.length === 1) found.add(candidates[0]);
+  }
+
+  for (const m of sentence.matchAll(/\b([A-Za-z]+)\s+(\d{1,2})\b/g)) {
+    const idx = EN_MONTHS.indexOf(m[1].toLowerCase());
+    if (idx === -1) continue;
+    const candidates = byMonthDay(String(idx + 1).padStart(2, '0'), String(Number(m[2])).padStart(2, '0'));
+    if (candidates.length === 1) found.add(candidates[0]);
+  }
+
+  if (todayDate && lookup.has(todayDate) && (/오늘/.test(sentence) || /\btoday\b/i.test(sentence))) {
+    found.add(todayDate);
+  }
+
+  return [...found];
+}
+
+/** One sentence's date–pillar check (BRIEF-105 §2.2.3/§2.2.4). No date -> skip. No recognized
+ * ganzi/friendly-name token -> skip. Both are the brief's explicit false-positive guards. */
+function checkDatePillarSentence(sentence: string, lookup: Map<string, DailyPillarLookupEntry>, todayDate: string | undefined): AskViolation[] {
+  const dates = extractDateMentions(sentence, lookup, todayDate);
+  if (dates.length === 0) return [];
+
+  const foundTokens = GANZI_VOCABULARY.filter(t => tokenBoundaryRegex(t.token).test(sentence));
+  if (foundTokens.length === 0) return [];
+
+  const violations: AskViolation[] = [];
+  for (const date of dates) {
+    const correct = lookup.get(date);
+    if (!correct) continue;
+    for (const ft of foundTokens) {
+      if (ft.branchEn !== correct.branchEn) {
+        violations.push({ type: 'date_pillar_mismatch', detail: `${date}|${ft.token}|${correct.friendlyKo}` });
+        continue;
+      }
+      const isCorrect = ft.stemEn !== undefined ? ft.stemEn === correct.stemEn : ft.element === correct.element;
+      if (isCorrect) continue;
+      violations.push({ type: 'date_pillar_mismatch', detail: `${date}|${ft.token}|${correct.friendlyKo}` });
+    }
+  }
+  return violations;
 }
 
 function partsLabels(answer: Record<string, unknown>): string[] | null {
@@ -925,6 +1086,16 @@ export function validateAskAnswer(answer: Record<string, unknown>, ctx: AskValid
     violations.push({ type: 'hidden_truth_framing' });
   }
 
+  // BRIEF-105 §2.2 — date–pillar factual check. Only runs when the caller supplied the lookup
+  // (ctx.dailyPillarLookup is optional precisely so every pre-existing ctx literal stays valid).
+  if (ctx.dailyPillarLookup) {
+    for (const t of collectAnswerTextWithTiming(answer)) {
+      for (const sentence of splitSentences(t)) {
+        violations.push(...checkDatePillarSentence(sentence, ctx.dailyPillarLookup, ctx.todayDate));
+      }
+    }
+  }
+
   return violations;
 }
 
@@ -982,11 +1153,68 @@ function truncateScriptLines(answer: Record<string, unknown>, count: number): Re
   return { ...answer, text: lines.slice(0, count).join('\n') };
 }
 
+/** Removes ONE claimed-wrong day-name mention from `text`, ONLY when it appears as a bracket or
+ * inserted-clause — the exact 3 shapes BRIEF-105 §2.2.6 names: "(<token> 날)", "(<token> day)", and
+ * "— '<token>' 날". Never touches a bare in-sentence mention (e.g. "<token>이라 그래요") — cutting
+ * that would mutilate the sentence, which the brief explicitly forbids ("문장을 자르는 자동 보정은
+ * 괄호·삽입구 형태에만"). */
+function stripDayNameParenthetical(text: string, claimedToken: string): { text: string; changed: boolean } {
+  const escaped = claimedToken.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const patterns = [
+    new RegExp(`\\s*\\(${escaped}\\s*날\\)`, 'g'),
+    new RegExp(`\\s*\\(${escaped}\\s*day\\)`, 'gi'),
+    new RegExp(`\\s*[—-]\\s*'${escaped}'\\s*날`, 'g'),
+  ];
+  let out = text;
+  let changed = false;
+  for (const re of patterns) {
+    if (re.test(out)) {
+      out = out.replace(re, '');
+      changed = true;
+    }
+  }
+  return { text: out, changed };
+}
+
+/** Applies `stripDayNameParenthetical` for every `date_pillar_mismatch` violation's claimed token,
+ * across every user-visible field (BRIEF-105 §2.2.6). Non-bracket mentions are left untouched —
+ * `changed` reports whether ANY field was actually edited, so the caller can flag `soft` instead. */
+function removeParentheticalDayNames(
+  answer: Record<string, unknown>,
+  violations: AskViolation[],
+): { answer: Record<string, unknown>; changed: boolean } {
+  const claimedTokens = violations
+    .map(v => (v.detail ?? '').split('|')[1])
+    .filter((t): t is string => Boolean(t));
+  if (claimedTokens.length === 0) return { answer, changed: false };
+
+  let changed = false;
+  const stripAll = (s: string): string => {
+    let out = s;
+    for (const token of claimedTokens) {
+      const r = stripDayNameParenthetical(out, token);
+      out = r.text;
+      if (r.changed) changed = true;
+    }
+    return out.replace(/[ \t]{2,}/g, ' ').trim();
+  };
+
+  const out: Record<string, unknown> = { ...answer };
+  if (typeof out.text === 'string') out.text = stripAll(out.text);
+  if (Array.isArray(out.parts)) {
+    out.parts = (out.parts as Array<{ label: string; text: string }>).map(p => ({ ...p, text: stripAll(p.text) }));
+  }
+  if (typeof out.timing === 'string') out.timing = stripAll(out.timing);
+  if (typeof out.followUp === 'string') out.followUp = stripAll(out.followUp);
+
+  return { answer: out, changed };
+}
+
 /** Final, deterministic disposition for whatever violations remain after the (at most one)
  * correction attempt — never returns null; only call/parse/schema/banned can hard-fail, and
  * those are handled before this is ever called (BRIEF-100B §1's disposition table). `ctx` is
  * needed only to re-derive the requested script count for the excess-line trim (BRIEF-100B-FIX). */
-function applyFinalDisposition(
+export function applyFinalDisposition(
   answer: Record<string, unknown>,
   violations: AskViolation[],
   ctx: AskValidationCtx,
@@ -1044,6 +1272,26 @@ function applyFinalDisposition(
   if (hasType('reintroduction')) flags.push({ stage: 'reintro', action: 'soft' });
   if (hasType('verdict_opening')) flags.push({ stage: 'verdict', action: 'soft' });
   if (hasType('hidden_truth_framing')) flags.push({ stage: 'framing', action: 'soft' });
+
+  // BRIEF-105 §2.2.6 — bracket/inserted-clause day-name removal, then MANDATORY re-verification
+  // that the mismatch is actually gone (never trust the strip blindly).
+  if (hasType('date_pillar_mismatch')) {
+    const dpViolations = violations.filter(v => v.type === 'date_pillar_mismatch');
+    const stripped = removeParentheticalDayNames(out, dpViolations);
+    out = stripped.answer;
+    if (!stripped.changed) {
+      flags.push({ stage: 'datepillar', action: 'soft' });
+    } else {
+      flags.push({ stage: 'datepillar', action: 'strip_dayname' });
+      if (ctx.dailyPillarLookup) {
+        const stillMismatched = collectAnswerTextWithTiming(out)
+          .flatMap(t => splitSentences(t))
+          .flatMap(s => checkDatePillarSentence(s, ctx.dailyPillarLookup!, ctx.todayDate));
+        if (stillMismatched.length > 0) flags.push({ stage: 'datepillar', action: 'soft' });
+      }
+    }
+  }
+
   return { answer: out, flags };
 }
 
@@ -1064,10 +1312,12 @@ function stageOf(type: AskViolationType): string {
       return 'verdict';
     case 'hidden_truth_framing':
       return 'framing';
+    case 'date_pillar_mismatch':
+      return 'datepillar';
   }
 }
 
-function buildCorrectionWarnings(schemaInvalid: boolean, banned: string[], violations: AskViolation[]): string[] {
+export function buildCorrectionWarnings(schemaInvalid: boolean, banned: string[], violations: AskViolation[]): string[] {
   const warnings: string[] = [];
   if (schemaInvalid) warnings.push('⚠ SCHEMA VIOLATION — Response did not match required JSON shape. Return exactly the specified schema.');
   if (banned.length > 0) warnings.push(`⚠ BANNED PHRASES — Found: ${banned.map(v => `"${v}"`).join(', ')}. Regenerate without these phrases.`);
@@ -1103,6 +1353,11 @@ function buildCorrectionWarnings(schemaInvalid: boolean, banned: string[], viola
         break;
       case 'label_order':
         break; // fixed in place, never reaches here
+      case 'date_pillar_mismatch': {
+        const [date, claimed, correct] = (v.detail ?? '').split('|');
+        warnings.push(`⚠ DATE–PILLAR MISMATCH — You wrote "${claimed}" for ${date}, but ${date} is "${correct}". Use the DAILY PILLARS table verbatim or omit the day name. Regenerate.`);
+        break;
+      }
     }
   }
   return warnings;
@@ -1372,7 +1627,11 @@ export async function POST(request: Request) {
   const askMode = detectAskMode(question);
   const continuationHint = detectContinuationHint(question);
   const candidates = mode === 'person' && themChart ? themNameCandidates(themChart) : [];
-  const ctx: AskValidationCtx = { askMode, personIntroduced, candidates, latestUserText: question };
+  const ctx: AskValidationCtx = {
+    askMode, personIntroduced, candidates, latestUserText: question,
+    dailyPillarLookup: buildDailyPillarLookup(dailyPillars),
+    todayDate: today,
+  };
 
   const system = buildAskSystem(
     mode, meChart, themChart,

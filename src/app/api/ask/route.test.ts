@@ -22,6 +22,7 @@ const {
   COMPLETION_SEGMENT_SPLIT, COMPLETION_QUOTE_SPAN, COMPLETION_REPORT_MARKER, COMPLETION_FORBID,
   COMPLETION_CANCEL, COMPLETION_REQUEST_ENDINGS, splitCompletionParts, detectCompletionRequest,
   repairControlCharsInStrings, tryParse, tryPlainTextFallback,
+  buildDailyPillarLookup, applyFinalDisposition, buildCorrectionWarnings,
 } = await import('./route');
 const { splitSentences } = await import('@/lib/hiddenTruth');
 const { calculateSaju, getDailyPillars, pillarLabel, friendlyPillarName, STEM_NAMES } = await import('@/lib/saju');
@@ -2419,6 +2420,78 @@ describe('구조 회귀 — BRIEF-100B-FIX6 §4 (분류 로직 무접촉)', () =
     expect(detectAskMode('메시지 써줘')).toBe('completion');
     expect(detectAskMode('답장 써봤어')).toBe(null);
     expect(detectAskMode('메시지 써주지 마')).toBe(null);
+  });
+});
+
+describe('날짜–간지 결정적 검증 (BRIEF-105 §2.2/§3)', () => {
+  const dailyPillars = getDailyPillars('2026-08-11', 90);
+  const lookup = buildDailyPillarLookup(dailyPillars);
+  const baseCtx = { askMode: null, personIntroduced: false, candidates: [], latestUserText: '', dailyPillarLookup: lookup, todayDate: '2026-08-11' };
+
+  it('T1 — 기준표 생성: 2026-08-18 -> 나무 쥐 / Wood Rat / 갑자 / 甲子', () => {
+    const entry = lookup.get('2026-08-18');
+    expect(entry).toBeDefined();
+    expect(entry?.friendlyKo).toBe('나무 쥐');
+    expect(entry?.friendlyEn).toBe('Wood Rat');
+    expect(entry?.ganziHangul).toBe('갑자');
+    expect(entry?.ganziHanja).toBe('甲子');
+  });
+
+  it('T2 — 실패 재현(회귀 고정): 「8월 18일(물 호랑이 날)」 -> date_pillar_mismatch 1건, detail에 날짜·오답·정답 포함', () => {
+    const answer = { text: '다음 주 화요일인 8월 18일(물 호랑이 날)은 흐름이 부드러워질 거예요.' };
+    const dp = validateAskAnswer(answer, baseCtx).filter(v => v.type === 'date_pillar_mismatch');
+    expect(dp).toHaveLength(1);
+    expect(dp[0].detail).toContain('2026-08-18');
+    expect(dp[0].detail).toContain('물 호랑이');
+    expect(dp[0].detail).toContain('나무 쥐');
+  });
+
+  it('T3 — 정상 통과: 「8월 14일(쇠 원숭이 날)」은 실제 정답이라 위반 0', () => {
+    const answer = { text: '8월 14일(쇠 원숭이 날)은 실속 있게 움직이기 좋아요.' };
+    const dp = validateAskAnswer(answer, baseCtx).filter(v => v.type === 'date_pillar_mismatch');
+    expect(dp).toHaveLength(0);
+  });
+
+  it('T4 — 영어: "a Water Tiger day"는 위반 1, "a Wood Rat day"는 위반 0', () => {
+    const wrong = validateAskAnswer({ text: 'Tuesday, August 18 is a Water Tiger day.' }, baseCtx)
+      .filter(v => v.type === 'date_pillar_mismatch');
+    expect(wrong).toHaveLength(1);
+
+    const right = validateAskAnswer({ text: 'Tuesday, August 18 is a Wood Rat day.' }, baseCtx)
+      .filter(v => v.type === 'date_pillar_mismatch');
+    expect(right).toHaveLength(0);
+  });
+
+  it('T5 — 오탐 방지: 날짜 없이 간지만 언급하면 위반 0', () => {
+    const dp = validateAskAnswer({ text: '물 호랑이 기운이 은은하게 느껴지는 하루예요.' }, baseCtx)
+      .filter(v => v.type === 'date_pillar_mismatch');
+    expect(dp).toHaveLength(0);
+  });
+
+  it('T6 — 교정 경고: buildCorrectionWarnings가 날짜·오답·정답을 담은 문구를 만든다', () => {
+    const warnings = buildCorrectionWarnings(false, [], [
+      { type: 'date_pillar_mismatch', detail: '2026-08-18|물 호랑이|나무 쥐' },
+    ]);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('DATE');
+    expect(warnings[0]).toContain('2026-08-18');
+    expect(warnings[0]).toContain('물 호랑이');
+    expect(warnings[0]).toContain('나무 쥐');
+  });
+
+  it('T7 — 최종 보정: 괄호형은 날 이름만 제거되고 문장은 보존, 비괄호형은 변경 없이 soft 플래그', () => {
+    const bracketAnswer = { text: '다음 주 화요일인 8월 18일(물 호랑이 날)은 흐름이 부드러워질 거예요.' };
+    const bracketViolations = validateAskAnswer(bracketAnswer, baseCtx).filter(v => v.type === 'date_pillar_mismatch');
+    const bracketResult = applyFinalDisposition(bracketAnswer, bracketViolations, baseCtx);
+    expect(bracketResult.answer.text).toBe('다음 주 화요일인 8월 18일은 흐름이 부드러워질 거예요.');
+    expect(bracketResult.flags).toContainEqual({ stage: 'datepillar', action: 'strip_dayname' });
+
+    const plainAnswer = { text: '물 호랑이 기운이라 그래요, 8월 18일은.' };
+    const plainViolations = validateAskAnswer(plainAnswer, baseCtx).filter(v => v.type === 'date_pillar_mismatch');
+    expect(plainViolations.length).toBeGreaterThan(0);
+    const plainResult = applyFinalDisposition(plainAnswer, plainViolations, baseCtx);
+    expect(plainResult.answer.text).toBe(plainAnswer.text);
+    expect(plainResult.flags).toContainEqual({ stage: 'datepillar', action: 'soft' });
   });
 });
 
