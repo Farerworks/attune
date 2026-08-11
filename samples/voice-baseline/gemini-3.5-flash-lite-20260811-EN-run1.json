@@ -1,0 +1,259 @@
+{
+  "meta": {
+    "model": "gemini-3.5-flash-lite",
+    "modelGateForced": false,
+    "generationConfigBranch": "new(no temperature, thinkingLevel=minimal)",
+    "llmProvider": "gemini",
+    "baseCommitSha": "9054808ea79ba0d605952ecc23d162105ea7d7fc",
+    "executedAt": "2026-08-11T07:50:45.799Z",
+    "harnessFileSha256": "636242673011045eebeb93e115c2501ab672a4ef0bba761b43034f0dd5e81155",
+    "lang": "EN",
+    "runNumber": 1,
+    "callIntervalMs": 4000,
+    "aborted": false
+  },
+  "turns": [
+    {
+      "turn": 1,
+      "userText": "I want to ask Riley to work on a project with me. How should I bring it up?",
+      "systemPromptSha256": "c9d1bfa8b812c0405fdb66a42305af9adda8f6c645e8f9b60202f9eda1f58e46",
+      "firstPass": {
+        "raw": "{\n  \"parts\": [\n    {\n      \"label\": \"WHAT'S LIKELY GOING ON\",\n      \"text\": \"Riley, carrying a wide-ranging Yang Water energy, thrives on big visions and large scopes rather than narrow tasks. When you bring up the project, framing it around the broad impact or the exciting possibilities will immediately catch their interest.\"\n    },\n    {\n      \"label\": \"WHY THIS MAY HAVE HAPPENED\",\n      \"text\": \"Because your natural warmth as the Main Character is expansive and expressive, an overly formal proposal might feel too restrictive to Riley. Giving them room to breathe and shape the concept keeps the dynamic fluid rather than pressured.\"\n    },\n    {\n      \"label\": \"HOW TO IMPROVE YOUR ODDS\",\n      \"text\": \"Start by sharing the big picture casually and asking for their initial take without demanding an immediate commitment. You might say: 'I'm putting together an idea for X, and I'd love your read on where it could go.'\"\n    }\n  ],\n  \"followUp\": \"Have you two collaborated on anything similar before?\"\n}",
+        "parsed": {
+          "parts": [
+            {
+              "label": "WHAT'S LIKELY GOING ON",
+              "text": "Riley, carrying a wide-ranging Yang Water energy, thrives on big visions and large scopes rather than narrow tasks. When you bring up the project, framing it around the broad impact or the exciting possibilities will immediately catch their interest."
+            },
+            {
+              "label": "WHY THIS MAY HAVE HAPPENED",
+              "text": "Because your natural warmth as the Main Character is expansive and expressive, an overly formal proposal might feel too restrictive to Riley. Giving them room to breathe and shape the concept keeps the dynamic fluid rather than pressured."
+            },
+            {
+              "label": "HOW TO IMPROVE YOUR ODDS",
+              "text": "Start by sharing the big picture casually and asking for their initial take without demanding an immediate commitment. You might say: 'I'm putting together an idea for X, and I'd love your read on where it could go.'"
+            }
+          ],
+          "followUp": "Have you two collaborated on anything similar before?"
+        },
+        "violations": [
+          {
+            "type": "label_set"
+          }
+        ],
+        "banned": []
+      },
+      "finalPass": {
+        "raw": "{\n  \"parts\": [\n    {\n      \"label\": \"LIKELY RECEPTION\",\n      \"text\": \"When you bring up the project, Riley is likely to lean in if they can see the broad scope right away. Because they tend to value freedom and large-scale vision, starting with an open-ended concept rather than a rigid checklist will keep them engaged.\"\n    },\n    {\n      \"label\": \"WHAT COULD BACKFIRE\",\n      \"text\": \"If you present the collaboration with too many strict constraints or fixed steps upfront, Riley may feel boxed in. That sense of confinement can make them hesitate or become evasive, even if they actually like the core idea.\"\n    },\n    {\n      \"label\": \"HOW TO IMPROVE YOUR ODDS\",\n      \"text\": \"Pitch the big picture casually and ask for their perspective before locking down any details. You might say: 'I'm sketching out an idea for X, and I'd love your read on how big this could get.'\"\n    }\n  ],\n  \"followUp\": \"Have you two collaborated on anything similar before?\"\n}",
+        "parsed": {
+          "parts": [
+            {
+              "label": "LIKELY RECEPTION",
+              "text": "When you bring up the project, Riley is likely to lean in if they can see the broad scope right away. Because they tend to value freedom and large-scale vision, starting with an open-ended concept rather than a rigid checklist will keep them engaged."
+            },
+            {
+              "label": "WHAT COULD BACKFIRE",
+              "text": "If you present the collaboration with too many strict constraints or fixed steps upfront, Riley may feel boxed in. That sense of confinement can make them hesitate or become evasive, even if they actually like the core idea."
+            },
+            {
+              "label": "HOW TO IMPROVE YOUR ODDS",
+              "text": "Pitch the big picture casually and ask for their perspective before locking down any details. You might say: 'I'm sketching out an idea for X, and I'd love your read on how big this could get.'"
+            }
+          ],
+          "followUp": "Have you two collaborated on anything similar before?"
+        },
+        "violations": [],
+        "corrected": true
+      },
+      "extraCallUsed": "correction",
+      "wordCount": 126,
+      "shape": "parts"
+    },
+    {
+      "turn": 2,
+      "userText": "I brought it up yesterday and they just said they'd think about it.",
+      "systemPromptSha256": "c9d1bfa8b812c0405fdb66a42305af9adda8f6c645e8f9b60202f9eda1f58e46",
+      "firstPass": {
+        "raw": "{\n  \"text\": \"That neutral 'I'll think about it' response usually means they need time to map out the scope in their head before committing. Since they operate like an open sea, they don't like giving knee-jerk answers when the horizon isn't clear yet. Give them a few days of breathing room without following up, and let them come back to you when they've had space to process.\",\n  \"memory\": [\n    \"Asked Riley about working on a project together yesterday\",\n    \"Riley's response was 'I'll think about it'\"\n  ]\n}",
+        "parsed": {
+          "text": "That neutral 'I'll think about it' response usually means they need time to map out the scope in their head before committing. Since they operate like an open sea, they don't like giving knee-jerk answers when the horizon isn't clear yet. Give them a few days of breathing room without following up, and let them come back to you when they've had space to process.",
+          "memory": [
+            "Asked Riley about working on a project together yesterday",
+            "Riley's response was 'I'll think about it'"
+          ]
+        },
+        "violations": [],
+        "banned": []
+      },
+      "finalPass": {
+        "raw": "{\n  \"text\": \"That neutral 'I'll think about it' response usually means they need time to map out the scope in their head before committing. Since they operate like an open sea, they don't like giving knee-jerk answers when the horizon isn't clear yet. Give them a few days of breathing room without following up, and let them come back to you when they've had space to process.\",\n  \"memory\": [\n    \"Asked Riley about working on a project together yesterday\",\n    \"Riley's response was 'I'll think about it'\"\n  ]\n}",
+        "parsed": {
+          "text": "That neutral 'I'll think about it' response usually means they need time to map out the scope in their head before committing. Since they operate like an open sea, they don't like giving knee-jerk answers when the horizon isn't clear yet. Give them a few days of breathing room without following up, and let them come back to you when they've had space to process.",
+          "memory": [
+            "Asked Riley about working on a project together yesterday",
+            "Riley's response was 'I'll think about it'"
+          ]
+        },
+        "violations": [],
+        "corrected": false
+      },
+      "extraCallUsed": "none",
+      "wordCount": 65,
+      "shape": "text"
+    },
+    {
+      "turn": 3,
+      "userText": "Should I ask again? When would be a good day?",
+      "systemPromptSha256": "20cb2aed4687211a7679fc561cf071c9e3031974316c2a81c13909f5cc05bbc6",
+      "firstPass": {
+        "raw": "{\n  \"parts\": [\n    {\n      \"label\": \"LIKELY RECEPTION\",\n      \"text\": \"Pressing Riley right now risks making them feel cornered, which usually pushes an open-sea thinker further away. Waiting a bit longer gives them the quiet space they need to process without pressure.\"\n    },\n    {\n      \"label\": \"WHAT COULD BACKFIRE\",\n      \"text\": \"Asking again too soon turns a gentle invitation into an interrogation. That kind of friction tends to make them withdraw entirely rather than open up.\"\n    },\n    {\n      \"label\": \"HOW TO IMPROVE YOUR ODDS\",\n      \"text\": \"Give it until the weekend before you circle back casually. When you do, drop the project topic and ask about something unrelated to show you aren't hovering.\"\n    }\n  ],\n  \"timing\": \"우선 2026-08-14 (금) 금요일(양 금/원숭이)이나 2026-08-16 (일) 일요일(양 수/개)처럼 흐름이 시원하게 풀리는 날이 대화를 꺼내기 자연스러워요. 반면 2026-08-12 (수) 같은 날은 자칫 무거워질 수 있으니 피하는 게 좋아요.\"\n}",
+        "parsed": {
+          "parts": [
+            {
+              "label": "LIKELY RECEPTION",
+              "text": "Pressing Riley right now risks making them feel cornered, which usually pushes an open-sea thinker further away. Waiting a bit longer gives them the quiet space they need to process without pressure."
+            },
+            {
+              "label": "WHAT COULD BACKFIRE",
+              "text": "Asking again too soon turns a gentle invitation into an interrogation. That kind of friction tends to make them withdraw entirely rather than open up."
+            },
+            {
+              "label": "HOW TO IMPROVE YOUR ODDS",
+              "text": "Give it until the weekend before you circle back casually. When you do, drop the project topic and ask about something unrelated to show you aren't hovering."
+            }
+          ],
+          "timing": "우선 2026-08-14 (금) 금요일(양 금/원숭이)이나 2026-08-16 (일) 일요일(양 수/개)처럼 흐름이 시원하게 풀리는 날이 대화를 꺼내기 자연스러워요. 반면 2026-08-12 (수) 같은 날은 자칫 무거워질 수 있으니 피하는 게 좋아요."
+        },
+        "violations": [],
+        "banned": []
+      },
+      "finalPass": {
+        "raw": "{\n  \"parts\": [\n    {\n      \"label\": \"LIKELY RECEPTION\",\n      \"text\": \"Pressing Riley right now risks making them feel cornered, which usually pushes an open-sea thinker further away. Waiting a bit longer gives them the quiet space they need to process without pressure.\"\n    },\n    {\n      \"label\": \"WHAT COULD BACKFIRE\",\n      \"text\": \"Asking again too soon turns a gentle invitation into an interrogation. That kind of friction tends to make them withdraw entirely rather than open up.\"\n    },\n    {\n      \"label\": \"HOW TO IMPROVE YOUR ODDS\",\n      \"text\": \"Give it until the weekend before you circle back casually. When you do, drop the project topic and ask about something unrelated to show you aren't hovering.\"\n    }\n  ],\n  \"timing\": \"우선 2026-08-14 (금) 금요일(양 금/원숭이)이나 2026-08-16 (일) 일요일(양 수/개)처럼 흐름이 시원하게 풀리는 날이 대화를 꺼내기 자연스러워요. 반면 2026-08-12 (수) 같은 날은 자칫 무거워질 수 있으니 피하는 게 좋아요.\"\n}",
+        "parsed": {
+          "parts": [
+            {
+              "label": "LIKELY RECEPTION",
+              "text": "Pressing Riley right now risks making them feel cornered, which usually pushes an open-sea thinker further away. Waiting a bit longer gives them the quiet space they need to process without pressure."
+            },
+            {
+              "label": "WHAT COULD BACKFIRE",
+              "text": "Asking again too soon turns a gentle invitation into an interrogation. That kind of friction tends to make them withdraw entirely rather than open up."
+            },
+            {
+              "label": "HOW TO IMPROVE YOUR ODDS",
+              "text": "Give it until the weekend before you circle back casually. When you do, drop the project topic and ask about something unrelated to show you aren't hovering."
+            }
+          ],
+          "timing": "우선 2026-08-14 (금) 금요일(양 금/원숭이)이나 2026-08-16 (일) 일요일(양 수/개)처럼 흐름이 시원하게 풀리는 날이 대화를 꺼내기 자연스러워요. 반면 2026-08-12 (수) 같은 날은 자칫 무거워질 수 있으니 피하는 게 좋아요."
+        },
+        "violations": [],
+        "corrected": false
+      },
+      "extraCallUsed": "none",
+      "wordCount": 112,
+      "shape": "parts"
+    },
+    {
+      "turn": 4,
+      "userText": "No reply today.",
+      "systemPromptSha256": "20cb2aed4687211a7679fc561cf071c9e3031974316c2a81c13909f5cc05bbc6",
+      "firstPass": {
+        "raw": "{ \"text\": \"When they go quiet after you've already given them space, it's usually less about rejecting you and more about getting lost in their own thoughts. Hold off on any new prompts for now, and let them initiate the next move so they don't feel any lingering pressure.\", \"followUp\": \"Have they usually come around after you give them quiet time?\" }",
+        "parsed": {
+          "text": "When they go quiet after you've already given them space, it's usually less about rejecting you and more about getting lost in their own thoughts. Hold off on any new prompts for now, and let them initiate the next move so they don't feel any lingering pressure.",
+          "followUp": "Have they usually come around after you give them quiet time?"
+        },
+        "violations": [],
+        "banned": []
+      },
+      "finalPass": {
+        "raw": "{ \"text\": \"When they go quiet after you've already given them space, it's usually less about rejecting you and more about getting lost in their own thoughts. Hold off on any new prompts for now, and let them initiate the next move so they don't feel any lingering pressure.\", \"followUp\": \"Have they usually come around after you give them quiet time?\" }",
+        "parsed": {
+          "text": "When they go quiet after you've already given them space, it's usually less about rejecting you and more about getting lost in their own thoughts. Hold off on any new prompts for now, and let them initiate the next move so they don't feel any lingering pressure.",
+          "followUp": "Have they usually come around after you give them quiet time?"
+        },
+        "violations": [],
+        "corrected": false
+      },
+      "extraCallUsed": "none",
+      "wordCount": 58,
+      "shape": "text"
+    },
+    {
+      "turn": 5,
+      "userText": "Why are they being so lukewarm about this?",
+      "systemPromptSha256": "20cb2aed4687211a7679fc561cf071c9e3031974316c2a81c13909f5cc05bbc6",
+      "firstPass": {
+        "raw": "{\n  \"parts\": [\n    {\n      \"label\": \"WHAT'S LIKELY GOING ON\",\n      \"text\": \"Riley's lukewarm 'I'll think about it' and subsequent silence usually point to hesitation rather than a flat refusal. When faced with a new commitment, they tend to pause and weigh the scope before giving any kind of green light.\"\n    },\n    {\n      \"label\": \"WHY THIS MAY HAVE HAPPENED\",\n      \"text\": \"Your natural warmth and direct energy can sometimes feel a bit intense to someone who prefers to drift and deliberate at their own pace. That difference in tempo may have made them pull back to catch their breath.\"\n    },\n    {\n      \"label\": \"WHAT YOU CAN DO\",\n      \"text\": \"Leave the ball entirely in their court for now without reading too much into the silence. When you do speak next, keep things light and entirely off the project topic so they feel safe returning to normal.\"\n    }\n  ],\n  \"followUp\": \"When you two usually talk, who tends to break the silence first?\"\n}",
+        "parsed": {
+          "parts": [
+            {
+              "label": "WHAT'S LIKELY GOING ON",
+              "text": "Riley's lukewarm 'I'll think about it' and subsequent silence usually point to hesitation rather than a flat refusal. When faced with a new commitment, they tend to pause and weigh the scope before giving any kind of green light."
+            },
+            {
+              "label": "WHY THIS MAY HAVE HAPPENED",
+              "text": "Your natural warmth and direct energy can sometimes feel a bit intense to someone who prefers to drift and deliberate at their own pace. That difference in tempo may have made them pull back to catch their breath."
+            },
+            {
+              "label": "WHAT YOU CAN DO",
+              "text": "Leave the ball entirely in their court for now without reading too much into the silence. When you do speak next, keep things light and entirely off the project topic so they feel safe returning to normal."
+            }
+          ],
+          "followUp": "When you two usually talk, who tends to break the silence first?"
+        },
+        "violations": [],
+        "banned": []
+      },
+      "finalPass": {
+        "raw": "{\n  \"parts\": [\n    {\n      \"label\": \"WHAT'S LIKELY GOING ON\",\n      \"text\": \"Riley's lukewarm 'I'll think about it' and subsequent silence usually point to hesitation rather than a flat refusal. When faced with a new commitment, they tend to pause and weigh the scope before giving any kind of green light.\"\n    },\n    {\n      \"label\": \"WHY THIS MAY HAVE HAPPENED\",\n      \"text\": \"Your natural warmth and direct energy can sometimes feel a bit intense to someone who prefers to drift and deliberate at their own pace. That difference in tempo may have made them pull back to catch their breath.\"\n    },\n    {\n      \"label\": \"WHAT YOU CAN DO\",\n      \"text\": \"Leave the ball entirely in their court for now without reading too much into the silence. When you do speak next, keep things light and entirely off the project topic so they feel safe returning to normal.\"\n    }\n  ],\n  \"followUp\": \"When you two usually talk, who tends to break the silence first?\"\n}",
+        "parsed": {
+          "parts": [
+            {
+              "label": "WHAT'S LIKELY GOING ON",
+              "text": "Riley's lukewarm 'I'll think about it' and subsequent silence usually point to hesitation rather than a flat refusal. When faced with a new commitment, they tend to pause and weigh the scope before giving any kind of green light."
+            },
+            {
+              "label": "WHY THIS MAY HAVE HAPPENED",
+              "text": "Your natural warmth and direct energy can sometimes feel a bit intense to someone who prefers to drift and deliberate at their own pace. That difference in tempo may have made them pull back to catch their breath."
+            },
+            {
+              "label": "WHAT YOU CAN DO",
+              "text": "Leave the ball entirely in their court for now without reading too much into the silence. When you do speak next, keep things light and entirely off the project topic so they feel safe returning to normal."
+            }
+          ],
+          "followUp": "When you two usually talk, who tends to break the silence first?"
+        },
+        "violations": [],
+        "corrected": false
+      },
+      "extraCallUsed": "none",
+      "wordCount": 126,
+      "shape": "parts"
+    },
+    {
+      "turn": 6,
+      "userText": "Write me two messages I could send.",
+      "systemPromptSha256": "d7b0ed291d0fd617dade8f77b6db31b1ba05c992ca0b0d1e350ecc1b1dbc56ac",
+      "firstPass": {
+        "raw": "{\n  \"text\": \"Hey Riley, saw this article and thought of our chat the other day—no project talk, just figured you'd find it interesting.\\n\\nHey, hope your week's going well. No rush on anything from before, just wanted to say hi.\"\n}",
+        "parsed": {
+          "text": "Hey Riley, saw this article and thought of our chat the other day—no project talk, just figured you'd find it interesting.\n\nHey, hope your week's going well. No rush on anything from before, just wanted to say hi."
+        },
+        "violations": [],
+        "banned": []
+      },
+      "finalPass": {
+        "raw": "{\n  \"text\": \"Hey Riley, saw this article and thought of our chat the other day—no project talk, just figured you'd find it interesting.\\n\\nHey, hope your week's going well. No rush on anything from before, just wanted to say hi.\"\n}",
+        "parsed": {
+          "text": "Hey Riley, saw this article and thought of our chat the other day—no project talk, just figured you'd find it interesting.\n\nHey, hope your week's going well. No rush on anything from before, just wanted to say hi."
+        },
+        "violations": [],
+        "corrected": false
+      },
+      "extraCallUsed": "none",
+      "wordCount": 38,
+      "shape": "text"
+    }
+  ]
+}
