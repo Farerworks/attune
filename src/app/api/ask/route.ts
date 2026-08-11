@@ -918,16 +918,21 @@ function tokenBoundaryRegex(token: string): RegExp {
 
 const EN_MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
 
-/** Resolves every date mentioned in ONE sentence to a YYYY-MM-DD key present in `lookup` — BRIEF-105
- * §2.2.3's date rules: exact ISO; "M월 D일"/"Month D" WITHOUT a year (resolved against the lookup's
- * 90-day window ONLY when exactly one candidate matches — 0 or 2+ matches are left unresolved,
- * never guessed); 오늘/today against `todayDate`. Dates outside the lookup's window are never
- * returned (never judged a mismatch — §2.2.3 "범위 밖은 mismatch로 판정하지 않는다"). */
-function extractDateMentions(sentence: string, lookup: Map<string, DailyPillarLookupEntry>, todayDate?: string): string[] {
-  const found = new Set<string>();
+interface DateMention { date: string; index: number }
+
+/** Resolves every date mentioned in ONE sentence to a YYYY-MM-DD key present in `lookup`, WITH its
+ * character index (BRIEF-105-FIX §2 needs position for nearest-date attribution when a sentence
+ * names 2+ dates). BRIEF-105 §2.2.3's date rules: exact ISO; "M월 D일"/"Month D" WITHOUT a year
+ * (resolved against the lookup's 90-day window ONLY when exactly one candidate matches — 0 or 2+
+ * matches are left unresolved, never guessed); 오늘/today against `todayDate`. Dates outside the
+ * lookup's window are never returned (never judged a mismatch — §2.2.3 "범위 밖은 mismatch로
+ * 판정하지 않는다"). Occurrences are NOT deduped — the same date mentioned twice yields two
+ * entries, which only sharpens nearest-distance attribution. */
+function extractDateMentions(sentence: string, lookup: Map<string, DailyPillarLookupEntry>, todayDate?: string): DateMention[] {
+  const found: DateMention[] = [];
 
   for (const m of sentence.matchAll(/\b\d{4}-\d{2}-\d{2}\b/g)) {
-    if (lookup.has(m[0])) found.add(m[0]);
+    if (lookup.has(m[0])) found.push({ date: m[0], index: m.index });
   }
 
   const byMonthDay = (month: string, day: string) =>
@@ -935,45 +940,88 @@ function extractDateMentions(sentence: string, lookup: Map<string, DailyPillarLo
 
   for (const m of sentence.matchAll(/(\d{1,2})월\s*(\d{1,2})일/g)) {
     const candidates = byMonthDay(m[1].padStart(2, '0'), m[2].padStart(2, '0'));
-    if (candidates.length === 1) found.add(candidates[0]);
+    if (candidates.length === 1) found.push({ date: candidates[0], index: m.index });
   }
 
   for (const m of sentence.matchAll(/\b([A-Za-z]+)\s+(\d{1,2})\b/g)) {
     const idx = EN_MONTHS.indexOf(m[1].toLowerCase());
     if (idx === -1) continue;
     const candidates = byMonthDay(String(idx + 1).padStart(2, '0'), String(Number(m[2])).padStart(2, '0'));
-    if (candidates.length === 1) found.add(candidates[0]);
+    if (candidates.length === 1) found.push({ date: candidates[0], index: m.index });
   }
 
-  if (todayDate && lookup.has(todayDate) && (/오늘/.test(sentence) || /\btoday\b/i.test(sentence))) {
-    found.add(todayDate);
+  if (todayDate && lookup.has(todayDate)) {
+    const todayMatch = /오늘/.exec(sentence) ?? /\btoday\b/i.exec(sentence);
+    if (todayMatch) found.push({ date: todayDate, index: todayMatch.index });
   }
 
-  return [...found];
+  return found;
 }
 
-/** One sentence's date–pillar check (BRIEF-105 §2.2.3/§2.2.4). No date -> skip. No recognized
- * ganzi/friendly-name token -> skip. Both are the brief's explicit false-positive guards. */
-function checkDatePillarSentence(sentence: string, lookup: Map<string, DailyPillarLookupEntry>, todayDate: string | undefined): AskViolation[] {
-  const dates = extractDateMentions(sentence, lookup, todayDate);
-  if (dates.length === 0) return [];
+/** Whether ganzi token `ft` is the correct one for lookup entry `correct` — stem-exact for
+ * ganzi hangul/hanja tokens, element-only for friendly-name tokens (see `GanziToken`'s doc). */
+function isTokenCorrectForEntry(ft: GanziToken, correct: DailyPillarLookupEntry): boolean {
+  if (ft.branchEn !== correct.branchEn) return false;
+  return ft.stemEn !== undefined ? ft.stemEn === correct.stemEn : ft.element === correct.element;
+}
 
-  const foundTokens = GANZI_VOCABULARY.filter(t => tokenBoundaryRegex(t.token).test(sentence));
+/** One sentence's date–pillar check (BRIEF-105 §2.2.3/§2.2.4 + BRIEF-105-FIX §2). No date -> skip.
+ * No recognized ganzi/friendly-name token -> skip. Both are explicit false-positive guards.
+ *
+ * BRIEF-105-FIX §2 — a sentence naming 2+ distinct dates no longer blindly cross-checks every
+ * day-name against every date (that produced false positives: "8월 14일(쇠 원숭이 날)이나 …8월
+ * 18일(물 호랑이 날)…" flagged "쇠 원숭이" as wrong for 08-18 even though the model never claimed
+ * that pairing). With 2+ distinct dates: (a) EXEMPTION — a day-name that correctly matches ANY
+ * date named in the sentence is never a violation; (b) ATTRIBUTION — a day-name that matches NONE
+ * of them is attributed to the character-nearest date mention (ties -> the earlier one in the
+ * string) for the violation's `detail`. With exactly 1 distinct date, behavior is unchanged from
+ * BRIEF-105: every found token is checked against that one date directly. */
+function checkDatePillarSentence(sentence: string, lookup: Map<string, DailyPillarLookupEntry>, todayDate: string | undefined): AskViolation[] {
+  const mentions = extractDateMentions(sentence, lookup, todayDate);
+  if (mentions.length === 0) return [];
+
+  const uniqueDates = [...new Set(mentions.map(m => m.date))];
+
+  const foundTokens = GANZI_VOCABULARY
+    .map(t => {
+      const m = tokenBoundaryRegex(t.token).exec(sentence);
+      return m ? { token: t, index: m.index } : null;
+    })
+    .filter((x): x is { token: GanziToken; index: number } => x !== null);
   if (foundTokens.length === 0) return [];
 
   const violations: AskViolation[] = [];
-  for (const date of dates) {
+
+  if (uniqueDates.length === 1) {
+    const date = uniqueDates[0];
     const correct = lookup.get(date);
-    if (!correct) continue;
-    for (const ft of foundTokens) {
-      if (ft.branchEn !== correct.branchEn) {
+    if (correct) {
+      for (const { token: ft } of foundTokens) {
+        if (isTokenCorrectForEntry(ft, correct)) continue;
         violations.push({ type: 'date_pillar_mismatch', detail: `${date}|${ft.token}|${correct.friendlyKo}` });
-        continue;
       }
-      const isCorrect = ft.stemEn !== undefined ? ft.stemEn === correct.stemEn : ft.element === correct.element;
-      if (isCorrect) continue;
-      violations.push({ type: 'date_pillar_mismatch', detail: `${date}|${ft.token}|${correct.friendlyKo}` });
     }
+    return violations;
+  }
+
+  for (const { token: ft, index: ftIndex } of foundTokens) {
+    const matchesAnyDate = uniqueDates.some(date => {
+      const correct = lookup.get(date);
+      return correct ? isTokenCorrectForEntry(ft, correct) : false;
+    });
+    if (matchesAnyDate) continue; // exemption (a) — correctly attached to SOME date in the sentence
+
+    // attribution (b) — nearest date mention by character distance; ties -> earlier in the string.
+    const nearest = mentions.reduce((best, m) => {
+      const distBest = Math.abs(ftIndex - best.index);
+      const distM = Math.abs(ftIndex - m.index);
+      if (distM < distBest) return m;
+      if (distM === distBest && m.index < best.index) return m;
+      return best;
+    });
+    const correct = lookup.get(nearest.date);
+    if (!correct) continue;
+    violations.push({ type: 'date_pillar_mismatch', detail: `${nearest.date}|${ft.token}|${correct.friendlyKo}` });
   }
   return violations;
 }

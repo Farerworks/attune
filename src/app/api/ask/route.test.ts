@@ -2493,5 +2493,19 @@ describe('날짜–간지 결정적 검증 (BRIEF-105 §2.2/§3)', () => {
     expect(plainResult.answer.text).toBe(plainAnswer.text);
     expect(plainResult.flags).toContainEqual({ stage: 'datepillar', action: 'soft' });
   });
+
+  it('T8 — 다중 날짜 면제: 날 이름이 문장 속 어느 날짜와도 맞으면 다른 날짜에 대해 잡지 않는다', () => {
+    const answer = { text: '이번 주 금요일인 8월 14일(쇠 원숭이 날)이나 다음 주 화요일인 8월 18일은 흐름이 부드러워요.' };
+    const dp = validateAskAnswer(answer, baseCtx).filter(v => v.type === 'date_pillar_mismatch');
+    expect(dp).toHaveLength(0);
+  });
+
+  it('T9 — 다중 날짜 귀속(회귀 고정): 실측 실패 원문 -> date_pillar_mismatch 정확히 1건, 가장 가까운 날짜(8/18)로 귀속', () => {
+    const answer = { text: '이번 주 금요일인 8월 14일(원숭이 날)이나 다음 주 화요일인 8월 18일(물 호랑이 날)은 흐름이 부드러워 부담 없이 가볍게 안부를 묻기 좋아요.' };
+    const dp = validateAskAnswer(answer, baseCtx).filter(v => v.type === 'date_pillar_mismatch');
+    expect(dp).toHaveLength(1);
+    expect(dp[0].detail).toBe('2026-08-18|물 호랑이|나무 쥐');
+    expect(dp.some(v => (v.detail ?? '').includes('2026-08-14'))).toBe(false);
+  });
 });
 
