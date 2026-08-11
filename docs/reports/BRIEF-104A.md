@@ -90,4 +90,37 @@ $ git diff main --stat
 - 저장소: https://github.com/Farerworks/attune (브랜치: `feat/104a-voice-baseline`)
 - 브리프 원문 보관: `66d5527`
 - 하네스+README 커밋: `d1e2858`
-- 결과+metrics+보고서 커밋: (본 커밋 자신 — 규약상 보고서는 자신의 해시를 적지 않는다)
+- 결과+metrics+보고서 커밋: `9b0feb4`
+
+## 9. Erratum (BRIEF-104A-FIX — API 호출 0, raw 응답 무접촉)
+
+원 보고서(§1~§8)는 위 그대로 두고, 사후 발견된 지표 정의 결함 3건과 재산출 결과만 아래에 덧붙인다. **이 판에서 모델을 다시 호출한 적은 없다** — API 호출 수 = **0**. `firstPass`/`finalPass`의 raw 응답은 전혀 건드리지 않았고, 지표를 계산하는 순수 함수만 고쳤다.
+
+### 9.1 정정 3건
+
+1. **M4(한국어) 일반형 누락** — 원래 정규식이 `할 거예요`·`될 거예요` 두 어간만 잡아, 「반가워할 거예요」·「아닐 거예요」 같은 다른 어간의 미래형을 놓쳤다. `[가-힣]+(?:을|ㄹ)?\s*(?:거예요|거야|겁니다|것입니다)` 일반형으로 교체. **위반이 아니라 후보일 뿐**이라는 원칙은 그대로 — 헤지·부정형("아닐 거예요")도 후보로 잡되 자동으로 단정 위반 확정하지 않는다. `M4_manual_first`/`M4_manual_final` 열 신설(공란).
+2. **M6 정규식이 키워드 없는 속마음 서술을 못 잡음** — 정규식 매칭과 무관하게 **24턴 전부**에 `M6_manual_final`/`M6_manual_evidence` 열 신설(공란), 본부·조언자가 수동 판정.
+3. **M7b가 `N/A`를 `NO`로 흡수** — `M7b_verdict` 허용값에 `N/A` 추가, `computeM7bAggregate()` 신설로 `overall`(YES/전체)과 `applicable`(YES/(전체−N/A)) 두 비율을 분리 산출하도록 준비(값 자체는 본부가 채운 뒤에 의미를 가짐).
+
+### 9.2 재산출 결과
+
+- 새 파일: `samples/voice-baseline/metrics-20260811-v2.tsv` (24행 + 헤더, 기존과 동일 행수/턴 순서)
+- 기존 `samples/voice-baseline/metrics-20260811.tsv`는 **감사 추적용으로 그대로 보존**(`git diff` 무변경 확인).
+- **M4 후보 수**: firstPass/finalPass 공통 **1 → 4** (EN "will keep them engaged" 기존 1건 유지 + KO 신규 3건: EN#1턴1은 무변화, KO#1턴1·KO#1턴4·KO#2턴4가 새로 잡힘 — 브리프 §7이 지목한 "아닐 거예요" 사례 2건 포함).
+- **M6**: 0 → 0 (정규식 자체는 무변경이라 자동 열은 동일값 — 이번 정정은 수동 판정 칸 추가가 핵심이라 정규식 결과는 그대로임이 정상).
+- **`M6_manual_final` 행 생성 확인**: 24/24턴 전부 존재.
+
+### 9.3 raw JSON 4개 sha256 대조 (작업 전 vs 작업 후 — 완전 동일)
+
+| 파일 | sha256 |
+|---|---|
+| `...-EN-run1.json` | `73fd147d0e2cee28d430d11d4243fe99db7d94494bdfaca01578d88c55b60292` (무변동) |
+| `...-EN-run2.json` | `189004d5ec875ec56c71d416f82d5a71ffdafc36e603e73afaa107b1ff68ac8a` (무변동) |
+| `...-KO-run1.json` | `cbf76b19b88da9c2ccade9c9e30e82b536e3fd78a9aa21ed7e9f8205ee558cf2` (무변동) |
+| `...-KO-run2.json` | `8b09cb3d9f0bd8caebfa40b24a94dc30d2d4d6781e2c51c501b39fc6b1e0c4da` (무변동) |
+
+### 9.4 erratum 커밋 해시
+
+- 저장소: https://github.com/Farerworks/attune (브랜치: `feat/104a-voice-baseline`, 기존 3커밋 `66d5527`·`d1e2858`·`9b0feb4`는 재작성 없이 그대로 보존)
+- 보관 커밋: `7d100e0`
+- 정정 커밋: (본 커밋 자신 — 규약상 보고서는 자신의 해시를 적지 않는다; 채팅 보고에 기재)

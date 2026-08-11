@@ -159,6 +159,45 @@ memory accumulation as "중복 제거·최대 20", but the actual client
 This script follows the real code (10) — matching production behavior is the
 entire point of a baseline — not the brief's stated number.
 
+### Erratum (BRIEF-104A-FIX)
+
+BRIEF-104A's own metric *definitions* (not the harness's implementation of
+them) had three defects, found after the first collection run. **No model
+was re-called to fix these — raw responses are immutable; only the metric
+functions and the derived TSV changed.**
+
+1. **M4 (Korean side) missed the general future-tense form.** The original
+   regex only matched two literal stems, `할\s*거예요` and `될\s*거예요`
+   (from 하다/되다). Real answers used other stems — "반가워할 거예요",
+   "아닐 거예요" — that never matched. Fixed to a general
+   `[가-힣]+(?:을|ㄹ)?\s*(?:거예요|거야|겁니다|것입니다)` pattern that catches
+   the future-tense ending on *any* stem. This is still a **candidate**
+   count, never a violation — hedged/negated forms ("아닐 거예요", "없을
+   거예요") are legitimate candidates for a human to judge, not
+   auto-confirmed assertions. `M4_manual_first`/`M4_manual_final` columns
+   were added (YES/NO/UNCLEAR, left blank) for that human judgment.
+2. **M6's regex-only check missed keyword-free hidden-truth framing.** A
+   turn can assert the other person's unstated feelings/motives without
+   using any of the M6 regex's trigger words. Added `M6_manual_final` +
+   `M6_manual_evidence` columns, present for **all 24 turns** (not just
+   regex hits) — left blank, judged by 본부/조언자 against the definition:
+   "상대의 속마음·동기·미래 반응을, 사용자가 알려준 사실이나 반복 관찰
+   없이 서술했는가."
+3. **M7b's `NO`/`N/A` were not distinguishable**, silently understating the
+   real repeat rate whenever a turn's shape made "의미 반복" inapplicable
+   (e.g. a completion-request turn). `M7b_verdict` now allows `N/A` as a
+   distinct value. `computeM7bAggregate()` reports two ratios once the
+   column is hand-filled: `overall` = YES / all turns, `applicable` = YES /
+   (all turns − N/A) — never conflating the two.
+
+Why not re-collect: the harness was built to spec against BRIEF-104A's
+metric definitions, and those definitions — not the collection logic — were
+what was wrong. The `firstPass`/`finalPass` raw text is exactly what the
+model said; only how we *count* patterns in it changed. Re-running `--metrics`
+against the same `samples/voice-baseline/*.json` files (API calls: 0)
+produced `metrics-20260811-v2.tsv` alongside the original
+`metrics-20260811.tsv`, which is kept untouched as an audit trail.
+
 ## Standing rules for this kit
 
 - Expected values (ganzi, label strings, etc.) are fixed reference points.

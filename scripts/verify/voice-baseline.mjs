@@ -146,15 +146,23 @@ export function computeM2(text) {
   return count;
 }
 
-/** M4 — assertive-language candidates. Word-boundary required on both sides (brief's explicit
- * requirement); Korean side uses a negative-lookahead in place of \b, same reasoning as M2/route.ts. */
+/** M4 — assertive-language CANDIDATES (BRIEF-104A-FIX §2.1 — this is a candidate count, never a
+ * violation verdict; hedged/negated forms like "아닐 거예요"/"없을 거예요" are legitimate candidates
+ * that a human must judge, not auto-confirmed assertions). Word-boundary required on both sides
+ * (brief's explicit requirement); Korean side uses a negative-lookahead in place of \b, same
+ * reasoning as M2/route.ts.
+ * KO has two independent candidate families: (a) bare adverbs 항상/절대/반드시, and (b) the general
+ * "-(을)ㄹ 거예요/거야/겁니다/것입니다" future-tense pattern on ANY stem — BRIEF-104A's original
+ * `할\s*거예요|될\s*거예요` only matched the two specific stems 하다/되다, missing forms like
+ * "반가워할 거예요" or "아닐 거예요" (see BRIEF-104A-FIX §7 evidence). */
 const M4_EN = /\b(always|never|will|definitely|guarantee[ds]?)\b/gi;
-const M4_KO = /(항상|절대|반드시|할\s*거예요|될\s*거예요)/g;
+const M4_KO_ADVERB = /(항상|절대|반드시)/g;
+const M4_KO_FUTURE = /[가-힣]+(?:을|ㄹ)?\s*(?:거예요|거야|겁니다|것입니다)/g;
 
 export function computeM4(text) {
   const contexts = [];
   let count = 0;
-  for (const re of [M4_EN, M4_KO]) {
+  for (const re of [M4_EN, M4_KO_ADVERB, M4_KO_FUTURE]) {
     re.lastIndex = 0;
     let m;
     while ((m = re.exec(text)) !== null) {
@@ -234,6 +242,25 @@ export function computeM7PerTurn(turnsSentences) {
   return perTurn;
 }
 
+/** M7b aggregation (BRIEF-104A-FIX §2.3) — once 본부/조언자 fill in `M7b_verdict` by hand, this
+ * turns the column into two ratios WITHOUT ever conflating `N/A` (not applicable — e.g. a
+ * completion-request turn) with `NO` (applicable, judged not a repeat). `verdicts` is an array of
+ * 'YES'|'NO'|'UNCLEAR'|'N/A' (blank/unfilled entries should be excluded by the caller before
+ * calling this — this function assumes every entry has been judged).
+ * `overall` = YES / all entries (denominator never shrinks, even for N/A rows).
+ * `applicable` = YES / (all entries minus N/A) — the denominator BRIEF-104A's original single
+ * ratio silently used by treating N/A as NO, understating the real repeat rate. */
+export function computeM7bAggregate(verdicts) {
+  const total = verdicts.length;
+  const yes = verdicts.filter(v => v === 'YES').length;
+  const na = verdicts.filter(v => v === 'N/A').length;
+  const applicableTotal = total - na;
+  return {
+    overall: `${yes}/${total}`,
+    applicable: `${yes}/${applicableTotal}`,
+  };
+}
+
 // ── §2.5 self-test (pure — no network, no route.ts import) ───────────────────────────────────
 function runSelfTest() {
   const results = [];
@@ -289,6 +316,18 @@ function runSelfTest() {
     check('M4: "willpower" does not match bare "will" (word boundary)', r2.count === 0, String(r2.count));
     const r3 = computeM4('항상 할 거예요');
     check('M4: KO "항상" + "할 거예요" = 2 hits', r3.count === 2, String(r3.count));
+
+    // BRIEF-104A-FIX §2.5 — KO general future-tense form must catch arbitrary stems, not just 할/될.
+    const r4 = computeM4('반가워할 거예요');
+    check('M4-FIX: "반가워할 거예요" (arbitrary stem) is a candidate', r4.count === 1, String(r4.count));
+    const r5 = computeM4('아닐 거예요');
+    check('M4-FIX: "아닐 거예요" (negated/hedged form) is STILL a candidate — hedges are not auto-excluded', r5.count === 1, String(r5.count));
+    const r6 = computeM4('반가워할 거예요. 아닐 거예요.');
+    check('M4-FIX: both forms together = 2 candidates', r6.count === 2, String(r6.count));
+    // §2.5 — M4 must never itself decide a violation; it only ever returns a candidate count/contexts,
+    // never a verdict field. Asserting the return shape has no verdict-like key documents this contract.
+    check('M4-FIX: computeM4 return shape has no verdict/violation field (candidates only)',
+      !('violation' in r6) && !('verdict' in r6), JSON.stringify(Object.keys(r6)));
   }
 
   // M5
@@ -317,6 +356,15 @@ function runSelfTest() {
     check('M7: turn 0 has 0 duplicate pairs (nothing earlier to compare)', perTurn[0] === 0, JSON.stringify(perTurn));
     check('M7: turn 1 pairs with turn 0 (near-duplicate) -> 1', perTurn[1] === 1, JSON.stringify(perTurn));
     check('M7: turn 2 unrelated -> 0', perTurn[2] === 0, JSON.stringify(perTurn));
+  }
+
+  // M7b aggregation — BRIEF-104A-FIX §2.5: N/A must be excluded from the denominator, never
+  // absorbed into NO. Example straight from the brief: YES 4 / NO 0 / N/A 1 -> overall 4/5, applicable 4/4.
+  {
+    const verdicts = ['YES', 'YES', 'YES', 'YES', 'N/A'];
+    const agg = computeM7bAggregate(verdicts);
+    check('M7b-FIX: overall = 4/5 (N/A stays in the denominator)', agg.overall === '4/5', agg.overall);
+    check('M7b-FIX: applicable = 4/4 (N/A excluded from the denominator)', agg.applicable === '4/4', agg.applicable);
   }
 
   let failures = 0;
@@ -378,10 +426,12 @@ function writeMetricsTsv() {
     'M3_shape_first', 'M3_shape_final',
     'M3_ratio_vs_turn1_first', 'M3_ratio_vs_turn1_final',
     'M4_first', 'M4_final', 'M4_context_first', 'M4_context_final',
+    'M4_manual_first', 'M4_manual_final', // BRIEF-104A-FIX §2.1 — YES/NO/UNCLEAR, farr02 leaves blank
     'M5_first', 'M5_final',
     'M6_first', 'M6_final', 'M6_context_first', 'M6_context_final',
+    'M6_manual_final', 'M6_manual_evidence', // BRIEF-104A-FIX §2.2 — all 24 turns, farr02 leaves blank
     'M7_first', 'M7_final',
-    'M7b_verdict', 'M7b_evidence',
+    'M7b_verdict', 'M7b_evidence', // values: YES/NO/UNCLEAR/N/A (BRIEF-104A-FIX §2.3) — farr02 leaves blank
     'extraCallUsed', 'corrected',
   ];
   rows.push(header.join('\t'));
@@ -425,8 +475,10 @@ function writeMetricsTsv() {
         shapeOf(t.firstPass.parsed), shapeOf(t.finalPass.parsed),
         ratioFirst, ratioFinal,
         m4First.count, m4Final.count, cell(m4First.contexts.join(' / ')), cell(m4Final.contexts.join(' / ')),
+        '', '', // M4_manual_first / M4_manual_final — left blank (BRIEF-104A-FIX §2.1/§6, farr02 must not fill these)
         cell(computeM5(textFirst)), cell(computeM5(textFinal)),
         m6First.count, m6Final.count, cell(m6First.contexts.join(' / ')), cell(m6Final.contexts.join(' / ')),
+        '', '', // M6_manual_final / M6_manual_evidence — left blank, present for ALL 24 turns (BRIEF-104A-FIX §2.2/§6)
         m7First[idx], m7Final[idx],
         '', '', // M7b_verdict / M7b_evidence — left blank per BRIEF-104A §6 (farr02 must not fill these)
         t.extraCallUsed, t.finalPass.corrected,
@@ -435,10 +487,21 @@ function writeMetricsTsv() {
   }
 
   mkdirSync(dir, { recursive: true });
-  const outPath = path.join(dir, `metrics-${date}.tsv`);
+  // Never overwrite a previous metrics file for the same date (BRIEF-104A-FIX §3/§6 — the prior
+  // TSV stays as an audit trail). If `metrics-<date>.tsv` already exists, write `-v2`, `-v3`, ...
+  const basePath = path.join(dir, `metrics-${date}.tsv`);
+  let outPath = basePath;
+  let version = 2;
+  while (existsSync(outPath)) {
+    outPath = path.join(dir, `metrics-${date}-v${version}.tsv`);
+    version++;
+  }
   writeFileSync(outPath, rows.join('\n') + '\n', 'utf-8');
   console.log(`Saved → ${outPath}`);
   console.log(`${rows.length - 1} data rows from ${files.length} run file(s).`);
+  if (outPath !== basePath) {
+    console.log(`(previous metrics-${date}.tsv preserved untouched — audit trail, BRIEF-104A-FIX §3)`);
+  }
 }
 
 if (MODE_METRICS) {
