@@ -295,6 +295,12 @@ export default function NewPage() {
           >
             Get my briefing
           </button>
+          <p style={{
+            fontFamily: 'var(--font-inter)', fontSize: 12, color: 'var(--c-muted)',
+            lineHeight: 1.5, margin: 0, marginTop: 12,
+          }}>
+            When you tap Get my briefing, your birth details and the details you entered about this person are sent through Attune&apos;s server to Google Gemini to generate the reading.
+          </p>
         </form>
       </div>
       <ConditionalTabBar />

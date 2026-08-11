@@ -713,6 +713,12 @@ export default function AskPage() {
                 </svg>
               </button>
             </div>
+            <p style={{
+              margin: '8px 0 0', fontFamily: "var(--font-inter,system-ui)", fontSize: 12,
+              color: 'var(--c-muted)', lineHeight: 1.5,
+            }}>
+              To generate an AI answer, Attune sends your question and relevant context — such as birth details, prior messages, the briefing, and saved relationship notes — through its server to Google Gemini.
+            </p>
           </>
         )}
 

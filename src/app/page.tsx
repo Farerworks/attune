@@ -255,7 +255,7 @@ export default function LandingPage() {
               fontFamily: 'var(--font-inter)', fontSize: 12.5, color: 'var(--c-ink-body)',
               lineHeight: 1.6, margin: 0,
             }}>
-              <strong style={{ color: 'var(--c-ink)' }}>Your birth data stays on your phone.</strong> No sign-up needed. Back it up with Google only if you choose to. Delete everything in one tap.
+              <strong style={{ color: 'var(--c-ink)' }}>Your Attune data is stored on this phone unless you choose backup.</strong>{' '}Creating a reading sends your birth details and the details you enter about the other person through Attune&apos;s server to Google Gemini. No sign-up is needed. Sign in with Google to store an optional backup on Attune&apos;s server.
             </p>
           </div>
         </ScrollReveal>

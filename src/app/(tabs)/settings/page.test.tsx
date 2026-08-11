@@ -115,6 +115,30 @@ describe('SettingsPage — restore failure copy (BRIEF-102)', () => {
   });
 });
 
+describe('SettingsPage — backup row canonical copy (BRIEF-102B)', () => {
+  it('signed out: shows "Back up your data" + new description, not the old label/description', async () => {
+    mockGetSyncSession.mockReturnValue(Promise.resolve(null));
+
+    const { default: SettingsPage } = await import('./page');
+    render(<SettingsPage />);
+
+    await waitFor(() => expect(screen.getByText('Back up your data')).toBeTruthy());
+    expect(screen.getByText("Sign in with Google to back up your data to Attune's server and restore it on a new phone.")).toBeTruthy();
+    expect(screen.queryByText('Back up with Google')).toBeNull();
+    expect(screen.queryByText('Keep your readings if you switch phones.')).toBeNull();
+  });
+});
+
+describe('SettingsPage — backup caption canonical copy (BRIEF-102B)', () => {
+  it('shows the new automatic-backup caption, not the old "stays on this phone" copy', async () => {
+    const { default: SettingsPage } = await import('./page');
+    render(<SettingsPage />);
+
+    expect(screen.getByText("Backup is optional. Signing in with Google starts automatic backup to Attune's server.")).toBeTruthy();
+    expect(screen.queryByText(/unless you turn it on/)).toBeNull();
+  });
+});
+
 describe('SettingsPage — chevron consistency (BRIEF-089)', () => {
   it('"Add to Home Screen" (opens the install sheet) has a chevron', async () => {
     const { default: SettingsPage } = await import('./page');

@@ -339,13 +339,13 @@ export default function SettingsPage() {
             <BackupRow label="Restore from backup" description={restoreMsg} onClick={() => void handleRestore()} />
           </>
         ) : (
-          <BackupRow label="Back up with Google" description="Keep your readings if you switch phones." onClick={handleSignIn} />
+          <BackupRow label="Back up your data" description="Sign in with Google to back up your data to Attune's server and restore it on a new phone." onClick={handleSignIn} />
         )}
         <p style={{
           fontFamily: 'var(--font-inter)', fontSize: 12, color: 'var(--c-muted)',
           padding: '10px 20px 0', margin: 0,
         }}>
-          Backup is optional. Your data stays on this phone unless you turn it on.
+          Backup is optional. Signing in with Google starts automatic backup to Attune&apos;s server.
         </p>
 
         <Row label="Clear all data" danger disabled onClick={() => void handleClearData()} />

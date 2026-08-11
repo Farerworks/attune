@@ -80,7 +80,7 @@ export default function OnboardingPage() {
             lineHeight: 1.5,
           }}
         >
-          Your birth info lets Attune calibrate readings to your dynamic with others. One-time setup — saved on this device only.
+          Your birth info lets Attune calibrate readings to your dynamic with others. One-time setup — saved on this device.
         </p>
 
         {/* Name */}
