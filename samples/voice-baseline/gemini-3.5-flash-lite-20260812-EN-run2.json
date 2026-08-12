@@ -1,0 +1,251 @@
+{
+  "meta": {
+    "model": "gemini-3.5-flash-lite",
+    "modelGateForced": false,
+    "generationConfigBranch": "new(no temperature, thinkingLevel=minimal)",
+    "llmProvider": "gemini",
+    "baseCommitSha": "91e2e725780c959d865ed411a39954a5c221b554",
+    "executedAt": "2026-08-12T01:43:26.129Z",
+    "harnessFileSha256": "45c65dd61c14743bcb53d1c10f97d3c3075ee86e91459f5a800443a699ffcea4",
+    "lang": "EN",
+    "runNumber": 2,
+    "callIntervalMs": 4000,
+    "aborted": false
+  },
+  "turns": [
+    {
+      "turn": 1,
+      "userText": "I want to ask Riley to work on a project with me. How should I bring it up?",
+      "systemPromptSha256": "b2bf3388bc894ffb2ade7789a74d7b4b0fa10a8364426447922682af6b9c65fb",
+      "firstPass": {
+        "raw": "{\n  \"parts\": [\n    {\n      \"label\": \"WHAT'S LIKELY GOING ON\",\n      \"text\": \"Riley, as the Open Sea archetype, tends to look at the big picture and values creative freedom. When you pitch the project, Riley is likely to care more about the scope and potential of the idea than immediate details.\"\n    },\n    {\n      \"label\": \"WHY THIS MAY HAVE HAPPENED\",\n      \"text\": \"Your natural Fire energy can sometimes feel intense or fast-paced to Riley's Water nature. Pitching too intensely all at once might make Riley feel boxed in rather than inspired.\"\n    },\n    {\n      \"label\": \"WHAT YOU CAN DO\",\n      \"text\": \"Frame the project around shared vision and leave room for Riley's input. You might say: 'I have a project idea that has a lot of room to grow, and I'd love to hear your take on where we could take it together.'\"\n    }\n  ],\n  \"followUp\": \"Have you two collaborated on anything creative before?\"\n}",
+        "parsed": {
+          "parts": [
+            {
+              "label": "WHAT'S LIKELY GOING ON",
+              "text": "Riley, as the Open Sea archetype, tends to look at the big picture and values creative freedom. When you pitch the project, Riley is likely to care more about the scope and potential of the idea than immediate details."
+            },
+            {
+              "label": "WHY THIS MAY HAVE HAPPENED",
+              "text": "Your natural Fire energy can sometimes feel intense or fast-paced to Riley's Water nature. Pitching too intensely all at once might make Riley feel boxed in rather than inspired."
+            },
+            {
+              "label": "WHAT YOU CAN DO",
+              "text": "Frame the project around shared vision and leave room for Riley's input. You might say: 'I have a project idea that has a lot of room to grow, and I'd love to hear your take on where we could take it together.'"
+            }
+          ],
+          "followUp": "Have you two collaborated on anything creative before?"
+        },
+        "violations": [],
+        "banned": []
+      },
+      "finalPass": {
+        "raw": "{\n  \"parts\": [\n    {\n      \"label\": \"WHAT'S LIKELY GOING ON\",\n      \"text\": \"Riley, as the Open Sea archetype, tends to look at the big picture and values creative freedom. When you pitch the project, Riley is likely to care more about the scope and potential of the idea than immediate details.\"\n    },\n    {\n      \"label\": \"WHY THIS MAY HAVE HAPPENED\",\n      \"text\": \"Your natural Fire energy can sometimes feel intense or fast-paced to Riley's Water nature. Pitching too intensely all at once might make Riley feel boxed in rather than inspired.\"\n    },\n    {\n      \"label\": \"WHAT YOU CAN DO\",\n      \"text\": \"Frame the project around shared vision and leave room for Riley's input. You might say: 'I have a project idea that has a lot of room to grow, and I'd love to hear your take on where we could take it together.'\"\n    }\n  ],\n  \"followUp\": \"Have you two collaborated on anything creative before?\"\n}",
+        "parsed": {
+          "parts": [
+            {
+              "label": "WHAT'S LIKELY GOING ON",
+              "text": "Riley, as the Open Sea archetype, tends to look at the big picture and values creative freedom. When you pitch the project, Riley is likely to care more about the scope and potential of the idea than immediate details."
+            },
+            {
+              "label": "WHY THIS MAY HAVE HAPPENED",
+              "text": "Your natural Fire energy can sometimes feel intense or fast-paced to Riley's Water nature. Pitching too intensely all at once might make Riley feel boxed in rather than inspired."
+            },
+            {
+              "label": "WHAT YOU CAN DO",
+              "text": "Frame the project around shared vision and leave room for Riley's input. You might say: 'I have a project idea that has a lot of room to grow, and I'd love to hear your take on where we could take it together.'"
+            }
+          ],
+          "followUp": "Have you two collaborated on anything creative before?"
+        },
+        "violations": [],
+        "corrected": false
+      },
+      "extraCallUsed": "none",
+      "wordCount": 118,
+      "shape": "parts"
+    },
+    {
+      "turn": 2,
+      "userText": "I brought it up yesterday and they just said they'd think about it.",
+      "systemPromptSha256": "5f40c6ef84aa08829b4e5647add41c765996be0d730bcf0c7c653af474b64926",
+      "firstPass": {
+        "raw": "{\n  \"text\": \"That \\\"thinking about it\\\" response is typical when Riley's water nature needs space to process without feeling boxed in by your bright fire energy. Give it a few days of quiet rather than following up right away, letting the idea settle on their terms. When the Earth Horse energy brings a steadier mood this coming weekend, that might be a more natural time to check in casually without any pressure.\",\n  \"followUp\": \"When you do bring it up again, would you prefer to do it in person or over text?\"\n}",
+        "parsed": {
+          "text": "That \"thinking about it\" response is typical when Riley's water nature needs space to process without feeling boxed in by your bright fire energy. Give it a few days of quiet rather than following up right away, letting the idea settle on their terms. When the Earth Horse energy brings a steadier mood this coming weekend, that might be a more natural time to check in casually without any pressure.",
+          "followUp": "When you do bring it up again, would you prefer to do it in person or over text?"
+        },
+        "violations": [],
+        "banned": []
+      },
+      "finalPass": {
+        "raw": "{\n  \"text\": \"That \\\"thinking about it\\\" response is typical when Riley's water nature needs space to process without feeling boxed in by your bright fire energy. Give it a few days of quiet rather than following up right away, letting the idea settle on their terms. When the Earth Horse energy brings a steadier mood this coming weekend, that might be a more natural time to check in casually without any pressure.\",\n  \"followUp\": \"When you do bring it up again, would you prefer to do it in person or over text?\"\n}",
+        "parsed": {
+          "text": "That \"thinking about it\" response is typical when Riley's water nature needs space to process without feeling boxed in by your bright fire energy. Give it a few days of quiet rather than following up right away, letting the idea settle on their terms. When the Earth Horse energy brings a steadier mood this coming weekend, that might be a more natural time to check in casually without any pressure.",
+          "followUp": "When you do bring it up again, would you prefer to do it in person or over text?"
+        },
+        "violations": [],
+        "corrected": false
+      },
+      "extraCallUsed": "none",
+      "wordCount": 88,
+      "shape": "text"
+    },
+    {
+      "turn": 3,
+      "userText": "Should I ask again? When would be a good day?",
+      "systemPromptSha256": "2f7c21a02918618c7579935f9cdc487cf2b312fedb6da1cb72df94b4bd1fc514",
+      "firstPass": {
+        "raw": "{\n  \"parts\": [\n    {\n      \"label\": \"LIKELY RECEPTION\",\n      \"text\": \"Waiting a bit longer gives Riley room to process without feeling cornered by your fast pace. When you do check back in, keeping the tone light and non-demanding helps prevent that defensive withdrawal.\"\n    },\n    {\n      \"label\": \"WHAT COULD BACKFIRE\",\n      \"text\": \"Asking again too soon or pushing for an immediate answer risks making Riley feel overwhelmed by your intensity. That can lead to a polite delay or a flat refusal just to regain personal space.\"\n    },\n    {\n      \"label\": \"HOW TO IMPROVE YOUR ODDS\",\n      \"text\": \"Open the door gently without mentioning the project directly at first, letting Riley bring it up if ready. You might say: 'No rush on that idea, just wanted to share an interesting article that reminded me of it.'\"\n    }\n  ],\n  \"timing\": \"Good days to check in: 2026-08-16 (Sun, Dog day - steady water energy supports calm talks) or 2026-08-22 (Sat, Dragon day - grounded earth helps anchor open discussions). Avoid 2026-08-17 (Pig day), as it may amplify hesitation.\",\n  \"followUp\": \"When you reach back out, let me know how it goes.\"\n}",
+        "parsed": {
+          "parts": [
+            {
+              "label": "LIKELY RECEPTION",
+              "text": "Waiting a bit longer gives Riley room to process without feeling cornered by your fast pace. When you do check back in, keeping the tone light and non-demanding helps prevent that defensive withdrawal."
+            },
+            {
+              "label": "WHAT COULD BACKFIRE",
+              "text": "Asking again too soon or pushing for an immediate answer risks making Riley feel overwhelmed by your intensity. That can lead to a polite delay or a flat refusal just to regain personal space."
+            },
+            {
+              "label": "HOW TO IMPROVE YOUR ODDS",
+              "text": "Open the door gently without mentioning the project directly at first, letting Riley bring it up if ready. You might say: 'No rush on that idea, just wanted to share an interesting article that reminded me of it.'"
+            }
+          ],
+          "timing": "Good days to check in: 2026-08-16 (Sun, Dog day - steady water energy supports calm talks) or 2026-08-22 (Sat, Dragon day - grounded earth helps anchor open discussions). Avoid 2026-08-17 (Pig day), as it may amplify hesitation.",
+          "followUp": "When you reach back out, let me know how it goes."
+        },
+        "violations": [],
+        "banned": []
+      },
+      "finalPass": {
+        "raw": "{\n  \"parts\": [\n    {\n      \"label\": \"LIKELY RECEPTION\",\n      \"text\": \"Waiting a bit longer gives Riley room to process without feeling cornered by your fast pace. When you do check back in, keeping the tone light and non-demanding helps prevent that defensive withdrawal.\"\n    },\n    {\n      \"label\": \"WHAT COULD BACKFIRE\",\n      \"text\": \"Asking again too soon or pushing for an immediate answer risks making Riley feel overwhelmed by your intensity. That can lead to a polite delay or a flat refusal just to regain personal space.\"\n    },\n    {\n      \"label\": \"HOW TO IMPROVE YOUR ODDS\",\n      \"text\": \"Open the door gently without mentioning the project directly at first, letting Riley bring it up if ready. You might say: 'No rush on that idea, just wanted to share an interesting article that reminded me of it.'\"\n    }\n  ],\n  \"timing\": \"Good days to check in: 2026-08-16 (Sun, Dog day - steady water energy supports calm talks) or 2026-08-22 (Sat, Dragon day - grounded earth helps anchor open discussions). Avoid 2026-08-17 (Pig day), as it may amplify hesitation.\",\n  \"followUp\": \"When you reach back out, let me know how it goes.\"\n}",
+        "parsed": {
+          "parts": [
+            {
+              "label": "LIKELY RECEPTION",
+              "text": "Waiting a bit longer gives Riley room to process without feeling cornered by your fast pace. When you do check back in, keeping the tone light and non-demanding helps prevent that defensive withdrawal."
+            },
+            {
+              "label": "WHAT COULD BACKFIRE",
+              "text": "Asking again too soon or pushing for an immediate answer risks making Riley feel overwhelmed by your intensity. That can lead to a polite delay or a flat refusal just to regain personal space."
+            },
+            {
+              "label": "HOW TO IMPROVE YOUR ODDS",
+              "text": "Open the door gently without mentioning the project directly at first, letting Riley bring it up if ready. You might say: 'No rush on that idea, just wanted to share an interesting article that reminded me of it.'"
+            }
+          ],
+          "timing": "Good days to check in: 2026-08-16 (Sun, Dog day - steady water energy supports calm talks) or 2026-08-22 (Sat, Dragon day - grounded earth helps anchor open discussions). Avoid 2026-08-17 (Pig day), as it may amplify hesitation.",
+          "followUp": "When you reach back out, let me know how it goes."
+        },
+        "violations": [],
+        "corrected": false
+      },
+      "extraCallUsed": "none",
+      "wordCount": 153,
+      "shape": "parts"
+    },
+    {
+      "turn": 4,
+      "userText": "No reply today.",
+      "systemPromptSha256": "2f7c21a02918618c7579935f9cdc487cf2b312fedb6da1cb72df94b4bd1fc514",
+      "firstPass": {
+        "raw": "{\n  \"text\": \"아무 말 없이 조용한 시간이 길어질 때, 불안한 마음에 먼저 다그치기보다는 한 걸음 물러나 숨통을 틔워주는 게 좋아요. 오늘 같은 수(水) 기운이 감도는 날에는 지긋이 기다려주는 태도가 오히려 좋은 인상을 남기거든요. 다그치는 대신 편하게 일상 얘기를 먼저 건네며 부담을 덜어주세요.\",\n  \"followUp\": \"혹시 요즘 라일리가 다른 일로 바쁜 상황인가요?\"\n}",
+        "parsed": {
+          "text": "아무 말 없이 조용한 시간이 길어질 때, 불안한 마음에 먼저 다그치기보다는 한 걸음 물러나 숨통을 틔워주는 게 좋아요. 오늘 같은 수(水) 기운이 감도는 날에는 지긋이 기다려주는 태도가 오히려 좋은 인상을 남기거든요. 다그치는 대신 편하게 일상 얘기를 먼저 건네며 부담을 덜어주세요.",
+          "followUp": "혹시 요즘 라일리가 다른 일로 바쁜 상황인가요?"
+        },
+        "violations": [],
+        "banned": []
+      },
+      "finalPass": {
+        "raw": "{\n  \"text\": \"아무 말 없이 조용한 시간이 길어질 때, 불안한 마음에 먼저 다그치기보다는 한 걸음 물러나 숨통을 틔워주는 게 좋아요. 오늘 같은 수(水) 기운이 감도는 날에는 지긋이 기다려주는 태도가 오히려 좋은 인상을 남기거든요. 다그치는 대신 편하게 일상 얘기를 먼저 건네며 부담을 덜어주세요.\",\n  \"followUp\": \"혹시 요즘 라일리가 다른 일로 바쁜 상황인가요?\"\n}",
+        "parsed": {
+          "text": "아무 말 없이 조용한 시간이 길어질 때, 불안한 마음에 먼저 다그치기보다는 한 걸음 물러나 숨통을 틔워주는 게 좋아요. 오늘 같은 수(水) 기운이 감도는 날에는 지긋이 기다려주는 태도가 오히려 좋은 인상을 남기거든요. 다그치는 대신 편하게 일상 얘기를 먼저 건네며 부담을 덜어주세요.",
+          "followUp": "혹시 요즘 라일리가 다른 일로 바쁜 상황인가요?"
+        },
+        "violations": [],
+        "corrected": false
+      },
+      "extraCallUsed": "none",
+      "wordCount": 47,
+      "shape": "text"
+    },
+    {
+      "turn": 5,
+      "userText": "Why are they being so lukewarm about this?",
+      "systemPromptSha256": "2f7c21a02918618c7579935f9cdc487cf2b312fedb6da1cb72df94b4bd1fc514",
+      "firstPass": {
+        "raw": "{\n  \"parts\": [\n    {\n      \"label\": \"WHAT'S LIKELY GOING ON\",\n      \"text\": \"라이는 결정을 내리기 전에 스스로 충분히 소화할 시간이 필요한 편이에요. 미온적인 태도가 꼭 거절을 뜻하기보다는, 내키지 않는 마음과 신중하게 고민하는 상태가 겹쳐서 생기는 반응일 가능성이 커요.\"\n    },\n    {\n      \"label\": \"WHY THIS MAY HAVE HAPPENED\",\n      \"text\": \"내 에너지가 워낙 직관적이고 빠르게 뻗어 나가는 편이라, 조용히 흐름을 타는 라이에게는 약간 부담스러운 압박으로 느껴졌을 수 있어요. 의도와는 다르게 제안의 속도 자체가 숨 고를 틈을 주지 않았던 거죠.\"\n    },\n    {\n      \"label\": \"WHAT YOU CAN DO\",\n      \"text\": \"프로젝트 얘기는 잠시 내려놓고 평소처럼 가벼운 안부를 물으며 온도를 낮춰보세요. \\\"생각해 보고 부담되면 언제든 편하게 얘기해 줘\\\"라며 선택권을 완전히 넘겨주는 편이 오히려 마음을 열게 만드는 지름길이에요.\"\n    }\n  ],\n  \"followUp\": \"부담을 덜어주는 메시지를 보낸다면 어떤 내용이 좋을까요?\"\n}",
+        "parsed": {
+          "parts": [
+            {
+              "label": "WHAT'S LIKELY GOING ON",
+              "text": "라이는 결정을 내리기 전에 스스로 충분히 소화할 시간이 필요한 편이에요. 미온적인 태도가 꼭 거절을 뜻하기보다는, 내키지 않는 마음과 신중하게 고민하는 상태가 겹쳐서 생기는 반응일 가능성이 커요."
+            },
+            {
+              "label": "WHY THIS MAY HAVE HAPPENED",
+              "text": "내 에너지가 워낙 직관적이고 빠르게 뻗어 나가는 편이라, 조용히 흐름을 타는 라이에게는 약간 부담스러운 압박으로 느껴졌을 수 있어요. 의도와는 다르게 제안의 속도 자체가 숨 고를 틈을 주지 않았던 거죠."
+            },
+            {
+              "label": "WHAT YOU CAN DO",
+              "text": "프로젝트 얘기는 잠시 내려놓고 평소처럼 가벼운 안부를 물으며 온도를 낮춰보세요. \"생각해 보고 부담되면 언제든 편하게 얘기해 줘\"라며 선택권을 완전히 넘겨주는 편이 오히려 마음을 열게 만드는 지름길이에요."
+            }
+          ],
+          "followUp": "부담을 덜어주는 메시지를 보낸다면 어떤 내용이 좋을까요?"
+        },
+        "violations": [],
+        "banned": []
+      },
+      "finalPass": {
+        "raw": "{\n  \"parts\": [\n    {\n      \"label\": \"WHAT'S LIKELY GOING ON\",\n      \"text\": \"라이는 결정을 내리기 전에 스스로 충분히 소화할 시간이 필요한 편이에요. 미온적인 태도가 꼭 거절을 뜻하기보다는, 내키지 않는 마음과 신중하게 고민하는 상태가 겹쳐서 생기는 반응일 가능성이 커요.\"\n    },\n    {\n      \"label\": \"WHY THIS MAY HAVE HAPPENED\",\n      \"text\": \"내 에너지가 워낙 직관적이고 빠르게 뻗어 나가는 편이라, 조용히 흐름을 타는 라이에게는 약간 부담스러운 압박으로 느껴졌을 수 있어요. 의도와는 다르게 제안의 속도 자체가 숨 고를 틈을 주지 않았던 거죠.\"\n    },\n    {\n      \"label\": \"WHAT YOU CAN DO\",\n      \"text\": \"프로젝트 얘기는 잠시 내려놓고 평소처럼 가벼운 안부를 물으며 온도를 낮춰보세요. \\\"생각해 보고 부담되면 언제든 편하게 얘기해 줘\\\"라며 선택권을 완전히 넘겨주는 편이 오히려 마음을 열게 만드는 지름길이에요.\"\n    }\n  ],\n  \"followUp\": \"부담을 덜어주는 메시지를 보낸다면 어떤 내용이 좋을까요?\"\n}",
+        "parsed": {
+          "parts": [
+            {
+              "label": "WHAT'S LIKELY GOING ON",
+              "text": "라이는 결정을 내리기 전에 스스로 충분히 소화할 시간이 필요한 편이에요. 미온적인 태도가 꼭 거절을 뜻하기보다는, 내키지 않는 마음과 신중하게 고민하는 상태가 겹쳐서 생기는 반응일 가능성이 커요."
+            },
+            {
+              "label": "WHY THIS MAY HAVE HAPPENED",
+              "text": "내 에너지가 워낙 직관적이고 빠르게 뻗어 나가는 편이라, 조용히 흐름을 타는 라이에게는 약간 부담스러운 압박으로 느껴졌을 수 있어요. 의도와는 다르게 제안의 속도 자체가 숨 고를 틈을 주지 않았던 거죠."
+            },
+            {
+              "label": "WHAT YOU CAN DO",
+              "text": "프로젝트 얘기는 잠시 내려놓고 평소처럼 가벼운 안부를 물으며 온도를 낮춰보세요. \"생각해 보고 부담되면 언제든 편하게 얘기해 줘\"라며 선택권을 완전히 넘겨주는 편이 오히려 마음을 열게 만드는 지름길이에요."
+            }
+          ],
+          "followUp": "부담을 덜어주는 메시지를 보낸다면 어떤 내용이 좋을까요?"
+        },
+        "violations": [],
+        "corrected": false
+      },
+      "extraCallUsed": "none",
+      "wordCount": 88,
+      "shape": "parts"
+    },
+    {
+      "turn": 6,
+      "userText": "Write me two messages I could send.",
+      "systemPromptSha256": "28202994a38b999306bbd88dd95c32c3a243a1020e256351d2c144ca0f0b625a",
+      "firstPass": {
+        "raw": "{\n  \"text\": \"지난번에 얘기했던 거 부담 갖지 마, 그냥 이런 것도 있구나 해줘.\\n요즘 바쁘지? 지나가다 재밌는 거 보여서 생각났어.\"\n}",
+        "parsed": {
+          "text": "지난번에 얘기했던 거 부담 갖지 마, 그냥 이런 것도 있구나 해줘.\n요즘 바쁘지? 지나가다 재밌는 거 보여서 생각났어."
+        },
+        "violations": [],
+        "banned": []
+      },
+      "finalPass": {
+        "raw": "{\n  \"text\": \"지난번에 얘기했던 거 부담 갖지 마, 그냥 이런 것도 있구나 해줘.\\n요즘 바쁘지? 지나가다 재밌는 거 보여서 생각났어.\"\n}",
+        "parsed": {
+          "text": "지난번에 얘기했던 거 부담 갖지 마, 그냥 이런 것도 있구나 해줘.\n요즘 바쁘지? 지나가다 재밌는 거 보여서 생각났어."
+        },
+        "violations": [],
+        "corrected": false
+      },
+      "extraCallUsed": "none",
+      "wordCount": 18,
+      "shape": "text"
+    }
+  ]
+}

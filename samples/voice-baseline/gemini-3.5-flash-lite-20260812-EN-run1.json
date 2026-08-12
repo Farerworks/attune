@@ -1,0 +1,247 @@
+{
+  "meta": {
+    "model": "gemini-3.5-flash-lite",
+    "modelGateForced": false,
+    "generationConfigBranch": "new(no temperature, thinkingLevel=minimal)",
+    "llmProvider": "gemini",
+    "baseCommitSha": "91e2e725780c959d865ed411a39954a5c221b554",
+    "executedAt": "2026-08-12T01:43:26.129Z",
+    "harnessFileSha256": "45c65dd61c14743bcb53d1c10f97d3c3075ee86e91459f5a800443a699ffcea4",
+    "lang": "EN",
+    "runNumber": 1,
+    "callIntervalMs": 4000,
+    "aborted": false
+  },
+  "turns": [
+    {
+      "turn": 1,
+      "userText": "I want to ask Riley to work on a project with me. How should I bring it up?",
+      "systemPromptSha256": "b2bf3388bc894ffb2ade7789a74d7b4b0fa10a8364426447922682af6b9c65fb",
+      "firstPass": {
+        "raw": "{\n  \"parts\": [\n    {\n      \"label\": \"WHAT'S LIKELY GOING ON\",\n      \"text\": \"As an Open Sea, Riley values autonomy and expansive scope, meaning a well-defined project with creative room to maneuver will appeal far more than a rigid assignment.\"\n    },\n    {\n      \"label\": \"WHY THIS MAY HAVE HAPPENED\",\n      \"text\": \"Your Main Character energy naturally drives you to take center stage, so framing the collaboration around mutual vision rather than a task list keeps the dynamic balanced.\"\n    },\n    {\n      \"label\": \"WHAT YOU CAN DO\",\n      \"text\": \"Bring it up casually by outlining the broad concept first: \\\"I have a project in mind with plenty of creative freedom, and I'd love to hear your take on it.\\\"\"\n    }\n  ],\n  \"followUp\": \"Have you two collaborated on anything similar before?\"\n}",
+        "parsed": {
+          "parts": [
+            {
+              "label": "WHAT'S LIKELY GOING ON",
+              "text": "As an Open Sea, Riley values autonomy and expansive scope, meaning a well-defined project with creative room to maneuver will appeal far more than a rigid assignment."
+            },
+            {
+              "label": "WHY THIS MAY HAVE HAPPENED",
+              "text": "Your Main Character energy naturally drives you to take center stage, so framing the collaboration around mutual vision rather than a task list keeps the dynamic balanced."
+            },
+            {
+              "label": "WHAT YOU CAN DO",
+              "text": "Bring it up casually by outlining the broad concept first: \"I have a project in mind with plenty of creative freedom, and I'd love to hear your take on it.\""
+            }
+          ],
+          "followUp": "Have you two collaborated on anything similar before?"
+        },
+        "violations": [],
+        "banned": []
+      },
+      "finalPass": {
+        "raw": "{\n  \"parts\": [\n    {\n      \"label\": \"WHAT'S LIKELY GOING ON\",\n      \"text\": \"As an Open Sea, Riley values autonomy and expansive scope, meaning a well-defined project with creative room to maneuver will appeal far more than a rigid assignment.\"\n    },\n    {\n      \"label\": \"WHY THIS MAY HAVE HAPPENED\",\n      \"text\": \"Your Main Character energy naturally drives you to take center stage, so framing the collaboration around mutual vision rather than a task list keeps the dynamic balanced.\"\n    },\n    {\n      \"label\": \"WHAT YOU CAN DO\",\n      \"text\": \"Bring it up casually by outlining the broad concept first: \\\"I have a project in mind with plenty of creative freedom, and I'd love to hear your take on it.\\\"\"\n    }\n  ],\n  \"followUp\": \"Have you two collaborated on anything similar before?\"\n}",
+        "parsed": {
+          "parts": [
+            {
+              "label": "WHAT'S LIKELY GOING ON",
+              "text": "As an Open Sea, Riley values autonomy and expansive scope, meaning a well-defined project with creative room to maneuver will appeal far more than a rigid assignment."
+            },
+            {
+              "label": "WHY THIS MAY HAVE HAPPENED",
+              "text": "Your Main Character energy naturally drives you to take center stage, so framing the collaboration around mutual vision rather than a task list keeps the dynamic balanced."
+            },
+            {
+              "label": "WHAT YOU CAN DO",
+              "text": "Bring it up casually by outlining the broad concept first: \"I have a project in mind with plenty of creative freedom, and I'd love to hear your take on it.\""
+            }
+          ],
+          "followUp": "Have you two collaborated on anything similar before?"
+        },
+        "violations": [],
+        "corrected": false
+      },
+      "extraCallUsed": "none",
+      "wordCount": 92,
+      "shape": "parts"
+    },
+    {
+      "turn": 2,
+      "userText": "I brought it up yesterday and they just said they'd think about it.",
+      "systemPromptSha256": "b2bf3388bc894ffb2ade7789a74d7b4b0fa10a8364426447922682af6b9c65fb",
+      "firstPass": {
+        "raw": "{\n  \"text\": \"When Riley says they'll think about it, it usually means they are weighing the scope and their own bandwidth rather than brushing you off. Give them a few days of breathing room without following up, and let them come back to you when they've processed the idea.\",\n  \"followUp\": \"When they do reply, what part of the project seemed to catch their interest most?\"\n}",
+        "parsed": {
+          "text": "When Riley says they'll think about it, it usually means they are weighing the scope and their own bandwidth rather than brushing you off. Give them a few days of breathing room without following up, and let them come back to you when they've processed the idea.",
+          "followUp": "When they do reply, what part of the project seemed to catch their interest most?"
+        },
+        "violations": [],
+        "banned": []
+      },
+      "finalPass": {
+        "raw": "{\n  \"text\": \"When Riley says they'll think about it, it usually means they are weighing the scope and their own bandwidth rather than brushing you off. Give them a few days of breathing room without following up, and let them come back to you when they've processed the idea.\",\n  \"followUp\": \"When they do reply, what part of the project seemed to catch their interest most?\"\n}",
+        "parsed": {
+          "text": "When Riley says they'll think about it, it usually means they are weighing the scope and their own bandwidth rather than brushing you off. Give them a few days of breathing room without following up, and let them come back to you when they've processed the idea.",
+          "followUp": "When they do reply, what part of the project seemed to catch their interest most?"
+        },
+        "violations": [],
+        "corrected": false
+      },
+      "extraCallUsed": "none",
+      "wordCount": 62,
+      "shape": "text"
+    },
+    {
+      "turn": 3,
+      "userText": "Should I ask again? When would be a good day?",
+      "systemPromptSha256": "b2bf3388bc894ffb2ade7789a74d7b4b0fa10a8364426447922682af6b9c65fb",
+      "firstPass": {
+        "raw": "{\n  \"parts\": [\n    {\n      \"label\": \"LIKELY RECEPTION\",\n      \"text\": \"Waiting a bit longer before you bring it up again gives Riley space to process the idea without feeling cornered. When you do check in, keep it light and open rather than pressing for an immediate decision.\"\n    },\n    {\n      \"label\": \"WHAT COULD BACKFIRE\",\n      \"text\": \"Following up too soon can feel like pressure to someone who needs time to weigh their bandwidth. If you push for an answer right away, they might pull back just to reclaim their autonomy.\"\n    },\n    {\n      \"label\": \"HOW TO IMPROVE YOUR ODDS\",\n      \"text\": \"Pick a day with steady energy to gently revisit the conversation without heavy expectations.\"\n    }\n  ],\n  \"timing\": \"2026-08-14 (Friday, Yang Metal / Monkey) brings a crisp, focused energy that suits a brief, low-pressure check-in. Alternatively, 2026-08-17 (Monday, Yin Water / Pig) offers a fluid, conversational flow. Avoid 2026-08-12 (Wednesday, Earth Horse) as it carries heavy, restless energy that can make people defensive.\"\n}",
+        "parsed": {
+          "parts": [
+            {
+              "label": "LIKELY RECEPTION",
+              "text": "Waiting a bit longer before you bring it up again gives Riley space to process the idea without feeling cornered. When you do check in, keep it light and open rather than pressing for an immediate decision."
+            },
+            {
+              "label": "WHAT COULD BACKFIRE",
+              "text": "Following up too soon can feel like pressure to someone who needs time to weigh their bandwidth. If you push for an answer right away, they might pull back just to reclaim their autonomy."
+            },
+            {
+              "label": "HOW TO IMPROVE YOUR ODDS",
+              "text": "Pick a day with steady energy to gently revisit the conversation without heavy expectations."
+            }
+          ],
+          "timing": "2026-08-14 (Friday, Yang Metal / Monkey) brings a crisp, focused energy that suits a brief, low-pressure check-in. Alternatively, 2026-08-17 (Monday, Yin Water / Pig) offers a fluid, conversational flow. Avoid 2026-08-12 (Wednesday, Earth Horse) as it carries heavy, restless energy that can make people defensive."
+        },
+        "violations": [],
+        "banned": []
+      },
+      "finalPass": {
+        "raw": "{\n  \"parts\": [\n    {\n      \"label\": \"LIKELY RECEPTION\",\n      \"text\": \"Waiting a bit longer before you bring it up again gives Riley space to process the idea without feeling cornered. When you do check in, keep it light and open rather than pressing for an immediate decision.\"\n    },\n    {\n      \"label\": \"WHAT COULD BACKFIRE\",\n      \"text\": \"Following up too soon can feel like pressure to someone who needs time to weigh their bandwidth. If you push for an answer right away, they might pull back just to reclaim their autonomy.\"\n    },\n    {\n      \"label\": \"HOW TO IMPROVE YOUR ODDS\",\n      \"text\": \"Pick a day with steady energy to gently revisit the conversation without heavy expectations.\"\n    }\n  ],\n  \"timing\": \"2026-08-14 (Friday, Yang Metal / Monkey) brings a crisp, focused energy that suits a brief, low-pressure check-in. Alternatively, 2026-08-17 (Monday, Yin Water / Pig) offers a fluid, conversational flow. Avoid 2026-08-12 (Wednesday, Earth Horse) as it carries heavy, restless energy that can make people defensive.\"\n}",
+        "parsed": {
+          "parts": [
+            {
+              "label": "LIKELY RECEPTION",
+              "text": "Waiting a bit longer before you bring it up again gives Riley space to process the idea without feeling cornered. When you do check in, keep it light and open rather than pressing for an immediate decision."
+            },
+            {
+              "label": "WHAT COULD BACKFIRE",
+              "text": "Following up too soon can feel like pressure to someone who needs time to weigh their bandwidth. If you push for an answer right away, they might pull back just to reclaim their autonomy."
+            },
+            {
+              "label": "HOW TO IMPROVE YOUR ODDS",
+              "text": "Pick a day with steady energy to gently revisit the conversation without heavy expectations."
+            }
+          ],
+          "timing": "2026-08-14 (Friday, Yang Metal / Monkey) brings a crisp, focused energy that suits a brief, low-pressure check-in. Alternatively, 2026-08-17 (Monday, Yin Water / Pig) offers a fluid, conversational flow. Avoid 2026-08-12 (Wednesday, Earth Horse) as it carries heavy, restless energy that can make people defensive."
+        },
+        "violations": [],
+        "corrected": false
+      },
+      "extraCallUsed": "none",
+      "wordCount": 130,
+      "shape": "parts"
+    },
+    {
+      "turn": 4,
+      "userText": "No reply today.",
+      "systemPromptSha256": "b2bf3388bc894ffb2ade7789a74d7b4b0fa10a8364426447922682af6b9c65fb",
+      "firstPass": {
+        "raw": "{\n  \"text\": \"Quiet days can make the wait feel longer than it is, but silence right now is more likely about them sorting their own schedule than a hidden 'no.' Give it a bit more breathing room before you revisit the topic.\",\n  \"followUp\": \"When are you hoping to get started on this project?\"\n}",
+        "parsed": {
+          "text": "Quiet days can make the wait feel longer than it is, but silence right now is more likely about them sorting their own schedule than a hidden 'no.' Give it a bit more breathing room before you revisit the topic.",
+          "followUp": "When are you hoping to get started on this project?"
+        },
+        "violations": [],
+        "banned": []
+      },
+      "finalPass": {
+        "raw": "{\n  \"text\": \"Quiet days can make the wait feel longer than it is, but silence right now is more likely about them sorting their own schedule than a hidden 'no.' Give it a bit more breathing room before you revisit the topic.\",\n  \"followUp\": \"When are you hoping to get started on this project?\"\n}",
+        "parsed": {
+          "text": "Quiet days can make the wait feel longer than it is, but silence right now is more likely about them sorting their own schedule than a hidden 'no.' Give it a bit more breathing room before you revisit the topic.",
+          "followUp": "When are you hoping to get started on this project?"
+        },
+        "violations": [],
+        "corrected": false
+      },
+      "extraCallUsed": "none",
+      "wordCount": 50,
+      "shape": "text"
+    },
+    {
+      "turn": 5,
+      "userText": "Why are they being so lukewarm about this?",
+      "systemPromptSha256": "b2bf3388bc894ffb2ade7789a74d7b4b0fa10a8364426447922682af6b9c65fb",
+      "firstPass": {
+        "raw": "{\n  \"parts\": [\n    {\n      \"label\": \"WHAT'S LIKELY GOING ON\",\n      \"text\": \"When Riley seems lukewarm, it often reflects a habit of keeping options open rather than a lack of interest. They prefer to weigh the full scope of a commitment before giving a firm answer.\"\n    },\n    {\n      \"label\": \"WHY THIS MAY HAVE HAPPENED\",\n      \"text\": \"Your warm, direct style naturally pushes for a clear response, which can cause Riley to step back slightly to protect their own pace and autonomy.\"\n    },\n    {\n      \"label\": \"WHAT YOU CAN DO\",\n      \"text\": \"Shift the focus away from the project for a moment and chat about something entirely unrelated to take the pressure off both of you.\"\n    }\n  ]\n}",
+        "parsed": {
+          "parts": [
+            {
+              "label": "WHAT'S LIKELY GOING ON",
+              "text": "When Riley seems lukewarm, it often reflects a habit of keeping options open rather than a lack of interest. They prefer to weigh the full scope of a commitment before giving a firm answer."
+            },
+            {
+              "label": "WHY THIS MAY HAVE HAPPENED",
+              "text": "Your warm, direct style naturally pushes for a clear response, which can cause Riley to step back slightly to protect their own pace and autonomy."
+            },
+            {
+              "label": "WHAT YOU CAN DO",
+              "text": "Shift the focus away from the project for a moment and chat about something entirely unrelated to take the pressure off both of you."
+            }
+          ]
+        },
+        "violations": [],
+        "banned": []
+      },
+      "finalPass": {
+        "raw": "{\n  \"parts\": [\n    {\n      \"label\": \"WHAT'S LIKELY GOING ON\",\n      \"text\": \"When Riley seems lukewarm, it often reflects a habit of keeping options open rather than a lack of interest. They prefer to weigh the full scope of a commitment before giving a firm answer.\"\n    },\n    {\n      \"label\": \"WHY THIS MAY HAVE HAPPENED\",\n      \"text\": \"Your warm, direct style naturally pushes for a clear response, which can cause Riley to step back slightly to protect their own pace and autonomy.\"\n    },\n    {\n      \"label\": \"WHAT YOU CAN DO\",\n      \"text\": \"Shift the focus away from the project for a moment and chat about something entirely unrelated to take the pressure off both of you.\"\n    }\n  ]\n}",
+        "parsed": {
+          "parts": [
+            {
+              "label": "WHAT'S LIKELY GOING ON",
+              "text": "When Riley seems lukewarm, it often reflects a habit of keeping options open rather than a lack of interest. They prefer to weigh the full scope of a commitment before giving a firm answer."
+            },
+            {
+              "label": "WHY THIS MAY HAVE HAPPENED",
+              "text": "Your warm, direct style naturally pushes for a clear response, which can cause Riley to step back slightly to protect their own pace and autonomy."
+            },
+            {
+              "label": "WHAT YOU CAN DO",
+              "text": "Shift the focus away from the project for a moment and chat about something entirely unrelated to take the pressure off both of you."
+            }
+          ]
+        },
+        "violations": [],
+        "corrected": false
+      },
+      "extraCallUsed": "none",
+      "wordCount": 83,
+      "shape": "parts"
+    },
+    {
+      "turn": 6,
+      "userText": "Write me two messages I could send.",
+      "systemPromptSha256": "1d532989cc73452919a22e36db76adf4769c747dc2a25c8c04adf4730c1ad41e",
+      "firstPass": {
+        "raw": "{\n  \"text\": \"Hey, no rush on that project idea at all—just wanted to share this article I saw that made me think of you.\\nThinking about our chat last week, I'd love to hear your thoughts on one quick angle whenever you have a free minute.\"\n}",
+        "parsed": {
+          "text": "Hey, no rush on that project idea at all—just wanted to share this article I saw that made me think of you.\nThinking about our chat last week, I'd love to hear your thoughts on one quick angle whenever you have a free minute."
+        },
+        "violations": [],
+        "banned": []
+      },
+      "finalPass": {
+        "raw": "{\n  \"text\": \"Hey, no rush on that project idea at all—just wanted to share this article I saw that made me think of you.\\nThinking about our chat last week, I'd love to hear your thoughts on one quick angle whenever you have a free minute.\"\n}",
+        "parsed": {
+          "text": "Hey, no rush on that project idea at all—just wanted to share this article I saw that made me think of you.\nThinking about our chat last week, I'd love to hear your thoughts on one quick angle whenever you have a free minute."
+        },
+        "violations": [],
+        "corrected": false
+      },
+      "extraCallUsed": "none",
+      "wordCount": 44,
+      "shape": "text"
+    }
+  ]
+}
