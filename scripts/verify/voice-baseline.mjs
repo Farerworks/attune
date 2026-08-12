@@ -572,6 +572,7 @@ const { calculateSaju, getDailyPillars, pillarLabel, friendlyPillarName } =
 const {
   buildAskSystem, buildAskTurns, hasTodayIntroduced, themNameCandidates, hasPersonIntroduced,
   detectAskMode, detectContinuationHint, validateAskAnswer, tryParse, tryPlainTextFallback,
+  buildDailyPillarLookup,
 } = await import(path.join(ROOT, 'src/app/api/ask/route.ts'));
 const { createLlmProvider } = await import(path.join(ROOT, 'src/lib/llm.ts'));
 
@@ -749,7 +750,65 @@ function truncateScriptLinesMirror(answer, count) {
 
 const { parseScriptRequest } = await import(path.join(ROOT, 'src/app/api/ask/route.ts'));
 
-// route.ts:989-1048
+// BRIEF-104B-PRE §2 — these two were missing entirely: applyFinalDispositionMirror/
+// buildCorrectionWarningsMirror were written for BRIEF-104A, before BRIEF-105 added the
+// 'date_pillar_mismatch' violation type and its bracket-stripping final disposition to route.ts.
+// Without these, a date_pillar_mismatch-only violation would get an EMPTY correction warning (the
+// model receives no guidance on what to fix) and the final answer would never get the safe
+// parenthetical-removal fallback that production applies — measuring a different pipeline than
+// production, exactly the failure mode this BRIEF's §2 already diagnosed for the ctx fields.
+
+// route.ts:1209-1225
+function stripDayNameParentheticalMirror(text, claimedToken) {
+  const escaped = claimedToken.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const patterns = [
+    new RegExp(`\\s*\\(${escaped}\\s*날\\)`, 'g'),
+    new RegExp(`\\s*\\(${escaped}\\s*day\\)`, 'gi'),
+    new RegExp(`\\s*[—-]\\s*'${escaped}'\\s*날`, 'g'),
+  ];
+  let out = text;
+  let changed = false;
+  for (const re of patterns) {
+    if (re.test(out)) {
+      out = out.replace(re, '');
+      changed = true;
+    }
+  }
+  return { text: out, changed };
+}
+
+// route.ts:1230-1259
+function removeParentheticalDayNamesMirror(answer, violations) {
+  const claimedTokens = violations
+    .map(v => (v.detail ?? '').split('|')[1])
+    .filter(t => Boolean(t));
+  if (claimedTokens.length === 0) return { answer, changed: false };
+
+  let changed = false;
+  const stripAll = s => {
+    let out = s;
+    for (const token of claimedTokens) {
+      const r = stripDayNameParentheticalMirror(out, token);
+      out = r.text;
+      if (r.changed) changed = true;
+    }
+    return out.replace(/[ \t]{2,}/g, ' ').trim();
+  };
+
+  const out = { ...answer };
+  if (typeof out.text === 'string') out.text = stripAll(out.text);
+  if (Array.isArray(out.parts)) {
+    out.parts = out.parts.map(p => ({ ...p, text: stripAll(p.text) }));
+  }
+  if (typeof out.timing === 'string') out.timing = stripAll(out.timing);
+  if (typeof out.followUp === 'string') out.followUp = stripAll(out.followUp);
+
+  return { answer: out, changed };
+}
+
+// route.ts:989-1048 (+ date_pillar_mismatch block added by BRIEF-105, route.ts:1324-1341 — flags-
+// only re-verification sub-step omitted here since this harness never reads `.flags`, only
+// `.answer`, so it cannot affect any measured output)
 function applyFinalDispositionMirror(answer, violations, ctx) {
   let out = answer;
   const flags = [];
@@ -794,6 +853,14 @@ function applyFinalDispositionMirror(answer, violations, ctx) {
   if (hasType('reintroduction')) flags.push({ stage: 'reintro', action: 'soft' });
   if (hasType('verdict_opening')) flags.push({ stage: 'verdict', action: 'soft' });
   if (hasType('hidden_truth_framing')) flags.push({ stage: 'framing', action: 'soft' });
+
+  if (hasType('date_pillar_mismatch')) {
+    const dpViolations = violations.filter(v => v.type === 'date_pillar_mismatch');
+    const stripped = removeParentheticalDayNamesMirror(out, dpViolations);
+    out = stripped.answer;
+    flags.push({ stage: 'datepillar', action: stripped.changed ? 'strip_dayname' : 'soft' });
+  }
+
   return { answer: out, flags };
 }
 
@@ -834,6 +901,11 @@ function buildCorrectionWarningsMirror(schemaInvalid, banned, violations) {
         break;
       case 'label_order':
         break;
+      case 'date_pillar_mismatch': {
+        const [date, claimed, correct] = (v.detail ?? '').split('|');
+        warnings.push(`⚠ DATE–PILLAR MISMATCH — You wrote "${claimed}" for ${date}, but ${date} is "${correct}". Use the DAILY PILLARS table verbatim or omit the day name. Regenerate.`);
+        break;
+      }
     }
   }
   return warnings;
@@ -901,7 +973,15 @@ async function runOneTurn(provider, mode, meChart, themChart, dailyPillars, them
   const personIntroduced = mode === 'person' ? hasPersonIntroduced(history, candidates) : undefined;
   const askMode = detectAskMode(question);
   const continuationHint = detectContinuationHint(question);
-  const ctx = { askMode, personIntroduced, candidates, latestUserText: question };
+  // BRIEF-104B-PRE §2 — route.ts:1678-1682's POST ctx also fills these two (105 added them as
+  // optional fields, route.ts:831-832); without them the route.ts:1139/:1334 `if
+  // (ctx.dailyPillarLookup)` guards skip date–pillar validation entirely and this harness would be
+  // measuring a different pipeline than production.
+  const ctx = {
+    askMode, personIntroduced, candidates, latestUserText: question,
+    dailyPillarLookup: buildDailyPillarLookup(dailyPillars),
+    todayDate: today,
+  };
 
   const system = buildAskSystem(
     mode, meChart, themChart, undefined, dailyPillars,
@@ -1093,9 +1173,10 @@ async function collect() {
   const provider = createLlmProvider();
   // The BRIEF-104A §0 base commit `src/` was verified against — NOT `git rev-parse HEAD`, which
   // drifts forward on this branch as non-`src/` commits (brief archive, this script itself, the
-  // report) land. `src/` is untouched on this branch (BRIEF-104A §6), so this constant stays the
-  // true "what code produced these results" answer for the whole run.
-  const baseCommitSha = '9054808ea79ba0d605952ecc23d162105ea7d7fc';
+  // report) land. `src/` is untouched on this branch, so this constant stays the true "what code
+  // produced these results" answer for the whole run. Updated per-BRIEF as the base commit moves
+  // (BRIEF-104A: 9054808 -> BRIEF-104B-PRE: 91e2e72, the 105+105-FIX ff-only merge).
+  const baseCommitSha = '91e2e725780c959d865ed411a39954a5c221b554';
   const harnessFileSha256 = crypto.createHash('sha256').update(readFileSync(SELF_PATH), 'utf-8').digest('hex');
   const executedAt = new Date().toISOString();
   const dateTag = todayYmd();

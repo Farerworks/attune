@@ -198,6 +198,32 @@ against the same `samples/voice-baseline/*.json` files (API calls: 0)
 produced `metrics-20260811-v2.tsv` alongside the original
 `metrics-20260811.tsv`, which is kept untouched as an audit trail.
 
+### Erratum (BRIEF-104B-PRE)
+
+BRIEF-105 gave `AskValidationCtx` two new optional fields
+(`dailyPillarLookup`/`todayDate`, `route.ts:831-832`) that production's `POST`
+actually fills (`route.ts:1678-1682`). This harness was written before 105
+existed, so its own `ctx` object never set them — meaning `route.ts:1139`'s
+`if (ctx.dailyPillarLookup)` guard skipped date–pillar validation entirely,
+silently measuring a pre-105 pipeline. Fixed by passing the same
+`buildDailyPillarLookup(dailyPillars)` the harness already computes for
+`buildAskSystem`, plus the same `today` value, into `ctx`.
+
+While verifying that fix (BRIEF-104B-PRE §2 explicitly asked to check this),
+a second, related gap turned up: this harness keeps its own frozen mirrors of
+`applyFinalDisposition`/`buildCorrectionWarnings` (written pre-105, before
+those were even exported from `route.ts`) — and neither mirror knew about the
+`date_pillar_mismatch` violation type 105 added. A turn whose *only*
+violation was a date–pillar mismatch would get an empty correction-turn
+prompt (no guidance for the model to act on) and would never receive
+production's bracket/inserted-clause day-name strip in the final answer —
+again silently diverging from production. Both mirrors were extended with the
+same `date_pillar_mismatch` handling `route.ts` has (bracket stripping +
+warning text), copied verbatim from `route.ts:1209-1259`/`:1324-1341`/
+`:1404-1408`. The flags-only re-verification sub-step in `route.ts:1334-1339`
+was intentionally left out of the mirror — this harness never reads
+`.flags`, only `.answer`, so it cannot affect any measured output.
+
 ## Standing rules for this kit
 
 - Expected values (ganzi, label strings, etc.) are fixed reference points.
