@@ -23,7 +23,7 @@ const {
   COMPLETION_CANCEL, COMPLETION_REQUEST_ENDINGS, splitCompletionParts, detectCompletionRequest,
   repairControlCharsInStrings, tryParse, tryPlainTextFallback,
   buildDailyPillarLookup, applyFinalDisposition, buildCorrectionWarnings,
-  detectExpectedLang,
+  detectExpectedLang, hasExplicitLanguageRequest,
 } = await import('./route');
 const { splitSentences } = await import('@/lib/hiddenTruth');
 const { calculateSaju, getDailyPillars, pillarLabel, friendlyPillarName, STEM_NAMES } = await import('@/lib/saju');
@@ -2590,6 +2590,249 @@ describe('교차언어 답변 탐지·처분 (BRIEF-106)', () => {
     const warnings = buildCorrectionWarnings(false, [], violations);
     expect(warnings[0]).toContain('LANGUAGE VIOLATION');
     expect(warnings.some(w => w.includes('LABEL SET VIOLATION'))).toBe(true);
+  });
+});
+
+describe('교차언어 요청에서의 오탐 제거 (BRIEF-106-FIX)', () => {
+  // §1.3 — 참이어야 하는 21개 (오른쪽은 걸린 패턴 번호, 참고용)
+  const explicitTrue: Array<[string, string]> = [
+    ['라일리한테 보낼 영어 메시지 두 개 써줘', '②'],
+    ['영문 답장 써줘', '②'],
+    ['한국어 문장으로 바꿔줘', '②'],
+    ['일본어 편지 하나 써줘', '②'],
+    ['영어 메세지 두 개만', '②'],
+    ['영어로 메시지 써줘', '①'],
+    ['영문으로 써줘', '①'],
+    ['한국어로 답해줘', '①'],
+    ['이거 영어로 번역해줘', '①'],
+    ['한국어로 번역해줘', '①'],
+    ['영문으로 번역해줘', '①'],
+    ['English로 써줘', '⑤'],
+    ['Korean으로 답해줘', '⑤'],
+    ['English 로 써줘', '⑤'],
+    ['Write me an English message', '④'],
+    ['Give me a Korean reply', '④'],
+    ['Give me an English translation', '④'],
+    ['Translate it to Korean', '③'],
+    ['Translate this into Japanese', '③'],
+    ['write it in Korean', '③'],
+    ['in English please', '③'],
+  ];
+
+  // §1.3 — 거짓이어야 하는 22개
+  const explicitFalse: string[] = [
+    // 비유적 번역
+    'Can you translate what their silence means?',
+    'Translate their mixed signals for me.',
+    'Can you translate this behavior?',
+    '그 사람의 침묵을 번역해줘',
+    '그 행동이 무슨 뜻인지 번역해줘',
+    '이 애매한 신호 좀 해석해줘',
+    '번역해줘',
+    'translate this',
+    // 언어를 화제로만 언급 / 일반 질문
+    '영어 공부 얘기 좀 해줘',
+    'Should I ask again?',
+    '오늘 어때?',
+    '라일리한테 뭐라고 보낼까?',
+    '그 사람 원래 그래?',
+    '8월 18일 어때?',
+    // 언어 지시 없는 보낼 글 요청
+    'Write me two messages I could send.',
+    '문장 두 개 써줘',
+    '메시지 좀 써줘',
+    '답장 안 써',
+    // 음성 기준선 6턴 픽스처의 실제 질문
+    'I want to ask Riley to work on a project with me. How should I bring it up?',
+    'I brought it up yesterday and they just said they would think about it.',
+    'No reply today.',
+    'Why are they being so lukewarm about this?',
+  ];
+
+  it('§1.3 참 21개 — 전건 매칭', () => {
+    for (const [q] of explicitTrue) {
+      expect(hasExplicitLanguageRequest(q), `should match: ${q}`).toBe(true);
+    }
+  });
+
+  it('§1.3 거짓 22개 — 전건 무매칭', () => {
+    for (const q of explicitFalse) {
+      expect(hasExplicitLanguageRequest(q), `should NOT match: ${q}`).toBe(false);
+    }
+  });
+
+  it('§1.3 코퍼스 고유 질문 12개 — 매칭 0건 (회귀 12행이 그대로여야 하는 근거)', () => {
+    const corpusQuestions = [
+      "I want to ask Riley to work on a project with me. How should I bring it up?",
+      "I brought it up yesterday and they just said they'd think about it.",
+      'Should I ask again? When would be a good day?',
+      'No reply today.',
+      'Why are they being so lukewarm about this?',
+      'Write me two messages I could send.',
+      '한결이한테 같이 프로젝트 하자고 제안하려는데 어떻게 꺼내는 게 좋을까?',
+      '어제 얘기 꺼냈더니 생각해보겠다고만 했어.',
+      '다시 물어봐도 될까? 언제가 좋을까?',
+      '오늘은 답이 없었어.',
+      '얘는 왜 이렇게 미지근한 걸까?',
+      '그럼 보낼 만한 메시지 두 개만 써줘.',
+    ];
+    for (const q of corpusQuestions) {
+      expect(hasExplicitLanguageRequest(q), `should NOT match: ${q}`).toBe(false);
+    }
+  });
+
+  // §4.2 — 502 분기 네 조합. meBaseBody 재사용(완료 모드는 'me' 모드로도 재현 가능).
+  const meBaseBody = {
+    mode: 'me' as const,
+    me: { date: '1990-06-15', time: '14:30' },
+    history: [] as unknown[],
+  };
+
+  it('§4.2 combo A — 예산 소진 + 보낼 글 모드(completion)에서 drift는 502 아님, soft flag', async () => {
+    mockGenerateJsonChat.mockClear();
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const englishText = 'This is a fully English answer with no Korean words in it at all right now.';
+    mockGenerateJsonChat
+      .mockResolvedValueOnce('not json at all')
+      .mockResolvedValueOnce(JSON.stringify({ text: englishText }));
+
+    const res = await POST(makeAskRequest({ ...meBaseBody, question: '메시지 좀 써줘' }));
+    const data = await res.json() as { answer?: { text?: string } };
+
+    expect(mockGenerateJsonChat).toHaveBeenCalledTimes(2);
+    expect(res.status).toBe(200);
+    expect(data.answer?.text).toBe(englishText); // 답 원문 유지
+    expect(errSpy.mock.calls.some(c => String(c[0]).includes('stage=lang action=soft'))).toBe(true);
+    errSpy.mockRestore();
+  });
+
+  it('§4.2 combo B — 교정 후에도 drift + 보낼 글 모드(completion)면 502 아님, soft flag', async () => {
+    mockGenerateJsonChat.mockClear();
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const englishText = 'Here is a fully English reply with zero Korean characters present.';
+    mockGenerateJsonChat
+      .mockResolvedValueOnce(JSON.stringify({ text: englishText }))
+      .mockResolvedValueOnce(JSON.stringify({ text: englishText }));
+
+    const res = await POST(makeAskRequest({ ...meBaseBody, question: '메시지 좀 써줘' }));
+    const data = await res.json() as { answer?: { text?: string } };
+
+    expect(mockGenerateJsonChat).toHaveBeenCalledTimes(2);
+    expect(res.status).toBe(200);
+    expect(data.answer?.text).toBe(englishText); // 최종 교정 응답 유지
+    expect(errSpy.mock.calls.some(c => String(c[0]).includes('stage=lang action=soft'))).toBe(true);
+    errSpy.mockRestore();
+  });
+
+  it('§4.2 combo C — 예산 소진 + 일반 대화(askMode null)면 drift는 502, code:language', async () => {
+    mockGenerateJsonChat.mockClear();
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    mockGenerateJsonChat
+      .mockResolvedValueOnce('not json at all')
+      .mockResolvedValueOnce(JSON.stringify({ text: 'This is a fully English answer with no Korean words in it at all.' }));
+
+    const res = await POST(makeAskRequest({ ...meBaseBody, question: '오늘 컨디션이 좀 어때?' }));
+    const data = await res.json() as { code?: string };
+
+    expect(mockGenerateJsonChat).toHaveBeenCalledTimes(2);
+    expect(res.status).toBe(502);
+    expect(data.code).toBe('language');
+    expect(errSpy.mock.calls.some(c => String(c[0]).includes('stage=lang action=fail'))).toBe(true);
+    errSpy.mockRestore();
+  });
+
+  it('§4.2 combo D — 교정 후에도 drift + 일반 대화(askMode null)면 502, code:language', async () => {
+    mockGenerateJsonChat.mockClear();
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const englishText = 'This reply stays fully in English with no Korean at all in it.';
+    mockGenerateJsonChat
+      .mockResolvedValueOnce(JSON.stringify({ text: englishText }))
+      .mockResolvedValueOnce(JSON.stringify({ text: englishText }));
+
+    const res = await POST(makeAskRequest({ ...meBaseBody, question: '오늘 컨디션이 좀 어때?' }));
+    const data = await res.json() as { code?: string };
+
+    expect(mockGenerateJsonChat).toHaveBeenCalledTimes(2);
+    expect(res.status).toBe(502);
+    expect(data.code).toBe('language');
+    expect(errSpy.mock.calls.some(c => String(c[0]).includes('stage=lang action=fail'))).toBe(true);
+    errSpy.mockRestore();
+  });
+
+  // §4.3 — 통합 시나리오 E/F. 둘 다 6개 확인 항목을 전부 검사한다.
+  const personBody = {
+    mode: 'person' as const,
+    me: { date: '1990-06-15', time: '14:30' },
+    them: { date: '1988-03-02', time: '09:00', name: 'Riley' },
+    history: [] as Array<{ role: 'user' | 'assistant'; text: string }>,
+  };
+
+  it('§4.3 E — 「라일리한테 보낼 영어 메시지 두 개 써줘」: 정당한 영어 요청이 502·오교정 없이 그대로 나간다', async () => {
+    mockGenerateJsonChat.mockClear();
+    const question = '라일리한테 보낼 영어 메시지 두 개 써줘';
+    const englishAnswer = 'Hey! Are you free to grab coffee this week?\n\nLet me know what day works best for you!';
+    mockGenerateJsonChat.mockResolvedValueOnce(JSON.stringify({ text: englishAnswer }));
+
+    // 1) 선행 확인
+    expect(hasExplicitLanguageRequest(question)).toBe(true);
+    // 2) expectedLang이 undefined로 계산됨 (POST와 동일한 공식)
+    const expectedLang = hasExplicitLanguageRequest(question) ? undefined : detectExpectedLang(question, personBody.history);
+    expect(expectedLang).toBeUndefined();
+
+    const res = await POST(makeAskRequest({ ...personBody, question }));
+    const data = await res.json() as { answer?: { text?: string } };
+
+    // 3) HTTP 200
+    expect(res.status).toBe(200);
+    // 4) 모델 호출 정확히 1회
+    expect(mockGenerateJsonChat).toHaveBeenCalledTimes(1);
+    // 5) 전달된 turns에 언어 교정 경고 없음
+    const turnsSent = mockGenerateJsonChat.mock.calls[0][1] as Array<{ role: string; text: string }>;
+    expect(turnsSent.some(t => t.text.includes('LANGUAGE VIOLATION') || t.text.includes('LANGUAGE MIXING'))).toBe(false);
+    // 6) 답 문자열이 모킹한 것과 완전 동일
+    expect(data.answer?.text).toBe(englishAnswer);
+  });
+
+  it('§4.3 F — 영어 대화 중 「Write it in Korean」: 정당한 한국어 요청이 502·오교정 없이 그대로 나간다', async () => {
+    mockGenerateJsonChat.mockClear();
+    const history = [
+      { role: 'user' as const, text: 'How should I text them today?' },
+      { role: 'assistant' as const, text: 'Keep it light and short — a quick check-in works well.' },
+    ];
+    const question = 'Write it in Korean';
+    const koreanAnswer = '네, 알겠어요! 오늘 하루도 편안하게 보내세요.';
+    mockGenerateJsonChat.mockResolvedValueOnce(JSON.stringify({ text: koreanAnswer }));
+
+    // 1) 선행 확인
+    expect(hasExplicitLanguageRequest(question)).toBe(true);
+    // 2) expectedLang이 undefined로 계산됨
+    const expectedLang = hasExplicitLanguageRequest(question) ? undefined : detectExpectedLang(question, history);
+    expect(expectedLang).toBeUndefined();
+
+    const meBody = { mode: 'me' as const, me: { date: '1990-06-15', time: '14:30' }, history };
+    const res = await POST(makeAskRequest({ ...meBody, question }));
+    const data = await res.json() as { answer?: { text?: string } };
+
+    // 3) HTTP 200
+    expect(res.status).toBe(200);
+    // 4) 모델 호출 정확히 1회
+    expect(mockGenerateJsonChat).toHaveBeenCalledTimes(1);
+    // 5) 전달된 turns에 언어 교정 경고 없음
+    const turnsSent = mockGenerateJsonChat.mock.calls[0][1] as Array<{ role: string; text: string }>;
+    expect(turnsSent.some(t => t.text.includes('LANGUAGE VIOLATION') || t.text.includes('LANGUAGE MIXING'))).toBe(false);
+    // 6) 답 문자열이 모킹한 것과 완전 동일
+    expect(data.answer?.text).toBe(koreanAnswer);
+  });
+
+  it('§4.3 G — 보낼 글 모드에서도 validateAskAnswer는 response_language_drift 유형을 그대로 낸다 (유형 무변경)', () => {
+    const ctx = {
+      askMode: 'completion' as const, personIntroduced: false, candidates: [] as string[], latestUserText: '',
+      expectedLang: 'ko' as const, nameAllowlist: [] as string[],
+    };
+    const answer = { text: 'This is a fully English answer with no Korean words in it at all.' };
+    const violations = validateAskAnswer(answer, ctx);
+    expect(violations.filter(v => v.type === 'response_language_drift')).toHaveLength(1);
+    expect(violations.some(v => v.type === 'foreign_language_leak')).toBe(false);
   });
 });
 

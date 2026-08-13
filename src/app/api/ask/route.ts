@@ -1068,6 +1068,34 @@ export function detectExpectedLang(
   return undefined;
 }
 
+// ── BRIEF-106-FIX §1 — explicit language REQUEST gate ────────────────────────────────────────
+// "예상 언어 = 질문의 언어" missed the case where the user asks FOR a result in another language
+// (e.g. "라일리한테 보낼 영어 메시지 두 개 써줘" — a Korean question explicitly requesting an
+// English deliverable). Answering that correctly used to trigger a false `response_language_drift`
+// and a 502. No trailing `\b` on pattern ⑤ — same ASCII-\w limitation VERDICT_PROBE_PATTERNS
+// (route.ts:255) already documents; `\b` doesn't reliably hold right after a Hangul syllable.
+export const EXPLICIT_LANGUAGE_PATTERNS: RegExp[] = [
+  // ① Korean adverbial — "영어로", "한국어로 번역해줘"
+  /(영어|영문|한국어|한글|일본어|일어|중국어|중문|스페인어|프랑스어|독일어)\s*(?:로|으로)/,
+  // ② Korean nominal — "영어 메시지", "영문 답장"
+  /(영어|영문|한국어|한글|일본어|일어|중국어|중문|스페인어|프랑스어|독일어)\s*(?:메시지|메세지|문장|답장|편지|문구|대본|버전|번역|텍스트|카톡)/,
+  // ③ English prepositional — "in Korean", "to Korean", "into Japanese"
+  /\b(?:in|into|to)\s+(English|Korean|Japanese|Chinese|Spanish|French|German)\b/i,
+  // ④ English nominal — "an English message", "a Korean reply", "an English translation"
+  /\b(English|Korean|Japanese|Chinese|Spanish|French|German)\s+(?:message|messages|reply|replies|text|note|letter|script|version|translation)\b/i,
+  // ⑤ Mixed script — "English로". No trailing \b (see note above).
+  /\b(English|Korean|Japanese|Chinese|Spanish|French|German)\s*(?:로|으로)/i,
+];
+
+// Deliberately does NOT include a bare "번역"/"translate" pattern — in Attune, "그 사람의 침묵을
+// 번역해줘"/"Translate their mixed signals" is a metaphor for interpreting behavior, not a language
+// translation request. Treating it as one would fail-open the entire language check on ordinary
+// relationship questions, reviving the exact drift false-negative this gate exists to prevent. A
+// genuine translation request always names a target language, which patterns ①/③/④ already catch.
+export function hasExplicitLanguageRequest(question: string): boolean {
+  return EXPLICIT_LANGUAGE_PATTERNS.some(p => p.test(question));
+}
+
 /** One answer's cross-language check (BRIEF-106 §3). Scope = `collectAnswerTextWithTiming` — NOT
  * `JSON.stringify(answer)`, whose part labels ("LIKELY RECEPTION" etc.) and JSON keys are always
  * English by contract and would falsely flag every Korean answer. `nameAllowlist` entries (own/
@@ -1394,11 +1422,14 @@ export function applyFinalDisposition(
   if (hasType('reintroduction')) flags.push({ stage: 'reintro', action: 'soft' });
   if (hasType('verdict_opening')) flags.push({ stage: 'verdict', action: 'soft' });
   if (hasType('hidden_truth_framing')) flags.push({ stage: 'framing', action: 'soft' });
-  // BRIEF-106 §4.3 — leak only (never mechanically edited: cutting a foreign word out of a
-  // sentence would mangle it). `response_language_drift` never reaches here — the route handler
-  // intercepts it as a hard failure BEFORE calling this function (§4.2 "applyFinalDisposition으로
-  // 내려보내지 말 것").
-  if (hasType('foreign_language_leak')) flags.push({ stage: 'lang', action: 'soft' });
+  // BRIEF-106 §4.3 — leak, never mechanically edited (cutting a foreign word out of a sentence
+  // would mangle it). BRIEF-106-FIX §2 corrects the note that used to be here: `response_language_
+  // drift` CAN reach this function now — in send mode (strict_script/completion), the route
+  // handler no longer intercepts it as a hard failure (see `sendMode` in the POST handler). The
+  // answer text is left untouched either way; only a flag is added.
+  if (hasType('foreign_language_leak') || hasType('response_language_drift')) {
+    flags.push({ stage: 'lang', action: 'soft' });
+  }
 
   // BRIEF-105 §2.2.6 — bracket/inserted-clause day-name removal, then MANDATORY re-verification
   // that the mismatch is actually gone (never trust the strip blindly).
@@ -1779,7 +1810,12 @@ export async function POST(request: Request) {
   // needs `history` to fall back on when the latest question alone is undecidable (validateAskAnswer
   // never sees history). nameAllowlist deliberately excludes `candidates` (ganzi/archetype names) —
   // "Earth Dragon" mixed into a Korean answer IS the leak §0 found, so it must stay detectable.
-  const expectedLang = detectExpectedLang(question, history);
+  // BRIEF-106-FIX §1 — a question that explicitly REQUESTS a result in another language (e.g.
+  // "라일리한테 보낼 영어 메시지 두 개 써줘") skips the language check entirely rather than being
+  // guessed at — same fail-open shape as an undecidable question, never invented.
+  const expectedLang = hasExplicitLanguageRequest(question)
+    ? undefined
+    : detectExpectedLang(question, history);
   const nameAllowlist = [
     ...[parsed.data.me.name, themInput?.name].filter((n): n is string => Boolean(n)),
     'Attune', 'Google', 'Gemini',
@@ -1791,6 +1827,12 @@ export async function POST(request: Request) {
     todayDate: today,
     expectedLang, nameAllowlist,
   };
+
+  // BRIEF-106-FIX §2 — send-mode answers are content for a third party whose language the server
+  // can't know; a drift there is visible to the user (who can just ask again), so it doesn't get
+  // the 502 hard fail the way a general-conversation drift does. Computed once here since both
+  // §4.2 ⓐ/ⓑ hard-fail sites below need it.
+  const sendMode = askMode === 'strict_script' || askMode === 'completion';
 
   const system = buildAskSystem(
     mode, meChart, themChart,
@@ -1868,8 +1910,9 @@ export async function POST(request: Request) {
       if (!answer) { logAsk(rid, 'schema', 'fail', {}); return errorResponse('schema', 502); }
       if (banned.length > 0) { logAsk(rid, 'banned', 'fail', {}); return errorResponse('banned', 502); }
       // BRIEF-106 §4.2 ⓑ — drift is unusable regardless of whether a correction was even
-      // attempted; never let it reach applyFinalDisposition.
-      if (violations.some(v => v.type === 'response_language_drift')) {
+      // attempted; never let it reach applyFinalDisposition. BRIEF-106-FIX §2 — EXCEPT in
+      // send mode (`sendMode`, computed above) — see that declaration for the full reasoning.
+      if (!sendMode && violations.some(v => v.type === 'response_language_drift')) {
         logAsk(rid, 'lang', 'fail', {});
         return errorResponse('language', 502);
       }
@@ -1919,7 +1962,8 @@ export async function POST(request: Request) {
 
     violations = validateAskAnswer(answer, ctx);
     // BRIEF-106 §4.2 ⓐ — drift surviving the one correction attempt is still unusable.
-    if (violations.some(v => v.type === 'response_language_drift')) {
+    // BRIEF-106-FIX §2 — EXCEPT in send modes (see the ⓑ branch above for the full reasoning).
+    if (!sendMode && violations.some(v => v.type === 'response_language_drift')) {
       logAsk(rid, 'lang', 'fail', {});
       return errorResponse('language', 502);
     }

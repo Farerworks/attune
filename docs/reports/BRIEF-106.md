@@ -160,3 +160,94 @@ script contract 등)도 바꾸지 않았다:
 - 검증기 연결: `route.ts:1219`
 - POST의 expectedLang/nameAllowlist 계산: `route.ts:1782-1791`
 - 하드 실패 ⓐ/ⓑ, `errorResponse` code 유니온: POST 핸들러 내 두 지점 + `errorResponse` 시그니처
+
+## §FIX (BRIEF-106-FIX) — 교차언어 **요청**에서의 오탐 제거
+
+### 배경
+
+BRIEF-106 §2는 "예상 언어 = 질문의 언어"로 정했는데, **사용자가 다른 언어로 된 결과물을
+요구하는 경우**를 빠뜨렸다. "라일리한테 보낼 영어 메시지 두 개 써줘"처럼 한국어 질문으로
+영어 결과물을 요구하면, 모델이 정확히 요구대로(영어로) 답했는데도 `response_language_drift`
+로 잡혀 502가 났다. 재시도해도 같은 결과라 막다른 길이었다. 탐지 함수·문턱 0.5·leak 처분·
+회귀 스크립트는 전혀 건드리지 않고, 두 가지만 바꿨다.
+
+### §1 — 명시적 언어 지시가 있으면 검사를 건너뛴다
+
+`EXPLICIT_LANGUAGE_PATTERNS`(5개, `route.ts`) + `hasExplicitLanguageRequest(question)`을
+신설해 export했다. 매칭되면 POST가 `expectedLang`을 **어느 언어인지 추론하지 않고**
+`undefined`로 둬 언어 검사 자체를 건너뛴다(105의 `dailyPillarLookup` 부재와 동일한
+fail-open). 언어명 또는 언어 방향 표지가 확인된 범위 안에서만 매칭하며, 언어명 없는
+`번역`/`translate` 단독 패턴은 넣지 않았다 — Attune에서 "그 사람의 침묵을 번역해줘" 같은
+문장은 행동·침묵을 해석해 달라는 비유이지 언어 번역 요청이 아니기 때문이다. 패턴 ⑤ 끝에는
+`\b`를 붙이지 않았다(`VERDICT_PROBE_PATTERNS`가 이미 겪은 함정 — JS의 `\b`는 ASCII 기준이라
+한글 뒤에서 성립하지 않는다).
+
+**본부 실행 검증 결과 재현**: 참이어야 하는 21개 전건 매칭, 거짓이어야 하는 22개 전건
+무매칭, 기록된 8파일의 고유 질문 12개 전건 무매칭 — 전부 본부가 미리 계산한 표와 일치했다.
+
+### §2 — 보낼 글 모드에서는 drift도 soft flag
+
+`ctx.askMode`가 `'strict_script'` 또는 `'completion'`이면(`sendMode`), `response_language_
+drift`가 있어도 502를 내지 않는다. 그 답은 제3자에게 보낼 내용물이라 서버가 그 사람의
+언어를 알 수 없고, 틀리면 사용자 눈에 보이므로 다시 물으면 된다. 두 하드 실패 지점(예산
+소진 경로/교정 후 경로) 모두에 `!sendMode &&` 조건을 추가했고, `applyFinalDisposition`에는
+`response_language_drift`도 `foreign_language_leak`과 함께 soft flag를 받도록 했다(답
+문자열은 여전히 손대지 않음). 위반 **유형 자체는 바꾸지 않았다** — 보낼 글 모드에서도
+탐지 결과는 `response_language_drift` 그대로다.
+
+### §3 — 회귀 12행 무변동
+
+`scripts/verify/lang-regression.mjs`는 파일명으로 `expectedLang`을 정하고 탐지 함수만
+호출하며 `hasExplicitLanguageRequest`를 전혀 부르지 않는다. 스크립트를 수정하지 않고
+재실행한 결과, §6과 동일하게 **96행 중 12행(drift 6·leak 6), 나머지 84행 위반 0**이었다.
+다만 이 결과가 §1의 정당성을 증명하지는 않는다 — 회귀는 §1을 아예 지나가지 않으므로,
+§1·§2의 검증은 전적으로 아래 §4 통합 테스트에 달려 있다.
+
+### §4 — 신규 테스트 10건
+
+`describe('교차언어 요청에서의 오탐 제거 (BRIEF-106-FIX)', ...)`:
+
+- 패턴 단위 3건 — 참 21개 전건 매칭, 거짓 22개 전건 무매칭, 코퍼스 고유 질문 12개 매칭 0건.
+- 502 분기 4조합(A~D) — 예산 소진/교정 후 × 보낼 글 모드/일반 대화, 실제 POST로 각각 통과.
+  A·B(보낼 글 모드)는 200 + 답 원문 유지 + 로그에 `stage=lang action=soft`. C·D(일반 대화)는
+  502 + `code:'language'` + 로그에 `stage=lang action=fail`.
+- 통합 시나리오 E("라일리한테 보낼 영어 메시지 두 개 써줘", 브리프 원문 그대로)·F(영어 대화 중
+  "Write it in Korean") — 둘 다 6개 항목(선행 확인·expectedLang undefined·200·모델 호출
+  정확히 1회·교정 경고 없음·답 문자열 완전 동일) 전부 확인.
+- G — 보낼 글 모드에서도 `validateAskAnswer`가 `response_language_drift` 유형을 그대로
+  내는지(유형 무변경) 확인.
+
+### 한계 (그대로 기록)
+
+> 명시적 언어 지시가 있는 요청에서는 사용자가 요구한 언어를 서버가 추론하지 않으므로,
+> **요청 언어를 실제로 지켰는지 서버가 검증하지 않는다.** 이번 FIX의 목적은 정당한
+> 교차언어 결과물 요청이 502로 차단되거나 잘못된 교정을 받는 것을 막는 데 한정한다. 요청
+> 언어 준수 검증은 이 판의 범위가 아니다.
+>
+> 또한 `EXPLICIT_LANGUAGE_PATTERNS`는 **언어명 또는 언어 방향 표지가 확인된 범위 안에서만**
+> 넉넉하게 매칭한다. 표지 없는 `번역`·`translate`는 관계·행동 해석의 비유일 수 있어
+> 제외했다 — 검사 생략은 곧 언어 전환 결함의 fail-open이므로 이 게이트를 무제한으로 넓히지
+> 않는다. **언어명 없이 상대의 언어를 암시하는 요청(「라일리는 영어권이니까 그 스타일로」)은
+> 이 게이트에 걸리지 않는다**(알려진 잔여 구멍, 보낼 글 모드에서는 §2의 soft 처분이
+> 받는다). 이 게이트로 검사가 생략되는 턴의 실제 비율은 **프로덕션 로그로만 알 수 있다** —
+> 필요해지면 별도 판에서 계측한다.
+
+### 완료 기준 자가점검
+
+| 항목 | 결과 |
+|---|---|
+| `npx tsc --noEmit` | exit 0 |
+| lint (청정 상태) | 39 (24E/15W), 신규 0 |
+| `npx vitest run` | **933 = 923(기존, BRIEF-106까지) + 10(신규) passed + 4 expected fail (937)** |
+| `node scripts/verify/lang-regression.mjs` | §6과 동일 12행, `[PASS]`, 무변동 |
+| `node scripts/verify/voice-baseline.mjs --selftest` | ALL PASS |
+| `npm run build` | 성공 |
+| 변경 파일 | 정확히 4개: `docs/briefs/BRIEF-106-FIX.md`(신규) · `docs/reports/BRIEF-106.md`(본 절 append) · `src/app/api/ask/route.ts` · `src/app/api/ask/route.test.ts` |
+
+### 근거 (줄 번호는 `a4dc511` 기준)
+
+- 예상 언어 계산: `route.ts` `detectExpectedLang(question, history)` 호출부(POST)
+- 명시적 언어 요청 게이트: `EXPLICIT_LANGUAGE_PATTERNS`/`hasExplicitLanguageRequest`
+- 502 분기 ⓑ 예산 소진 / ⓐ 교정 후: POST 핸들러 내 두 지점, `sendMode` 변수로 공유
+- `\b` 함정 선례: `VERDICT_PROBE_PATTERNS` 주석
+- 보낼 글 모드 판정 패턴: `STRICT_SCRIPT_PATTERNS`(「메시지 두 개」 포함), `COMPLETION_PATTERNS`(「메시지 좀 써줘」 포함)
