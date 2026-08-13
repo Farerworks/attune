@@ -1,0 +1,13 @@
+file	turn	pass	ko	la	ratio	verdict
+gemini-3.5-flash-lite-20260811-EN-run1.json	3	firstPass	70	410	0.146	leak
+gemini-3.5-flash-lite-20260811-EN-run1.json	3	finalPass	70	410	0.146	leak
+gemini-3.5-flash-lite-20260811-EN-run2.json	2	firstPass	22	195	0.101	leak
+gemini-3.5-flash-lite-20260811-EN-run2.json	2	finalPass	22	195	0.101	leak
+gemini-3.5-flash-lite-20260812-EN-run2.json	4	firstPass	131	0	1	drift
+gemini-3.5-flash-lite-20260812-EN-run2.json	4	finalPass	131	0	1	drift
+gemini-3.5-flash-lite-20260812-EN-run2.json	5	firstPass	272	0	1	drift
+gemini-3.5-flash-lite-20260812-EN-run2.json	5	finalPass	272	0	1	drift
+gemini-3.5-flash-lite-20260812-EN-run2.json	6	firstPass	45	0	1	drift
+gemini-3.5-flash-lite-20260812-EN-run2.json	6	finalPass	45	0	1	drift
+gemini-3.5-flash-lite-20260812-KO-run1.json	3	firstPass	166	42	0.202	leak
+gemini-3.5-flash-lite-20260812-KO-run1.json	3	finalPass	174	30	0.147	leak
