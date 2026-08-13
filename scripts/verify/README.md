@@ -224,6 +224,30 @@ warning text), copied verbatim from `route.ts:1209-1259`/`:1324-1341`/
 was intentionally left out of the mirror — this harness never reads
 `.flags`, only `.answer`, so it cannot affect any measured output.
 
+### Erratum (BRIEF-106)
+
+Same optional-field pattern as BRIEF-105's, one BRIEF later: `AskValidationCtx`
+gained `expectedLang`/`nameAllowlist` (`route.ts:824-833`), which production's
+`POST` computes and fills (`route.ts:1782-1791` — `detectExpectedLang` over the
+question + history, plus a name allowlist). Left unset, `validateAskAnswer`'s
+cross-language check (`route.ts:1219`, gated on `ctx.expectedLang` inside
+`checkAnswerLanguage`) is skipped entirely — the same fail-open shape as the
+two gaps above, so this harness fixed it the same way *before* the real
+collection ran this time, rather than finding it afterward: `ctx` now also
+carries `expectedLang: detectExpectedLang(question, history)` and
+`nameAllowlist: [themName, 'Attune', 'Google', 'Gemini']` (no `meName`
+equivalent exists in this harness's fixtures, so the allowlist is shorter than
+production's by exactly that one absent field).
+
+`runOneTurn` also mirrors both of `route.ts`'s `response_language_drift` hard-fail
+sites (BRIEF-106 §4.2 ⓐ/ⓑ — after the shared correction attempt, and when the
+call/parse budget was already spent before a language violation was even
+seen) by throwing the harness's own `HardFail('language', …)` at the same two
+points, and `applyFinalDispositionMirror`/`buildCorrectionWarningsMirror` were
+extended with `foreign_language_leak` (soft flag) and both language types'
+correction-warning text — the latter inserted first in the warnings array,
+matching `route.ts:1454`'s "language warnings go FIRST" restructuring.
+
 ## Standing rules for this kit
 
 - Expected values (ganzi, label strings, etc.) are fixed reference points.

@@ -819,7 +819,7 @@ function normalizeAnswer(
 
 // ── §6/§7: answer validator (pure — reads the answer, never mutates it) ──────────────────────
 
-export type AskViolationType = 'label_set' | 'label_order' | 'strict_script_parts' | 'reintroduction' | 'verdict_opening' | 'script_contract' | 'hidden_truth_framing' | 'completion_parts' | 'completion_contract' | 'date_pillar_mismatch';
+export type AskViolationType = 'label_set' | 'label_order' | 'strict_script_parts' | 'reintroduction' | 'verdict_opening' | 'script_contract' | 'hidden_truth_framing' | 'completion_parts' | 'completion_contract' | 'date_pillar_mismatch' | 'response_language_drift' | 'foreign_language_leak';
 export interface AskViolation { type: AskViolationType; detail?: string }
 export interface AskValidationCtx {
   askMode: AskMode;
@@ -830,6 +830,10 @@ export interface AskValidationCtx {
   // When absent, the date–pillar check (below) is simply skipped for that call.
   dailyPillarLookup?: Map<string, DailyPillarLookupEntry>;
   todayDate?: string;
+  // BRIEF-106 §2 — same optional-field pattern as the two above. When absent, the cross-language
+  // check (below) is skipped entirely (fail-open, same reasoning as `dailyPillarLookup`'s absence).
+  expectedLang?: 'ko' | 'en';
+  nameAllowlist?: string[];
 }
 
 // ── BRIEF-105 §2.2 — date–pillar factual check ────────────────────────────────────────────────
@@ -1026,6 +1030,73 @@ function checkDatePillarSentence(sentence: string, lookup: Map<string, DailyPill
   return violations;
 }
 
+// ── BRIEF-106 §2/§3 — cross-language answer detection ────────────────────────────────────────
+// Prompt already tells the model "detect the question's language, write all free text in it,
+// never mixing" (route.ts:623 PERSON_RULES 9, :654 general/me mode 7) — but nothing checked it.
+// §0's audit of the recorded voice baseline found real cross-language answers, split into two
+// severities with an empty gap between them (max leak ratio 0.202, min full-drift ratio 1.000).
+
+/** One message's language, by counting Hangul syllables vs. Latin letters. Returns `undefined`
+ * when undecidable (both zero, or tied) — the caller must NOT invent a language for a short/empty
+ * input like "ㅇㅋ", "?", a bare name, or an emoji-only message (BRIEF-106 §2 point 3's explicit
+ * warning: re-judging those flags perfectly fine answers as violations). */
+function detectMessageLang(text: string): 'ko' | 'en' | undefined {
+  const ko = (text.match(/[가-힣]/g) ?? []).length;
+  const la = (text.match(/[A-Za-z]/g) ?? []).length;
+  if (ko === 0 && la === 0) return undefined;
+  if (ko === la) return undefined;
+  return ko > la ? 'ko' : 'en';
+}
+
+/** The language the ANSWER is expected to be in — computed from the latest question, falling back
+ * to the most recent user-role history message that itself resolves to a language (BRIEF-106 §2
+ * point 3: walk `history` newest-first, stop at the first message `detectMessageLang` can judge).
+ * `history` is chronological oldest-first (same order `buildAskTurns` consumes it in), so "newest
+ * first" means iterating from the end. Undecidable all the way through -> `undefined` (fail-open,
+ * same shape as BRIEF-105's `dailyPillarLookup` absence — the language check below is skipped). */
+export function detectExpectedLang(
+  question: string,
+  history: Array<{ role: 'user' | 'assistant'; text: string }>,
+): 'ko' | 'en' | undefined {
+  const fromQuestion = detectMessageLang(question);
+  if (fromQuestion) return fromQuestion;
+  for (let i = history.length - 1; i >= 0; i--) {
+    if (history[i].role !== 'user') continue;
+    const lang = detectMessageLang(history[i].text);
+    if (lang) return lang;
+  }
+  return undefined;
+}
+
+/** One answer's cross-language check (BRIEF-106 §3). Scope = `collectAnswerTextWithTiming` — NOT
+ * `JSON.stringify(answer)`, whose part labels ("LIKELY RECEPTION" etc.) and JSON keys are always
+ * English by contract and would falsely flag every Korean answer. `nameAllowlist` entries (own/
+ * other-person names + Attune/Google/Gemini) are removed before counting so a proper noun in the
+ * off-language doesn't count as mixing. Hanja/digits/symbols are never counted either way, so a
+ * Korean sentence's ganzi hanja is automatically harmless. */
+function checkAnswerLanguage(answer: Record<string, unknown>, ctx: AskValidationCtx): AskViolation[] {
+  if (!ctx.expectedLang) return [];
+
+  let combined = collectAnswerTextWithTiming(answer).join(' ');
+  for (const name of ctx.nameAllowlist ?? []) {
+    if (!name) continue;
+    combined = combined.split(name).join(' ');
+  }
+
+  const ko = (combined.match(/[가-힣]/g) ?? []).length;
+  const la = (combined.match(/[A-Za-z]/g) ?? []).length;
+  const total = ko + la;
+  if (total === 0) return [];
+
+  const off = ctx.expectedLang === 'en' ? ko : la;
+  const ratio = off / total;
+  const detail = `${ctx.expectedLang}|${ko}|${la}|${ratio.toFixed(3)}`;
+
+  if (ratio >= 0.5) return [{ type: 'response_language_drift', detail }];
+  if (off > 0) return [{ type: 'foreign_language_leak', detail }];
+  return [];
+}
+
 function partsLabels(answer: Record<string, unknown>): string[] | null {
   if (!Array.isArray(answer.parts)) return null;
   return (answer.parts as Array<{ label: string }>).map(p => p.label);
@@ -1143,6 +1214,9 @@ export function validateAskAnswer(answer: Record<string, unknown>, ctx: AskValid
       }
     }
   }
+
+  // BRIEF-106 §3 — cross-language check. Only runs when the caller supplied `expectedLang`.
+  violations.push(...checkAnswerLanguage(answer, ctx));
 
   return violations;
 }
@@ -1320,6 +1394,11 @@ export function applyFinalDisposition(
   if (hasType('reintroduction')) flags.push({ stage: 'reintro', action: 'soft' });
   if (hasType('verdict_opening')) flags.push({ stage: 'verdict', action: 'soft' });
   if (hasType('hidden_truth_framing')) flags.push({ stage: 'framing', action: 'soft' });
+  // BRIEF-106 §4.3 — leak only (never mechanically edited: cutting a foreign word out of a
+  // sentence would mangle it). `response_language_drift` never reaches here — the route handler
+  // intercepts it as a hard failure BEFORE calling this function (§4.2 "applyFinalDisposition으로
+  // 내려보내지 말 것").
+  if (hasType('foreign_language_leak')) flags.push({ stage: 'lang', action: 'soft' });
 
   // BRIEF-105 §2.2.6 — bracket/inserted-clause day-name removal, then MANDATORY re-verification
   // that the mismatch is actually gone (never trust the strip blindly).
@@ -1362,11 +1441,28 @@ function stageOf(type: AskViolationType): string {
       return 'framing';
     case 'date_pillar_mismatch':
       return 'datepillar';
+    case 'response_language_drift':
+    case 'foreign_language_leak':
+      return 'lang';
   }
 }
 
+const LANG_LABEL: Record<'ko' | 'en', string> = { ko: 'Korean', en: 'English' };
+
 export function buildCorrectionWarnings(schemaInvalid: boolean, banned: string[], violations: AskViolation[]): string[] {
   const warnings: string[] = [];
+  // BRIEF-106 §4.1 — language warnings go FIRST, ahead of schema/banned, so they're never buried
+  // under other warnings in the correction prompt.
+  for (const v of violations) {
+    if (v.type === 'response_language_drift' || v.type === 'foreign_language_leak') {
+      const expected = LANG_LABEL[(v.detail ?? '').split('|')[0] as 'ko' | 'en'];
+      warnings.push(
+        v.type === 'response_language_drift'
+          ? `⚠ LANGUAGE VIOLATION — The user wrote in ${expected}, but your answer is in the other language. Rewrite the ENTIRE answer in ${expected}. JSON keys and part labels stay in English.`
+          : `⚠ LANGUAGE MIXING — Your answer is in ${expected} but contains words from another language. Rewrite those parts in ${expected}. JSON keys and part labels stay in English.`,
+      );
+    }
+  }
   if (schemaInvalid) warnings.push('⚠ SCHEMA VIOLATION — Response did not match required JSON shape. Return exactly the specified schema.');
   if (banned.length > 0) warnings.push(`⚠ BANNED PHRASES — Found: ${banned.map(v => `"${v}"`).join(', ')}. Regenerate without these phrases.`);
   for (const v of violations) {
@@ -1406,6 +1502,9 @@ export function buildCorrectionWarnings(schemaInvalid: boolean, banned: string[]
         warnings.push(`⚠ DATE–PILLAR MISMATCH — You wrote "${claimed}" for ${date}, but ${date} is "${correct}". Use the DAILY PILLARS table verbatim or omit the day name. Regenerate.`);
         break;
       }
+      case 'response_language_drift':
+      case 'foreign_language_leak':
+        break; // handled first, above — see BRIEF-106 §4.1
     }
   }
   return warnings;
@@ -1552,7 +1651,7 @@ function logAsk(
   console.error(line);
 }
 
-function errorResponse(code: 'call' | 'parse' | 'schema' | 'banned', status: number) {
+function errorResponse(code: 'call' | 'parse' | 'schema' | 'banned' | 'language', status: number) {
   return Response.json({ error: "Attune couldn't finish that thought — ask again.", code }, { status });
 }
 
@@ -1675,10 +1774,22 @@ export async function POST(request: Request) {
   const askMode = detectAskMode(question);
   const continuationHint = detectContinuationHint(question);
   const candidates = mode === 'person' && themChart ? themNameCandidates(themChart) : [];
+
+  // BRIEF-106 §2 — expectedLang is computed here (in POST), not inside the validator, because it
+  // needs `history` to fall back on when the latest question alone is undecidable (validateAskAnswer
+  // never sees history). nameAllowlist deliberately excludes `candidates` (ganzi/archetype names) —
+  // "Earth Dragon" mixed into a Korean answer IS the leak §0 found, so it must stay detectable.
+  const expectedLang = detectExpectedLang(question, history);
+  const nameAllowlist = [
+    ...[parsed.data.me.name, themInput?.name].filter((n): n is string => Boolean(n)),
+    'Attune', 'Google', 'Gemini',
+  ];
+
   const ctx: AskValidationCtx = {
     askMode, personIntroduced, candidates, latestUserText: question,
     dailyPillarLookup: buildDailyPillarLookup(dailyPillars),
     todayDate: today,
+    expectedLang, nameAllowlist,
   };
 
   const system = buildAskSystem(
@@ -1756,6 +1867,12 @@ export async function POST(request: Request) {
       // Budget already spent on a call/parse retry — resolve deterministically, no more calls.
       if (!answer) { logAsk(rid, 'schema', 'fail', {}); return errorResponse('schema', 502); }
       if (banned.length > 0) { logAsk(rid, 'banned', 'fail', {}); return errorResponse('banned', 502); }
+      // BRIEF-106 §4.2 ⓑ — drift is unusable regardless of whether a correction was even
+      // attempted; never let it reach applyFinalDisposition.
+      if (violations.some(v => v.type === 'response_language_drift')) {
+        logAsk(rid, 'lang', 'fail', {});
+        return errorResponse('language', 502);
+      }
       const disposition = applyFinalDisposition(answer, violations, ctx);
       for (const f of disposition.flags) logAsk(rid, f.stage, f.action, {});
       return Response.json({ answer: disposition.answer });
@@ -1801,6 +1918,11 @@ export async function POST(request: Request) {
     if (banned.length > 0) { logAsk(rid, 'banned', 'fail', {}); return errorResponse('banned', 502); }
 
     violations = validateAskAnswer(answer, ctx);
+    // BRIEF-106 §4.2 ⓐ — drift surviving the one correction attempt is still unusable.
+    if (violations.some(v => v.type === 'response_language_drift')) {
+      logAsk(rid, 'lang', 'fail', {});
+      return errorResponse('language', 502);
+    }
     if (violations.length > 0) {
       const disposition = applyFinalDisposition(answer, violations, ctx);
       for (const f of disposition.flags) logAsk(rid, f.stage, f.action, {});

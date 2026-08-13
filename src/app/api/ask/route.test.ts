@@ -23,6 +23,7 @@ const {
   COMPLETION_CANCEL, COMPLETION_REQUEST_ENDINGS, splitCompletionParts, detectCompletionRequest,
   repairControlCharsInStrings, tryParse, tryPlainTextFallback,
   buildDailyPillarLookup, applyFinalDisposition, buildCorrectionWarnings,
+  detectExpectedLang,
 } = await import('./route');
 const { splitSentences } = await import('@/lib/hiddenTruth');
 const { calculateSaju, getDailyPillars, pillarLabel, friendlyPillarName, STEM_NAMES } = await import('@/lib/saju');
@@ -330,14 +331,15 @@ describe('POST /api/ask — safety gate (BRIEF-096 §3)', () => {
 
   it('trigger + safetyAck:true -> gate is skipped, LLM is called normally', async () => {
     mockGenerateJsonChat.mockClear();
-    mockGenerateJsonChat.mockResolvedValue(JSON.stringify({ text: 'a normal answer' }));
+    // Korean, matching the Korean question below (BRIEF-106's language detector now checks this).
+    mockGenerateJsonChat.mockResolvedValue(JSON.stringify({ text: '평범한 답변이에요.' }));
 
     const res = await POST(makeAskRequest({ ...baseBody, question: '나 진짜 죽고 싶어', safetyAck: true }));
     const data = await res.json() as { safety?: string; answer?: { text?: string } };
 
     expect(mockGenerateJsonChat).toHaveBeenCalledTimes(1);
     expect(data.safety).toBeUndefined();
-    expect(data.answer?.text).toBe('a normal answer');
+    expect(data.answer?.text).toBe('평범한 답변이에요.');
   });
 
   it('no trigger -> proceeds normally regardless of safetyAck', async () => {
@@ -855,24 +857,33 @@ describe('POST /api/ask — pipeline (BRIEF-100B §1/§2/§9)', () => {
   };
   const [hanjaCandidate] = themNameCandidates(calculateSaju(themInput));
 
-  const understandCard = (opts: { withCandidate?: boolean } = {}) => JSON.stringify({
+  // BRIEF-106 — `lang` picks the non-candidate filler text so these fixtures stay consistent with
+  // whichever question language a given test pairs them with (POST now computes `expectedLang`
+  // from the question and checks the mocked answer against it, so a generic English filler under
+  // a Korean question would trip the new cross-language detector for reasons unrelated to what
+  // these tests actually verify).
+  const understandCard = (opts: { withCandidate?: boolean; lang?: 'ko' | 'en' } = {}) => JSON.stringify({
     parts: UNDERSTAND_LABELS.map((label, i) => ({
-      label, text: i === 0 && opts.withCandidate ? `${hanjaCandidate}라 그런 편이에요.` : 'A short specific read.',
+      label, text: i === 0 && opts.withCandidate
+        ? `${hanjaCandidate}라 그런 편이에요.`
+        : opts.lang === 'ko' ? '짧고 구체적인 설명이에요.' : 'A short specific read.',
     })),
   });
+  // Digits, not letters — invisible to the language detector either way (BRIEF-106 §3 never counts
+  // digits/symbols), so this fixture stays usable under both English- and Korean-question tests.
   const mixedLabelCard = () => JSON.stringify({
     parts: [
-      { label: UNDERSTAND_LABELS[0], text: 'x' },
-      { label: UNDERSTAND_LABELS[1], text: 'y' },
-      { label: DECIDE_LABELS[0], text: 'z' },
+      { label: UNDERSTAND_LABELS[0], text: '1' },
+      { label: UNDERSTAND_LABELS[1], text: '2' },
+      { label: DECIDE_LABELS[0], text: '3' },
     ],
   });
 
   it('① ALREADY + reintroduction in the 1st output -> rejected, correction prompt names the specific violation', async () => {
     mockGenerateJsonChat.mockClear();
     mockGenerateJsonChat
-      .mockResolvedValueOnce(understandCard({ withCandidate: true }))
-      .mockResolvedValueOnce(understandCard());
+      .mockResolvedValueOnce(understandCard({ withCandidate: true, lang: 'ko' }))
+      .mockResolvedValueOnce(understandCard({ lang: 'ko' }));
 
     const history = [
       { role: 'user' as const, text: 'Sam은 어떤 사람이야?' },
@@ -907,8 +918,8 @@ describe('POST /api/ask — pipeline (BRIEF-100B §1/§2/§9)', () => {
   it('③ strict_script question but the model answers with a labeled card -> rejected, one correction regeneration', async () => {
     mockGenerateJsonChat.mockClear();
     mockGenerateJsonChat
-      .mockResolvedValueOnce(understandCard())
-      .mockResolvedValueOnce(JSON.stringify({ text: 'line one\n\nline two' }));
+      .mockResolvedValueOnce(understandCard({ lang: 'ko' }))
+      .mockResolvedValueOnce(JSON.stringify({ text: '첫째 줄이에요.\n\n둘째 줄이에요.' }));
 
     const res = await POST(makeAskRequest({ ...personBaseBody, history: [], question: '문장 두 개 써줘' }));
     const data = await res.json() as { answer?: { text?: string; parts?: unknown } };
@@ -917,7 +928,7 @@ describe('POST /api/ask — pipeline (BRIEF-100B §1/§2/§9)', () => {
     const correctionTurns = mockGenerateJsonChat.mock.calls[1][1] as Array<{ role: string; text: string }>;
     expect(correctionTurns[correctionTurns.length - 1].text).toContain('SCRIPT CONTRACT VIOLATION');
     expect(data.answer?.parts).toBeUndefined();
-    expect(data.answer?.text).toBe('line one\n\nline two');
+    expect(data.answer?.text).toBe('첫째 줄이에요.\n\n둘째 줄이에요.');
   });
 
   it('④ parse failure recovers once via a plain retry; two consecutive parse failures -> 502 code:parse', async () => {
@@ -970,8 +981,8 @@ describe('POST /api/ask — pipeline (BRIEF-100B §1/§2/§9)', () => {
   it('⑤c correction result STILL reintroduces the candidate -> final disposition soft-serves as-is (not 502)', async () => {
     mockGenerateJsonChat.mockClear();
     mockGenerateJsonChat
-      .mockResolvedValueOnce(understandCard({ withCandidate: true }))
-      .mockResolvedValueOnce(understandCard({ withCandidate: true }));
+      .mockResolvedValueOnce(understandCard({ withCandidate: true, lang: 'ko' }))
+      .mockResolvedValueOnce(understandCard({ withCandidate: true, lang: 'ko' }));
 
     const history = [
       { role: 'user' as const, text: 'Sam은 어떤 사람이야?' },
@@ -1753,7 +1764,9 @@ describe('POST /api/ask — Axis C completion 파이프라인 (BRIEF-100B-FIX3 �
       them: { date: '1988-03-02', time: '09:00', name: 'Sam' },
       history: [] as unknown[],
     };
-    const card = JSON.stringify({ parts: UNDERSTAND_LABELS.map(label => ({ label, text: 'x' })) });
+    // '1' (digit), not a letter — BRIEF-106's language detector never counts digits either way, so
+    // this stays neutral under the Korean question below (see understandCard's comment above).
+    const card = JSON.stringify({ parts: UNDERSTAND_LABELS.map(label => ({ label, text: '1' })) });
     mockGenerateJsonChat.mockResolvedValueOnce(card).mockResolvedValueOnce(card);
 
     const res = await POST(makeAskRequest({ ...personBaseBody, question: '메시지 좀 써줘' }));
@@ -2506,6 +2519,77 @@ describe('날짜–간지 결정적 검증 (BRIEF-105 §2.2/§3)', () => {
     expect(dp).toHaveLength(1);
     expect(dp[0].detail).toBe('2026-08-18|물 호랑이|나무 쥐');
     expect(dp.some(v => (v.detail ?? '').includes('2026-08-14'))).toBe(false);
+  });
+});
+
+describe('교차언어 답변 탐지·처분 (BRIEF-106)', () => {
+  const langCtx = (expectedLang: 'ko' | 'en' | undefined, nameAllowlist: string[] = []) =>
+    ({ askMode: null, personIntroduced: false, candidates: [] as string[], latestUserText: '', expectedLang, nameAllowlist });
+
+  it('1) expectedLang=en + 답이 전부 한국어 -> response_language_drift 1건', () => {
+    const answer = { text: '이건 전부 한국어로 쓰인 답변이에요. 영어 단어가 하나도 없어요.' };
+    const v = validateAskAnswer(answer, langCtx('en'));
+    const drift = v.filter(x => x.type === 'response_language_drift');
+    expect(drift).toHaveLength(1);
+  });
+
+  it('2) expectedLang=ko + 답이 한국어인데 「Earth Dragon」 포함 -> foreign_language_leak 1건', () => {
+    const answer = { text: '오늘은 Earth Dragon 기운이 강해서 대화가 편안하게 흘러갈 거예요.' };
+    const v = validateAskAnswer(answer, langCtx('ko'));
+    expect(v.filter(x => x.type === 'response_language_drift')).toHaveLength(0);
+    expect(v.filter(x => x.type === 'foreign_language_leak')).toHaveLength(1);
+  });
+
+  it('3) expectedLang=ko + 답 전부 한국어(파트 라벨은 계약상 영어 대문자) -> 위반 0 (라벨 오탐 없음)', () => {
+    const answer = {
+      parts: UNDERSTAND_LABELS.map(label => ({ label, text: '짧고 구체적인 한국어 문장이에요.' })),
+    };
+    const v = validateAskAnswer(answer, langCtx('ko')).filter(
+      x => x.type === 'response_language_drift' || x.type === 'foreign_language_leak',
+    );
+    expect(v).toHaveLength(0);
+  });
+
+  it('4) expectedLang=en + 답 전부 영어인데 상대 이름이 「한결」 -> 위반 0 (nameAllowlist 동작)', () => {
+    const answer = { text: '한결 has been a bit quiet lately, but that does not mean much on its own.' };
+    const v = validateAskAnswer(answer, langCtx('en', ['한결'])).filter(
+      x => x.type === 'response_language_drift' || x.type === 'foreign_language_leak',
+    );
+    expect(v).toHaveLength(0);
+  });
+
+  it('5) expectedLang 미전달 -> 언어 위반 0 (fail-open 가드)', () => {
+    const answer = { text: 'This is a fully English answer with zero Korean characters at all.' };
+    const v = validateAskAnswer(answer, langCtx(undefined)).filter(
+      x => x.type === 'response_language_drift' || x.type === 'foreign_language_leak',
+    );
+    expect(v).toHaveLength(0);
+  });
+
+  it('6) expectedLang=ko + 답에 한자 「水」·「壬」만 섞임 -> 위반 0 (한자는 애초에 안 셈)', () => {
+    const answer = { text: '오늘은 壬水 기운이 도와줘서 대화가 한결 편안하게 풀릴 거예요.' };
+    const v = validateAskAnswer(answer, langCtx('ko')).filter(
+      x => x.type === 'response_language_drift' || x.type === 'foreign_language_leak',
+    );
+    expect(v).toHaveLength(0);
+  });
+
+  it('7) 판정 승계: 최신 질문이 「ㅇㅋ」(판정 불가) + 직전 user 메시지가 한국어 -> ko 승계', () => {
+    const history = [
+      { role: 'user' as const, text: '오늘 컨디션이 좀 어때?' },
+      { role: 'assistant' as const, text: 'Doing okay, nothing unusual today.' },
+    ];
+    expect(detectExpectedLang('ㅇㅋ', history)).toBe('ko');
+  });
+
+  it('8) buildCorrectionWarnings에서 언어 경고가 배열 index 0', () => {
+    const violations = [
+      { type: 'label_set' as const },
+      { type: 'response_language_drift' as const, detail: 'ko|0|50|1.000' },
+    ];
+    const warnings = buildCorrectionWarnings(false, [], violations);
+    expect(warnings[0]).toContain('LANGUAGE VIOLATION');
+    expect(warnings.some(w => w.includes('LABEL SET VIOLATION'))).toBe(true);
   });
 });
 

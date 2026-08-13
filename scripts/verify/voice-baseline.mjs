@@ -572,7 +572,7 @@ const { calculateSaju, getDailyPillars, pillarLabel, friendlyPillarName } =
 const {
   buildAskSystem, buildAskTurns, hasTodayIntroduced, themNameCandidates, hasPersonIntroduced,
   detectAskMode, detectContinuationHint, validateAskAnswer, tryParse, tryPlainTextFallback,
-  buildDailyPillarLookup,
+  buildDailyPillarLookup, detectExpectedLang,
 } = await import(path.join(ROOT, 'src/app/api/ask/route.ts'));
 const { createLlmProvider } = await import(path.join(ROOT, 'src/lib/llm.ts'));
 
@@ -861,12 +861,28 @@ function applyFinalDispositionMirror(answer, violations, ctx) {
     flags.push({ stage: 'datepillar', action: stripped.changed ? 'strip_dayname' : 'soft' });
   }
 
+  // BRIEF-106 §4.3 — leak only; drift never reaches here (route.ts intercepts it as a hard
+  // failure before calling applyFinalDisposition, and runOneTurn below does the same via HardFail).
+  if (hasType('foreign_language_leak')) flags.push({ stage: 'lang', action: 'soft' });
+
   return { answer: out, flags };
 }
 
-// route.ts:1070-1109
+const LANG_LABEL_MIRROR = { ko: 'Korean', en: 'English' };
+
+// route.ts:1070-1109 (+ BRIEF-106 §4.1 language-warnings-first restructuring)
 function buildCorrectionWarningsMirror(schemaInvalid, banned, violations) {
   const warnings = [];
+  for (const v of violations) {
+    if (v.type === 'response_language_drift' || v.type === 'foreign_language_leak') {
+      const expected = LANG_LABEL_MIRROR[(v.detail ?? '').split('|')[0]];
+      warnings.push(
+        v.type === 'response_language_drift'
+          ? `⚠ LANGUAGE VIOLATION — The user wrote in ${expected}, but your answer is in the other language. Rewrite the ENTIRE answer in ${expected}. JSON keys and part labels stay in English.`
+          : `⚠ LANGUAGE MIXING — Your answer is in ${expected} but contains words from another language. Rewrite those parts in ${expected}. JSON keys and part labels stay in English.`,
+      );
+    }
+  }
   if (schemaInvalid) warnings.push('⚠ SCHEMA VIOLATION — Response did not match required JSON shape. Return exactly the specified schema.');
   if (banned.length > 0) warnings.push(`⚠ BANNED PHRASES — Found: ${banned.map(v => `"${v}"`).join(', ')}. Regenerate without these phrases.`);
   for (const v of violations) {
@@ -977,10 +993,18 @@ async function runOneTurn(provider, mode, meChart, themChart, dailyPillars, them
   // optional fields, route.ts:831-832); without them the route.ts:1139/:1334 `if
   // (ctx.dailyPillarLookup)` guards skip date–pillar validation entirely and this harness would be
   // measuring a different pipeline than production.
+  // BRIEF-106 §5 — same reasoning for expectedLang/nameAllowlist (route.ts:824-833's newest two
+  // optional fields, filled by POST at route.ts:1678-1697-ish): without them the cross-language
+  // check inside validateAskAnswer is skipped entirely, and this harness would silently stop
+  // measuring the exact detector BRIEF-106 added to production. `meName` is never set in this
+  // harness (route.ts's `parsed.data.me.name` has no equivalent fixture here), so the allowlist is
+  // just [themName] + the 3 fixed names — same construction as route.ts's POST.
   const ctx = {
     askMode, personIntroduced, candidates, latestUserText: question,
     dailyPillarLookup: buildDailyPillarLookup(dailyPillars),
     todayDate: today,
+    expectedLang: detectExpectedLang(question, history),
+    nameAllowlist: [themName, 'Attune', 'Google', 'Gemini'].filter(Boolean),
   };
 
   const system = buildAskSystem(
@@ -1042,6 +1066,8 @@ async function runOneTurn(provider, mode, meChart, themChart, dailyPillars, them
     if (usedExtraCall) {
       if (!answer) throw new HardFail('schema', { raw });
       if (banned.length > 0) throw new HardFail('banned', { banned });
+      // BRIEF-106 §4.2 ⓑ — mirrors route.ts's budget-exhausted drift hard fail.
+      if (violations.some(v => v.type === 'response_language_drift')) throw new HardFail('language', { violations });
       const disposition = applyFinalDispositionMirror(answer, violations, ctx);
       return {
         firstPass,
@@ -1076,6 +1102,8 @@ async function runOneTurn(provider, mode, meChart, themChart, dailyPillars, them
     if (banned2.length > 0) throw new HardFail('banned', { banned2 });
 
     const violations2 = fb2 ? [] : validateAskAnswer(answer2, ctx);
+    // BRIEF-106 §4.2 ⓐ — mirrors route.ts's post-correction drift hard fail.
+    if (violations2.some(v => v.type === 'response_language_drift')) throw new HardFail('language', { violations2 });
     if (violations2.length > 0) {
       const disposition = applyFinalDispositionMirror(answer2, violations2, ctx);
       return {
