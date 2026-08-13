@@ -1,0 +1,140 @@
+[
+ {
+  "id": "KO-N1",
+  "lang": "KO",
+  "turn": "T2",
+  "note": "상황 설명만, 기질 절 없음",
+  "text": "「생각해보겠다」는 그 자리에서 답을 정하지 않겠다는 뜻이지 거절이 아니에요. 지금은 며칠 정도 먼저 묻지 말고 두는 쪽이 유리해요."
+ },
+ {
+  "id": "KO-N2",
+  "lang": "KO",
+  "turn": "T3",
+  "note": "★날 어휘 포함 — 제외 규칙 시험",
+  "parts": [
+   [
+    "LIKELY RECEPTION",
+    "하루 만에 다시 물으면 답을 재촉받는다고 느낄 수 있어요."
+   ],
+   [
+    "WHAT COULD BACKFIRE",
+    "「결정했어?」로 시작하면 대화가 확인 절차처럼 굳어버려요."
+   ],
+   [
+    "HOW TO IMPROVE YOUR ODDS",
+    "2026-08-22(토) Earth Dragon 날처럼 흐름이 가라앉는 날에 안부부터 건네보세요."
+   ]
+  ],
+  "timing": "2026-08-22(토) Earth Dragon 날이 무난해요. 오늘 같은 수(水) 기운이 도는 날은 대화가 겉돌 수 있어요."
+ },
+ {
+  "id": "KO-N3",
+  "lang": "KO",
+  "turn": "T4",
+  "note": "새 정보에 맞춰 해석이 갱신됨(기준선 제시)",
+  "text": "하루 조용한 건 아직 신호로 읽기 이른 시점이에요. 다만 이번 주가 지나도 아무 말이 없으면 그때는 다르게 한 번 짚어보는 게 좋아요. 오늘은 프로젝트 얘기 말고 평소 하던 대화를 걸어보세요."
+ },
+ {
+  "id": "KO-N4",
+  "lang": "KO",
+  "turn": "T5",
+  "note": "「왜 미지근하냐」를 기질 대신 정황·시간선으로 설명",
+  "parts": [
+   [
+    "WHAT'S LIKELY GOING ON",
+    "미지근해 보이는 건 마음이 식어서가 아니라 아직 판단에 필요한 게 안 모였다는 뜻일 수 있어요."
+   ],
+   [
+    "WHY THIS MAY HAVE HAPPENED",
+    "제안을 들은 뒤로 아직 일주일이 안 됐고, 그 사이에 새로 확인할 만한 정보도 오가지 않았어요."
+   ],
+   [
+    "WHAT YOU CAN DO",
+    "「어떤 게 걸리는지만 말해줘」처럼 답이 아니라 걸림돌을 묻는 질문으로 바꿔보세요."
+   ]
+  ]
+ },
+ {
+  "id": "EN-N1",
+  "lang": "EN",
+  "turn": "T2",
+  "note": "situational only",
+  "text": "When Riley says they'll think about it, that is usually a placeholder rather than a decision. Leave it alone for a few days and let the next move come from them."
+ },
+ {
+  "id": "EN-N2",
+  "lang": "EN",
+  "turn": "T3",
+  "note": "★day vocabulary included — exclusion test",
+  "parts": [
+   [
+    "LIKELY RECEPTION",
+    "Coming back after a single day reads as chasing an answer."
+   ],
+   [
+    "WHAT COULD BACKFIRE",
+    "Opening with 'have you decided' turns the conversation into a status check."
+   ],
+   [
+    "HOW TO IMPROVE YOUR ODDS",
+    "Saturday 2026-08-22, an Earth Dragon day, has a steadier feel — open with something unrelated first."
+   ]
+  ],
+  "timing": "Earth Dragon energy on 2026-08-22 is the calmer window; the Water Dog day before it is not."
+ },
+ {
+  "id": "EN-N3",
+  "lang": "EN",
+  "turn": "T4",
+  "note": "interpretation updated with a threshold",
+  "text": "One quiet day is too little to read. If the whole week passes with nothing, that is when it is worth raising differently. For today, send something that has nothing to do with the project."
+ },
+ {
+  "id": "EN-N4",
+  "lang": "EN",
+  "turn": "T5",
+  "note": "explains by situation, not by trait",
+  "parts": [
+   [
+    "WHAT'S LIKELY GOING ON",
+    "Lukewarm here probably means undecided rather than uninterested — nothing new has come in since you asked."
+   ],
+   [
+    "WHY THIS MAY HAVE HAPPENED",
+    "The ask landed without a deadline attached, so there is no reason to move on it yet."
+   ],
+   [
+    "WHAT YOU CAN DO",
+    "Swap the open question for a narrow one: ask what would make it an easy yes."
+   ]
+  ]
+ },
+ {
+  "id": "KO-N5",
+  "lang": "KO",
+  "turn": "T3",
+  "note": "★함정 — 「~하는 편이 안전해요」는 기질이 아니라 권유",
+  "text": "지금은 먼저 묻기보다 기다리는 편이 안전해요. 굳이 서두를 이유가 없는 상황이에요."
+ },
+ {
+  "id": "KO-N6",
+  "lang": "KO",
+  "turn": "T4",
+  "note": "★함정 — 「분위기가 차분한 편이에요」는 그날 얘기",
+  "text": "오늘은 전반적으로 분위기가 차분한 편이에요. 무거운 얘기는 다음으로 미뤄도 괜찮아요."
+ },
+ {
+  "id": "EN-N5",
+  "lang": "EN",
+  "turn": "T3",
+  "note": "★trap — 'prefer' about the USER's own choice",
+  "text": "If you prefer to keep it low-key, a short unrelated message does the job better than a direct follow-up."
+ },
+ {
+  "id": "EN-N6",
+  "lang": "EN",
+  "turn": "T2",
+  "note": "★trap — describes the situation with 'energy' but about the day",
+  "text": "The energy of this weekend is steadier, so a casual check-in then lands better than one today."
+ }
+]
