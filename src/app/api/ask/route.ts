@@ -819,7 +819,7 @@ function normalizeAnswer(
 
 // ── §6/§7: answer validator (pure — reads the answer, never mutates it) ──────────────────────
 
-export type AskViolationType = 'label_set' | 'label_order' | 'strict_script_parts' | 'reintroduction' | 'verdict_opening' | 'script_contract' | 'hidden_truth_framing' | 'completion_parts' | 'completion_contract' | 'date_pillar_mismatch' | 'response_language_drift' | 'foreign_language_leak';
+export type AskViolationType = 'label_set' | 'label_order' | 'strict_script_parts' | 'reintroduction' | 'verdict_opening' | 'script_contract' | 'hidden_truth_framing' | 'completion_parts' | 'completion_contract' | 'date_pillar_mismatch' | 'response_language_drift' | 'foreign_language_leak' | 'trait_reattachment';
 export interface AskViolation { type: AskViolationType; detail?: string }
 export interface AskValidationCtx {
   askMode: AskMode;
@@ -1125,6 +1125,71 @@ function checkAnswerLanguage(answer: Record<string, unknown>, ctx: AskValidation
   return [];
 }
 
+// ── BRIEF-104B §1 — trait re-attachment: the model restates an already-given personality reason
+// (in different words) as the cause of a NEW situation, several turns after first introducing it.
+// A pure content-word overlap approach was tried and discarded (BRIEF-104B §0 — violations and
+// clean answers land in the same 0.10–0.29 overlap band, and a turn that switches language entirely
+// has 0.000 overlap despite being a repeat) — this catches only the trait-CAUSE sentence pattern,
+// not paraphrase in general (documented residual gap, see docs/reports/BRIEF-104B.md).
+
+const TRAIT_CAUSE_KO = ['성향', '편이거든요', '편이에요', '편이라', '기질', '스타일', '기운을 품'];
+const TRAIT_CAUSE_EN_PATTERNS: RegExp[] = [
+  /\btends?\s+to\b/i,
+  /\bhabit of\b/i,
+  // Requires the 3rd-person pronoun immediately before "prefer(s)" — "you prefer" (the USER's own
+  // choice, not the other person's disposition) must NOT match (BRIEF-104B §3.2 EN-N5 trap).
+  /\b(?:they|he|she)\s+prefers?\b/i,
+  /\btheir\s+\w+\s+nature\b/i,
+  /\bas\s+(?:a|an|the)\s+[A-Z][a-z]+\s+[A-Z][a-z]+\b/,
+  // Element-restricted, not "any word + energy" — a saju day-pillar's element/animal energy is
+  // legitimate 105-style day language (excluded below via day context anyway when phrased that
+  // way), but this keeps generic English words ("direct energy", "the energy of this weekend" —
+  // §3.2 EN-N6 trap) from ever matching (a) in the first place.
+  /\b(?:water|fire|earth|metal|wood)\s+energy\b/i,
+];
+
+function hasTraitCauseMarker(sentence: string): boolean {
+  if (TRAIT_CAUSE_KO.some(m => sentence.includes(m))) return true;
+  return TRAIT_CAUSE_EN_PATTERNS.some(p => p.test(sentence));
+}
+
+// (b) day-context exemption — "Earth Dragon 날처럼 중심이 잡히는 날" / "the energy of this weekend"
+// describe THAT DAY's ganzi energy (105's own daily-pillar language), not the person's disposition.
+// Without this, normal day-recommendation answers get flagged wholesale (BRIEF-104B §1's own
+// measurement: 3 of 9 candidate hits were this exact false positive before the exclusion existed).
+const DAY_CONTEXT_KO = ['날', '오늘', '내일', '모레', '이번 주', '다음 주', '요일'];
+const DAY_CONTEXT_EN_WORDS = [
+  'day', 'today', 'tomorrow', 'weekend',
+  'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday',
+  'rat', 'ox', 'tiger', 'rabbit', 'dragon', 'snake', 'horse', 'goat', 'monkey', 'rooster', 'dog', 'pig',
+];
+const DAY_CONTEXT_DATE = /\d{4}-\d{2}-\d{2}|\d{1,2}\s*월\s*\d{1,2}\s*일/;
+
+function hasDayContext(sentence: string): boolean {
+  if (DAY_CONTEXT_KO.some(m => sentence.includes(m))) return true;
+  if (DAY_CONTEXT_DATE.test(sentence)) return true;
+  return DAY_CONTEXT_EN_WORDS.some(w => new RegExp(`\\b${w}\\b`, 'i').test(sentence));
+}
+
+/** One answer's trait-reattachment check (BRIEF-104B §1). Gated on `ctx.personIntroduced` —
+ * `personIntroduced` is only ever `true` when `mode === 'person'` (POST sets it), so this
+ * doubles as the mode gate without adding a new ctx field. Without this gate, the FIRST-time
+ * introduction of a trait (turn 1's own "넓은 바다 같은 성향이라") would itself get flagged —
+ * BRIEF-104B §1's own measurement found 7 of 8 turn-1 introductions would trip without it. */
+function checkTraitReattachment(answer: Record<string, unknown>, ctx: AskValidationCtx): AskViolation[] {
+  if (!ctx.personIntroduced) return [];
+  const violations: AskViolation[] = [];
+  for (const t of collectAnswerTextWithTiming(answer)) {
+    for (const sentence of splitSentences(t)) {
+      if (hasDayContext(sentence)) continue;
+      if (hasTraitCauseMarker(sentence)) {
+        violations.push({ type: 'trait_reattachment', detail: sentence.slice(0, 40) });
+      }
+    }
+  }
+  return violations;
+}
+
 function partsLabels(answer: Record<string, unknown>): string[] | null {
   if (!Array.isArray(answer.parts)) return null;
   return (answer.parts as Array<{ label: string }>).map(p => p.label);
@@ -1245,6 +1310,9 @@ export function validateAskAnswer(answer: Record<string, unknown>, ctx: AskValid
 
   // BRIEF-106 §3 — cross-language check. Only runs when the caller supplied `expectedLang`.
   violations.push(...checkAnswerLanguage(answer, ctx));
+
+  // BRIEF-104B §1 — trait-reattachment check. Only runs when `ctx.personIntroduced` is true.
+  violations.push(...checkTraitReattachment(answer, ctx));
 
   return violations;
 }
@@ -1430,6 +1498,9 @@ export function applyFinalDisposition(
   if (hasType('foreign_language_leak') || hasType('response_language_drift')) {
     flags.push({ stage: 'lang', action: 'soft' });
   }
+  // BRIEF-104B §2 — soft flag only, same reasoning as language leak: cutting the trait clause out
+  // mid-sentence would mangle it, and repetition is annoying but still usable (never a 502).
+  if (hasType('trait_reattachment')) flags.push({ stage: 'trait', action: 'soft' });
 
   // BRIEF-105 §2.2.6 — bracket/inserted-clause day-name removal, then MANDATORY re-verification
   // that the mismatch is actually gone (never trust the strip blindly).
@@ -1475,6 +1546,8 @@ function stageOf(type: AskViolationType): string {
     case 'response_language_drift':
     case 'foreign_language_leak':
       return 'lang';
+    case 'trait_reattachment':
+      return 'trait';
   }
 }
 
@@ -1536,6 +1609,9 @@ export function buildCorrectionWarnings(schemaInvalid: boolean, banned: string[]
       case 'response_language_drift':
       case 'foreign_language_leak':
         break; // handled first, above — see BRIEF-106 §4.1
+      case 'trait_reattachment':
+        warnings.push('⚠ TRAIT RE-ATTACHMENT — You already explained this person\'s disposition earlier in this conversation. Do not restate it as the reason. Explain THIS situation instead — what changed, what has not happened yet, what the timeline looks like. Regenerate without the trait clause.');
+        break;
     }
   }
   return warnings;

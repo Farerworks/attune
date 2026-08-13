@@ -1,0 +1,25 @@
+section	file_or_id	turn	count	detail
+positive	gemini-3.5-flash-lite-20260811-EN-run1.json	3	1	That kind of friction tends to make them
+positive	gemini-3.5-flash-lite-20260811-EN-run1.json	5	2	When faced with a new commitment, they t
+positive	gemini-3.5-flash-lite-20260811-EN-run2.json	4	1	It's completely normal for Riley to take
+positive	gemini-3.5-flash-lite-20260811-KO-run1.json	5	1	앞서 수(水) 기운이 강한 성향 특유의 신중함이 작용해서, 섣부르게 덜컥
+positive	gemini-3.5-flash-lite-20260811-KO-run2.json	5	1	한결이는 결정을 내리기 전에 머릿속으로 판을 넓게 펼쳐놓고 시뮬레이션을 
+positive	gemini-3.5-flash-lite-20260812-EN-run1.json	5	2	When Riley seems lukewarm, it often refl
+positive	gemini-3.5-flash-lite-20260812-EN-run2.json	2	1	That "thinking about it" response is typ
+positive	gemini-3.5-flash-lite-20260812-EN-run2.json	5	2	라이는 결정을 내리기 전에 스스로 충분히 소화할 시간이 필요한 편이에요.
+positive	gemini-3.5-flash-lite-20260812-KO-run1.json	5	1	수(水) 기운을 품은 성향이라 섣불리 뛰어들기보다 전체 흐름을 깊게 가라
+positive	gemini-3.5-flash-lite-20260812-KO-run2.json	2	1	한결이의 그 성향을 생각하면 당장 확답을 재촉하기보다 여유를 주는 게 좋
+positive	gemini-3.5-flash-lite-20260812-KO-run2.json	3	1	넓은 시야로 전체를 가늠해 보려는 성향이라, 충분히 생각할 시간이 필요할
+positive	gemini-3.5-flash-lite-20260812-KO-run2.json	5	1	큰 그림을 먼저 보는 성향이라 세부 조건이나 진행 방식까지 스스로 납득될
+negative	KO-N1		0	
+negative	KO-N2		0	
+negative	KO-N3		0	
+negative	KO-N4		0	
+negative	EN-N1		0	
+negative	EN-N2		0	
+negative	EN-N3		0	
+negative	EN-N4		0	
+negative	KO-N5		0	
+negative	KO-N6		0	
+negative	EN-N5		0	
+negative	EN-N6		0	

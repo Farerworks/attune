@@ -2836,3 +2836,92 @@ describe('교차언어 요청에서의 오탐 제거 (BRIEF-106-FIX)', () => {
   });
 });
 
+describe('기질 재부착 억제 (BRIEF-104B)', () => {
+  const traitCtx = (personIntroduced: boolean) =>
+    ({ askMode: null, personIntroduced, candidates: [] as string[], latestUserText: '' });
+
+  it('1) personIntroduced:true + 「수(水) 기운을 품은 성향이라…」 -> trait_reattachment 1건', () => {
+    const answer = { text: '수(水) 기운을 품은 성향이라 섣불리 뛰어들기보다 전체 흐름을 지켜보는 편이거든요.' };
+    const violations = validateAskAnswer(answer, traitCtx(true));
+    expect(violations.filter(v => v.type === 'trait_reattachment')).toHaveLength(1);
+  });
+
+  it('2) personIntroduced:false + 같은 문장 -> 위반 0 (T1 게이트)', () => {
+    const answer = { text: '수(水) 기운을 품은 성향이라 섣불리 뛰어들기보다 전체 흐름을 지켜보는 편이거든요.' };
+    const violations = validateAskAnswer(answer, traitCtx(false));
+    expect(violations.filter(v => v.type === 'trait_reattachment')).toHaveLength(0);
+  });
+
+  it('3) mode !== \'person\' -> 위반 0 (POST 통합 — personIntroduced는 person 모드에서만 true가 됨)', async () => {
+    mockGenerateJsonChat.mockClear();
+    const traitText = '수(水) 기운을 품은 성향이라 섣불리 뛰어들기보다 전체 흐름을 지켜보는 편이거든요.';
+    mockGenerateJsonChat.mockResolvedValueOnce(JSON.stringify({ text: traitText }));
+
+    const res = await POST(makeAskRequest({
+      mode: 'me' as const, me: { date: '1990-06-15', time: '14:30' }, history: [], question: '왜 그런 거야?',
+    }));
+    const data = await res.json() as { answer?: { text?: string } };
+
+    expect(mockGenerateJsonChat).toHaveBeenCalledTimes(1);
+    expect(res.status).toBe(200);
+    expect(data.answer?.text).toBe(traitText);
+  });
+
+  it('4) 「2026-08-22(토) Earth Dragon 날처럼 중심이 잡히는 날」 -> 위반 0 (날 제외)', () => {
+    const answer = { text: '2026-08-22(토) Earth Dragon 날처럼 중심이 잡히는 날에는 대화가 편안하게 흘러갈 거예요.' };
+    const violations = validateAskAnswer(answer, traitCtx(true));
+    expect(violations.filter(v => v.type === 'trait_reattachment')).toHaveLength(0);
+  });
+
+  it('5) 「기다리는 편이 안전해요」 -> 위반 0', () => {
+    const answer = { text: '지금은 먼저 묻기보다 기다리는 편이 안전해요.' };
+    const violations = validateAskAnswer(answer, traitCtx(true));
+    expect(violations.filter(v => v.type === 'trait_reattachment')).toHaveLength(0);
+  });
+
+  it('6) 「if you prefer to keep it low-key」 -> 위반 0', () => {
+    const answer = { text: 'If you prefer to keep it low-key, a short unrelated message works better.' };
+    const violations = validateAskAnswer(answer, traitCtx(true));
+    expect(violations.filter(v => v.type === 'trait_reattachment')).toHaveLength(0);
+  });
+
+  it('7) tends to 영어 문장 -> 1건', () => {
+    const answer = { text: 'When faced with a new commitment, they tend to pause before answering.' };
+    const violations = validateAskAnswer(answer, traitCtx(true));
+    expect(violations.filter(v => v.type === 'trait_reattachment')).toHaveLength(1);
+  });
+
+  it('8) POST 통합: 교정 후에도 trait_reattachment가 남으면 200 · 답 원문 유지 (502 아님)', async () => {
+    mockGenerateJsonChat.mockClear();
+    const themInput = { date: '1988-03-02', time: '09:00', name: 'Sam' };
+    const [hanjaCandidate] = themNameCandidates(calculateSaju(themInput));
+    const traitText = '수(水) 기운을 품은 성향이라 섣불리 뛰어들기보다 전체 흐름을 지켜보는 편이거든요.';
+    mockGenerateJsonChat
+      .mockResolvedValueOnce(JSON.stringify({ text: traitText }))
+      .mockResolvedValueOnce(JSON.stringify({ text: traitText }));
+
+    const history = [
+      { role: 'user' as const, text: 'Sam은 어떤 사람이야?' },
+      { role: 'assistant' as const, text: `Sam은 ${hanjaCandidate}라 직진형이에요.` },
+    ];
+    const res = await POST(makeAskRequest({
+      mode: 'person' as const,
+      me: { date: '1990-06-15', time: '14:30' },
+      them: themInput,
+      history,
+      question: '왜 그런 거야?',
+    }));
+    const data = await res.json() as { answer?: { text?: string } };
+
+    expect(mockGenerateJsonChat).toHaveBeenCalledTimes(2);
+    expect(res.status).toBe(200);
+    expect(data.answer?.text).toBe(traitText);
+  });
+
+  it('9) buildCorrectionWarnings에 TRAIT RE-ATTACHMENT 포함', () => {
+    const violations = [{ type: 'trait_reattachment' as const, detail: '수(水) 기운을 품은 성향이라' }];
+    const warnings = buildCorrectionWarnings(false, [], violations);
+    expect(warnings.some(w => w.includes('TRAIT RE-ATTACHMENT'))).toBe(true);
+  });
+});
+
