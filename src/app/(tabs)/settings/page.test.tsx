@@ -10,6 +10,9 @@ const mockGetSyncSession = vi.fn(() => Promise.resolve(null) as Promise<unknown>
 const mockDeleteBackup = vi.fn();
 const mockPullBackup = vi.fn(() => Promise.resolve(null) as Promise<unknown>);
 const mockPushBackup = vi.fn();
+const mockApplySnapshot = vi.fn();
+const mockMarkReplaceAck = vi.fn();
+const callOrder: string[] = [];
 // BRIEF-107 §2.3 — a tiny stateful stand-in for the real localStorage-backed hasReplaceAck, so
 // the "resumes after a successful manual backup" test can observe the flag flipping.
 let ackedSub: string | null = null;
@@ -19,7 +22,8 @@ vi.mock('@/lib/sync', () => ({
   pushBackup: (opts?: { explicitReplace?: boolean }) => mockPushBackup(opts),
   pullBackup: () => mockPullBackup(),
   deleteBackup: () => mockDeleteBackup(),
-  applySnapshot: vi.fn(),
+  applySnapshot: (payload: unknown) => { callOrder.push('applySnapshot'); mockApplySnapshot(payload); },
+  markReplaceAck: (sub: string) => { callOrder.push('markReplaceAck'); mockMarkReplaceAck(sub); ackedSub = sub; },
   hasReplaceAck: (sub: string) => ackedSub === sub,
   LS_LAST_BACKUP: 'attune.lastBackup',
 }));
@@ -31,6 +35,9 @@ afterEach(() => {
   mockDeleteBackup.mockReset();
   mockPullBackup.mockReset().mockReturnValue(Promise.resolve(null));
   mockPushBackup.mockReset();
+  mockApplySnapshot.mockReset();
+  mockMarkReplaceAck.mockReset();
+  callOrder.length = 0;
   ackedSub = null;
 });
 
@@ -119,6 +126,44 @@ describe('SettingsPage — restore failure copy (BRIEF-102)', () => {
 
     await waitFor(() => expect(screen.getByText('Restore failed — try again.')).toBeTruthy());
     expect(screen.queryByText('Backup failed — try again.')).toBeNull();
+  });
+});
+
+describe('SettingsPage — restore success acks the account (BRIEF-107-FIX §1.3)', () => {
+  it('confirmed restore: applySnapshot happens, THEN markReplaceAck is called with the session sub', async () => {
+    mockGetSyncSession.mockReturnValue(Promise.resolve({ sub: 'settings-restore-sub', user: { email: 'a@b.com' } } as never));
+    mockPullBackup.mockReturnValue(Promise.resolve({
+      ok: true, payload: { 'attune.profile': { name: 'x' } }, updatedAt: '2026-08-01T00:00:00.000Z',
+    }) as unknown as Promise<unknown>);
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    const { default: SettingsPage } = await import('./page');
+    render(<SettingsPage />);
+
+    await waitFor(() => expect(screen.getByText('a@b.com')).toBeTruthy());
+    fireEvent.click(screen.getByText('Restore from backup'));
+
+    await waitFor(() => expect(mockMarkReplaceAck).toHaveBeenCalledWith('settings-restore-sub'));
+    expect(mockApplySnapshot).toHaveBeenCalledWith({ 'attune.profile': { name: 'x' } });
+    expect(callOrder).toEqual(['applySnapshot', 'markReplaceAck']);
+  });
+
+  it('cancelled restore: neither applySnapshot nor markReplaceAck is called', async () => {
+    mockGetSyncSession.mockReturnValue(Promise.resolve({ sub: 'settings-restore-sub-2', user: { email: 'a@b.com' } } as never));
+    mockPullBackup.mockReturnValue(Promise.resolve({
+      ok: true, payload: { 'attune.profile': { name: 'x' } }, updatedAt: '2026-08-01T00:00:00.000Z',
+    }) as unknown as Promise<unknown>);
+    vi.spyOn(window, 'confirm').mockReturnValue(false);
+
+    const { default: SettingsPage } = await import('./page');
+    render(<SettingsPage />);
+
+    await waitFor(() => expect(screen.getByText('a@b.com')).toBeTruthy());
+    fireEvent.click(screen.getByText('Restore from backup'));
+
+    await waitFor(() => expect(mockPullBackup).toHaveBeenCalled());
+    expect(mockApplySnapshot).not.toHaveBeenCalled();
+    expect(mockMarkReplaceAck).not.toHaveBeenCalled();
   });
 });
 

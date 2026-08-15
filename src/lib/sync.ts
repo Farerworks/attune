@@ -54,9 +54,16 @@ export type PushResult =
 // protects all three call sites — and any future one — without touching them individually.
 // `explicitReplace: true` is reserved for Settings' manual "Back up now" button ONLY (§1.2 note) —
 // it is the one place a user's own explicit tap justifies a first PUT with no prior ack.
+//
+// BRIEF-107-FIX §1.1 — fail-closed, not fail-open. The original condition only blocked when a
+// session WAS obtained but lacked an ack; a transient `/api/auth/session` fetch failure made
+// `session` null, which made the whole guard vacuously false and let the PUT through — right when
+// the network is unreliable, exactly the moment this gate exists to protect. Now the gate requires
+// an affirmatively confirmed session + ack (or the one explicit-replace exception) to PASS; anything
+// else — no session, a failed session lookup, or a session with no ack — is blocked.
 export async function pushBackup(opts?: { explicitReplace?: boolean }): Promise<PushResult> {
   const session = await getSyncSession();
-  if (session?.sub && opts?.explicitReplace !== true && !hasReplaceAck(session.sub)) {
+  if (opts?.explicitReplace !== true && !(session?.sub && hasReplaceAck(session.sub))) {
     return { ok: false, status: 0, blocked: true };
   }
   try {

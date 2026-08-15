@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import { clearAllData } from '@/lib/store';
 import { ChevronIcon } from '@/components/icons/ChevronIcon';
 import { TabTopBar } from '@/components/TabTopBar';
-import { getSyncSession, pushBackup, pullBackup, deleteBackup, applySnapshot, hasReplaceAck, LS_LAST_BACKUP, type SyncSession } from '@/lib/sync';
+import { getSyncSession, pushBackup, pullBackup, deleteBackup, applySnapshot, markReplaceAck, hasReplaceAck, LS_LAST_BACKUP, type SyncSession } from '@/lib/sync';
 
 // beforeinstallprompt is non-standard — define locally
 type BeforeInstallPromptEvent = Event & {
@@ -291,6 +291,9 @@ export default function SettingsPage() {
     const dateStr = new Date(res.updatedAt).toLocaleDateString();
     if (window.confirm(`Replace the data on this phone with your backup from ${dateStr}?`)) {
       applySnapshot(res.payload);
+      // BRIEF-107-FIX §1.3 — ack only after apply, before navigating away. Reuses the session
+      // already held by this screen (syncSession) rather than calling getSyncSession() again.
+      if (syncSession?.sub) markReplaceAck(syncSession.sub);
       window.location.href = '/you';
     }
   }
