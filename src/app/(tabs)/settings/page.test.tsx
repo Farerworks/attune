@@ -9,13 +9,18 @@ vi.mock('next/navigation', () => ({
 const mockGetSyncSession = vi.fn(() => Promise.resolve(null) as Promise<unknown>);
 const mockDeleteBackup = vi.fn();
 const mockPullBackup = vi.fn(() => Promise.resolve(null) as Promise<unknown>);
+const mockPushBackup = vi.fn();
+// BRIEF-107 §2.3 — a tiny stateful stand-in for the real localStorage-backed hasReplaceAck, so
+// the "resumes after a successful manual backup" test can observe the flag flipping.
+let ackedSub: string | null = null;
 
 vi.mock('@/lib/sync', () => ({
   getSyncSession: () => mockGetSyncSession(),
-  pushBackup: vi.fn(),
+  pushBackup: (opts?: { explicitReplace?: boolean }) => mockPushBackup(opts),
   pullBackup: () => mockPullBackup(),
   deleteBackup: () => mockDeleteBackup(),
   applySnapshot: vi.fn(),
+  hasReplaceAck: (sub: string) => ackedSub === sub,
   LS_LAST_BACKUP: 'attune.lastBackup',
 }));
 
@@ -25,6 +30,8 @@ afterEach(() => {
   mockGetSyncSession.mockReset().mockReturnValue(Promise.resolve(null));
   mockDeleteBackup.mockReset();
   mockPullBackup.mockReset().mockReturnValue(Promise.resolve(null));
+  mockPushBackup.mockReset();
+  ackedSub = null;
 });
 
 describe('SettingsPage — version footer', () => {
@@ -155,5 +162,27 @@ describe('SettingsPage — chevron consistency (BRIEF-089)', () => {
 
     const row = screen.getByText('Share Attune').closest('button');
     expect(row?.querySelector('svg')).toBeFalsy();
+  });
+});
+
+describe('SettingsPage — manual backup uses explicitReplace and resumes auto-backup (BRIEF-107)', () => {
+  it('승인 없음 → 수동 백업 클릭 → explicitReplace 경로로 PUT 성공 → 그 sub로 승인 기록 → 일시중지 안내가 사라진다', async () => {
+    mockGetSyncSession.mockReturnValue(Promise.resolve({ sub: 'settings-sub', user: { email: 'a@b.com' } } as never));
+    mockPushBackup.mockImplementation((opts?: { explicitReplace?: boolean }) => {
+      if (opts?.explicitReplace === true) ackedSub = 'settings-sub';
+      return Promise.resolve({ ok: true, updatedAt: '2026-08-20T00:00:00.000Z' });
+    });
+
+    const { default: SettingsPage } = await import('./page');
+    render(<SettingsPage />);
+
+    await waitFor(() => expect(screen.getByText('a@b.com')).toBeTruthy());
+    // paused notice shows before any backup has been acked for this account
+    expect(screen.getByText('Automatic backup is paused. Back up now to resume.')).toBeTruthy();
+
+    fireEvent.click(screen.getByText('Back up now'));
+
+    await waitFor(() => expect(mockPushBackup).toHaveBeenCalledWith({ explicitReplace: true }));
+    await waitFor(() => expect(screen.queryByText('Automatic backup is paused. Back up now to resume.')).toBeNull());
   });
 });

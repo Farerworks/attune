@@ -3,6 +3,22 @@ export const LS_LAST_BACKUP = 'attune.sync.lastBackupAt';
 
 export interface SyncSession { sub?: string; user?: { email?: string | null } }
 
+// ── BRIEF-107 §1 — account-scoped "replace ack" ────────────────────────────────
+// The server's PUT /sync is unconditional whole-object overwrite with no merge, history, or
+// version check (confirmed by INQUIRY-SYNC-PUT). A device that has never confirmed it's safe to
+// replace THIS account's server backup must not be allowed to push. The stored value is the
+// approved session's `sub`, not a boolean — approving while signed in as account A must not carry
+// over to account B on the same device (§1.0 point ①).
+export const LS_REPLACE_ACK = 'attune.sync.replaceAck';
+
+export function markReplaceAck(sub: string): void {
+  try { localStorage.setItem(LS_REPLACE_ACK, sub); } catch {}
+}
+
+export function hasReplaceAck(sub: string): boolean {
+  try { return localStorage.getItem(LS_REPLACE_ACK) === sub; } catch { return false; }
+}
+
 export async function getSyncSession(): Promise<SyncSession | null> {
   try {
     const r = await fetch('/api/auth/session');
@@ -31,9 +47,18 @@ export function applySnapshot(payload: Record<string, unknown>): void {
 
 export type PushResult =
   | { ok: true; updatedAt: string }
-  | { ok: false; status: number };
+  | { ok: false; status: number; blocked?: true };
 
-export async function pushBackup(): Promise<PushResult> {
+// BRIEF-107 §1.2 — the single write gate. Every PUT to /api/sync (AutoBackup's interval, the
+// person-delete flow, and Settings' manual backup) goes through this one function, so gating here
+// protects all three call sites — and any future one — without touching them individually.
+// `explicitReplace: true` is reserved for Settings' manual "Back up now" button ONLY (§1.2 note) —
+// it is the one place a user's own explicit tap justifies a first PUT with no prior ack.
+export async function pushBackup(opts?: { explicitReplace?: boolean }): Promise<PushResult> {
+  const session = await getSyncSession();
+  if (session?.sub && opts?.explicitReplace !== true && !hasReplaceAck(session.sub)) {
+    return { ok: false, status: 0, blocked: true };
+  }
   try {
     const res = await fetch('/api/sync', {
       method: 'PUT',
@@ -44,6 +69,7 @@ export async function pushBackup(): Promise<PushResult> {
     const data = (await res.json().catch(() => ({}))) as { updatedAt?: string };
     const updatedAt = data.updatedAt ?? new Date().toISOString();
     try { localStorage.setItem(LS_LAST_BACKUP, updatedAt); } catch {}
+    if (opts?.explicitReplace === true && session?.sub) markReplaceAck(session.sub);
     return { ok: true, updatedAt };
   } catch {
     return { ok: false, status: 0 };

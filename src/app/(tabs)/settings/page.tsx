@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import { clearAllData } from '@/lib/store';
 import { ChevronIcon } from '@/components/icons/ChevronIcon';
 import { TabTopBar } from '@/components/TabTopBar';
-import { getSyncSession, pushBackup, pullBackup, deleteBackup, applySnapshot, LS_LAST_BACKUP, type SyncSession } from '@/lib/sync';
+import { getSyncSession, pushBackup, pullBackup, deleteBackup, applySnapshot, hasReplaceAck, LS_LAST_BACKUP, type SyncSession } from '@/lib/sync';
 
 // beforeinstallprompt is non-standard — define locally
 type BeforeInstallPromptEvent = Event & {
@@ -268,7 +268,9 @@ export default function SettingsPage() {
   }
 
   async function handleBackupNow() {
-    const res = await pushBackup();
+    // BRIEF-107 §1.2 — the only place explicitReplace is used: a user's own explicit tap here
+    // justifies a first PUT with no prior ack, and success records it (sync.ts's pushBackup).
+    const res = await pushBackup({ explicitReplace: true });
     if (res.ok) {
       setBackupDesc(`Last backup: ${new Date(res.updatedAt).toLocaleString()}`);
     } else {
@@ -337,6 +339,16 @@ export default function SettingsPage() {
             </div>
             <BackupRow label="Back up now" description={backupDesc} onClick={() => void handleBackupNow()} />
             <BackupRow label="Restore from backup" description={restoreMsg} onClick={() => void handleRestore()} />
+            {syncSession.sub && !hasReplaceAck(syncSession.sub) && (
+              <p style={{
+                fontFamily: 'var(--font-inter)', fontSize: 12, color: 'var(--c-muted)',
+                padding: '10px 20px 0', margin: 0,
+              }}>
+                {typeof navigator !== 'undefined' && navigator.language.startsWith('ko')
+                  ? '자동 백업이 일시 중지됐어요. 지금 백업하면 다시 시작돼요.'
+                  : 'Automatic backup is paused. Back up now to resume.'}
+              </p>
+            )}
           </>
         ) : (
           <BackupRow label="Back up your data" description="Sign in with Google to back up your data to Attune's server and restore it on a new phone." onClick={handleSignIn} />
