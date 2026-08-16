@@ -22,6 +22,26 @@ const RESONANCE_POSTER: Record<string, string> = {
   'slow-build':     'SLOW BUILD',
 };
 
+const RESONANCE_POSTER_KO: Record<string, string> = {
+  'strong-current': '강한 흐름',
+  'mixed-signals':  '엇갈린 신호',
+  'slow-build':     '천천히 쌓이는 관계',
+};
+
+// BRIEF-109 PART 2 §3.1 — Pretendard Variable is a dynamic subset (unicode-range split), so
+// document.fonts.load() needs every glyph that will actually be drawn, or the subset never loads.
+const KO_GLYPHS = '우리의 흐름 누구를 단정하는 말이 아니에요 사주 기반 강한 흐름 엇갈린 신호 천천히 쌓이는 관계 나 상대 목 화 토 금 수';
+
+// BRIEF-109 PART 2 §2 — language signal computed once per card: the takeaway quote, falling
+// back to headline then situation. Shared by drawShareCard (which also needs the raw quoteText)
+// and the component's render() (which must know `ko` before drawing, to gate on the KO face load).
+function computeIsKorean(reading: Reading): boolean {
+  const b = reading.briefing;
+  const quoteText = (b?.dynamic?.click?.takeaway ?? b?.dynamic?.clash?.takeaway ?? '').trim();
+  const langSource = quoteText || (b?.headline ?? '').trim() || (reading.situation ?? '').trim() || '';
+  return /[가-힣]/.test(langSource);
+}
+
 // ── Canvas helpers ─────────────────────────────────────────────────────────────
 
 function roundRectPath(
@@ -82,6 +102,13 @@ export function drawShareCard(
 ) {
   const W = 1080, H = 1920, PAD = 84;
 
+  // BRIEF-109 PART 2 §2 — language signal, computed once, before the first label (background
+  // radar's axis labels included) so every KO/EN branch below reads from the same value.
+  const b = reading.briefing;
+  const quoteText = (b?.dynamic?.click?.takeaway ?? b?.dynamic?.clash?.takeaway ?? '').trim();
+  const langSource = quoteText || (b?.headline ?? '').trim() || (reading.situation ?? '').trim() || '';
+  const ko = /[가-힣]/.test(langSource);
+
   // 1. Background gradient
   const grad = ctx.createLinearGradient(0, 0, 0, H);
   grad.addColorStop(0, '#17130E');
@@ -100,13 +127,20 @@ export function drawShareCard(
         { elements: reading.myChart.elements, color: '#D96A45' },
         { elements: reading.themChart.elements, color: DARK_TONES[theirEl] ?? '#AEB4B8' },
       ];
-      const normMax = Math.max(...blobs.flatMap(b => EL_ORDER.map(k => b.elements[k] ?? 0)), 3);
-      const allPts = blobs.flatMap(b => computeBlobPoints(b.elements, 540, 1050, 440, normMax));
+      const normMax = Math.max(...blobs.flatMap(blob => EL_ORDER.map(k => blob.elements[k] ?? 0)), 3);
+      const allPts = blobs.flatMap(blob => computeBlobPoints(blob.elements, 540, 1050, 440, normMax));
       const mx = allPts.reduce((s, p) => s + p.x, 0) / allPts.length;
       const my = allPts.reduce((s, p) => s + p.y, 0) / allPts.length;
       const clamp = (v: number) => Math.max(-80, Math.min(80, v));
       const dx = clamp(540 - mx), dy = clamp(1050 - my);
-      drawElementPentagon(bgCtx, { cx: 540 + dx, cy: 1050 + dy, radius: 440, series: blobs });
+      drawElementPentagon(bgCtx, {
+        cx: 540 + dx, cy: 1050 + dy, radius: 440, series: blobs,
+        ...(ko ? {
+          axisLabels: ['목', '화', '토', '금', '수'],
+          axisFont: '500 30px "Pretendard Variable"',
+          axisLetterSpacing: '0px',
+        } : {}),
+      });
     }
     ctx.save();
     ctx.globalAlpha = 0.55;
@@ -115,7 +149,6 @@ export function drawShareCard(
   }
 
   // 3. Foreground text
-  const b = reading.briefing;
   const myName = getProfile()?.name?.trim() || '';
   const theirName = reading.name?.trim() || '';
 
@@ -123,10 +156,10 @@ export function drawShareCard(
   ctx.textAlign = 'left';
 
   // "our dynamic" label
-  ctx.font = '400 33px "Space Mono"';
-  ctx.letterSpacing = '8px';
+  ctx.font = ko ? '500 33px "Pretendard Variable"' : '400 33px "Space Mono"';
+  ctx.letterSpacing = ko ? '0px' : '8px';
   ctx.fillStyle = '#9A8F7C';
-  ctx.fillText('our dynamic', PAD, 173);
+  ctx.fillText(ko ? '우리의 흐름' : 'our dynamic', PAD, 173);
   ctx.letterSpacing = '0px';
 
   // My archetype name
@@ -162,10 +195,10 @@ export function drawShareCard(
   }
 
   // Resonance pill
-  const resonanceText = RESONANCE_POSTER[b?.dynamic?.resonance ?? ''] ?? '';
+  const resonanceText = (ko ? RESONANCE_POSTER_KO : RESONANCE_POSTER)[b?.dynamic?.resonance ?? ''] ?? '';
   if (resonanceText) {
-    ctx.font = '700 30px "Space Mono"';
-    ctx.letterSpacing = '6px';
+    ctx.font = ko ? '500 30px "Pretendard Variable"' : '700 30px "Space Mono"';
+    ctx.letterSpacing = ko ? '0px' : '6px';
     const textW = ctx.measureText(resonanceText).width;
     const pillW = textW + 52;
     const pillH = 68;
@@ -186,11 +219,11 @@ export function drawShareCard(
   // Name legend (only when the radar block rendered)
   if (reading.myChart && reading.themChart) {
     const legend: Array<{ color: string; label: string }> = [
-      { color: '#D96A45', label: myName || myArchetype?.name || 'me' },
-      { color: DARK_TONES[theirEl] ?? '#AEB4B8', label: theirName || theirArchetype?.name || 'them' },
+      { color: '#D96A45', label: myName || myArchetype?.name || (ko ? '나' : 'me') },
+      { color: DARK_TONES[theirEl] ?? '#AEB4B8', label: theirName || theirArchetype?.name || (ko ? '상대' : 'them') },
     ];
-    ctx.font = '400 30px "Space Mono"';
-    ctx.letterSpacing = '2px';
+    ctx.font = ko ? '500 30px "Pretendard Variable"' : '400 30px "Space Mono"';
+    ctx.letterSpacing = ko ? '0px' : '2px';
     ctx.textBaseline = 'middle';
     let lx = PAD + 10;
     for (const item of legend) {
@@ -208,10 +241,9 @@ export function drawShareCard(
   // Fraunces has no Hangul glyphs — browsers would synthesize a fake slant for
   // Korean text on canvas (CSS font-synthesis: none doesn't reach <canvas>).
   // Korean quotes use upright Gowun Batang instead; English keeps real italic Fraunces.
-  const quoteText = b?.dynamic?.click?.takeaway ?? b?.dynamic?.clash?.takeaway ?? '';
   if (quoteText) {
     ctx.save();
-    ctx.font = /[가-힣]/.test(quoteText) ? '400 57px "Gowun Batang"' : 'italic 57px Fraunces';
+    ctx.font = ko ? '400 57px "Gowun Batang"' : 'italic 57px Fraunces';
     ctx.fillStyle = '#CFC5B4';
     ctx.letterSpacing = '0px';
     const displayText = `“${quoteText}”`;
@@ -223,10 +255,10 @@ export function drawShareCard(
   }
 
   // "not a verdict on anyone"
-  ctx.font = '400 27px "Space Mono"';
-  ctx.letterSpacing = '4px';
+  ctx.font = ko ? '500 27px "Pretendard Variable"' : '400 27px "Space Mono"';
+  ctx.letterSpacing = ko ? '0px' : '4px';
   ctx.fillStyle = '#9A8F7C';
-  ctx.fillText('not a verdict on anyone', PAD, 1720);
+  ctx.fillText(ko ? '누구를 단정하는 말이 아니에요' : 'not a verdict on anyone', PAD, 1720);
   ctx.letterSpacing = '0px';
 
   // Hairline
@@ -244,10 +276,10 @@ export function drawShareCard(
   ctx.fillStyle = '#9A8F7C';
   ctx.fillText('ATTUNE', PAD, 1840);
 
-  ctx.font = '400 24px "Space Mono"';
-  ctx.letterSpacing = '4px';
+  ctx.font = ko ? '500 24px "Pretendard Variable"' : '400 24px "Space Mono"';
+  ctx.letterSpacing = ko ? '0px' : '4px';
   ctx.textAlign = 'right';
-  ctx.fillText('POWERED BY SAJU', W - PAD, 1840);
+  ctx.fillText(ko ? '사주 기반' : 'POWERED BY SAJU', W - PAD, 1840);
   ctx.textAlign = 'left';
   ctx.textBaseline = 'alphabetic';
   ctx.letterSpacing = '0px';
@@ -271,6 +303,7 @@ export function ShareModal({ reading, myArchetype, theirArchetype, onClose }: Pr
 
     async function render() {
       await document.fonts.ready;
+      const ko = computeIsKorean(reading);
       try {
         await Promise.all([
           document.fonts.load('500 100px Fraunces'),
@@ -278,10 +311,19 @@ export function ShareModal({ reading, myArchetype, theirArchetype, onClose }: Pr
           document.fonts.load('400 57px "Gowun Batang"'),
           document.fonts.load('400 33px "Space Mono"'),
           document.fonts.load('700 30px "Space Mono"'),
+          document.fonts.load('500 30px "Pretendard Variable"', KO_GLYPHS),
         ]);
       } catch { /* fonts fall back gracefully */ }
 
       if (cancelled) return;
+
+      // BRIEF-109 PART 2 §3.2 — EN keeps the old silent-fallback behavior. KO must not hand back
+      // a "successful" PNG full of tofu glyphs — if the Pretendard subset never actually loaded,
+      // bail into the existing failure view instead of drawing.
+      if (ko && !document.fonts.check('500 30px "Pretendard Variable"', KO_GLYPHS)) {
+        setRendering(false);
+        return;
+      }
 
       const canvas = document.createElement('canvas');
       canvas.width = 1080;
