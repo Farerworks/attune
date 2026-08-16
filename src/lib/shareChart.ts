@@ -29,6 +29,9 @@ export interface DrawElementPentagonOptions {
   labelColor?: string;
   guideColorInner?: string;
   guideColorOuter?: string;
+  axisLabels?: readonly string[];
+  axisFont?: string;
+  axisLetterSpacing?: string;
 }
 
 /** Draws the 5-axis guide grid + labels + filled series polygons. 1 series (solo card) or 2 (dynamic card). */
@@ -39,8 +42,13 @@ export function drawElementPentagon(
     labelColor = 'rgba(154,143,124,0.95)',
     guideColorInner = 'rgba(245,241,232,0.16)',
     guideColorOuter = 'rgba(245,241,232,0.24)',
+    axisLabels = EL_ORDER,
+    axisFont = '400 30px "Space Mono"',
+    axisLetterSpacing = '4px',
   }: DrawElementPentagonOptions,
 ) {
+  const labels = axisLabels.length === 5 ? axisLabels : EL_ORDER;
+
   const normMax = Math.max(...series.flatMap(s => EL_ORDER.map(k => s.elements[k] ?? 0)), 3);
 
   // Grid rings
@@ -58,15 +66,15 @@ export function drawElementPentagon(
   });
 
   // Axis labels
-  ctx.font = '400 30px "Space Mono"';
-  ctx.letterSpacing = '4px';
+  ctx.font = axisFont;
+  ctx.letterSpacing = axisLetterSpacing;
   ctx.fillStyle = labelColor;
   ctx.textBaseline = 'middle';
-  EL_ORDER.forEach((k, i) => {
+  EL_ORDER.forEach((_k, i) => {
     const lx = cx + radius * 0.78 * Math.cos(ANGLES[i]);
     const ly = cy + radius * 0.78 * Math.sin(ANGLES[i]);
     ctx.textAlign = 'center';
-    ctx.fillText(k, lx, ly);
+    ctx.fillText(labels[i], lx, ly);
   });
   ctx.letterSpacing = '0px';
   ctx.textAlign = 'left';

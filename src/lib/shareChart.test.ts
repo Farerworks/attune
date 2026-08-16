@@ -2,11 +2,14 @@ import { describe, it, expect } from 'vitest';
 import { drawElementPentagon, computeBlobPoints, type PentagonSeries } from './shareChart';
 
 interface PathCall { type: 'moveTo' | 'lineTo' | 'bezierCurveTo' | 'closePath'; args: number[] }
+interface FillTextCall { text: string; x: number; y: number; font: string; letterSpacing: string }
 
 function makeFakeCtx() {
   const calls: PathCall[] = [];
+  const fillTextCalls: FillTextCall[] = [];
   const ctx = {
     calls,
+    fillTextCalls,
     beginPath: () => {},
     moveTo: (x: number, y: number) => calls.push({ type: 'moveTo', args: [x, y] }),
     lineTo: (x: number, y: number) => calls.push({ type: 'lineTo', args: [x, y] }),
@@ -14,12 +17,13 @@ function makeFakeCtx() {
     closePath: () => calls.push({ type: 'closePath', args: [] }),
     stroke: () => {},
     fill: () => {},
-    fillText: () => {},
+    fillText: (text: string, x: number, y: number) =>
+      fillTextCalls.push({ text, x, y, font: ctx.font, letterSpacing: ctx.letterSpacing }),
     strokeStyle: '', fillStyle: '', lineWidth: 0,
     shadowColor: '', shadowBlur: 0, globalAlpha: 1,
     font: '', letterSpacing: '0px', textAlign: 'left', textBaseline: 'alphabetic',
   };
-  return ctx as unknown as CanvasRenderingContext2D & { calls: PathCall[] };
+  return ctx as unknown as CanvasRenderingContext2D & { calls: PathCall[]; fillTextCalls: FillTextCall[] };
 }
 
 /** Splits the recorded call log into path segments, one per moveTo...closePath run. */
@@ -73,5 +77,50 @@ describe('drawElementPentagon — straight blob (BRIEF-093C)', () => {
       .map(c => ({ x: c.args[0], y: c.args[1] }));
 
     expect(actualPts).toEqual(expectedPts);
+  });
+});
+
+describe('drawElementPentagon — axis label/font/letterSpacing options (BRIEF-109 PART 1)', () => {
+  it('회귀 가드: 새 인자를 아무것도 안 넘겼을 때 wood/fire/earth/metal/water가 순서대로, 기존 font·letterSpacing으로 그려진다', () => {
+    const ctx = makeFakeCtx();
+    const series: PentagonSeries[] = [{ elements: { wood: 2, fire: 3, earth: 1, metal: 4, water: 2 }, color: '#D96A45' }];
+    drawElementPentagon(ctx, { cx: 540, cy: 1050, radius: 440, series });
+
+    expect(ctx.fillTextCalls.map(c => c.text)).toEqual(['wood', 'fire', 'earth', 'metal', 'water']);
+    for (const call of ctx.fillTextCalls) {
+      expect(call.font).toBe('400 30px "Space Mono"');
+      expect(call.letterSpacing).toBe('4px');
+    }
+  });
+
+  it('axisLabels: [목,화,토,금,수] 전달 시 그 5개가 순서대로 그려진다', () => {
+    const ctx = makeFakeCtx();
+    const series: PentagonSeries[] = [{ elements: { wood: 2, fire: 3, earth: 1, metal: 4, water: 2 }, color: '#D96A45' }];
+    drawElementPentagon(ctx, { cx: 540, cy: 1050, radius: 440, series, axisLabels: ['목', '화', '토', '금', '수'] });
+
+    expect(ctx.fillTextCalls.map(c => c.text)).toEqual(['목', '화', '토', '금', '수']);
+  });
+
+  it('axisFont·axisLetterSpacing 전달 시 그 값이 설정된다', () => {
+    const ctx = makeFakeCtx();
+    const series: PentagonSeries[] = [{ elements: { wood: 2, fire: 3, earth: 1, metal: 4, water: 2 }, color: '#D96A45' }];
+    drawElementPentagon(ctx, {
+      cx: 540, cy: 1050, radius: 440, series,
+      axisFont: '500 33px "Pretendard Variable"',
+      axisLetterSpacing: '0px',
+    });
+
+    for (const call of ctx.fillTextCalls) {
+      expect(call.font).toBe('500 33px "Pretendard Variable"');
+      expect(call.letterSpacing).toBe('0px');
+    }
+  });
+
+  it('axisLabels가 길이 3짜리 배열이면 영어 5개로 되돌아간다', () => {
+    const ctx = makeFakeCtx();
+    const series: PentagonSeries[] = [{ elements: { wood: 2, fire: 3, earth: 1, metal: 4, water: 2 }, color: '#D96A45' }];
+    drawElementPentagon(ctx, { cx: 540, cy: 1050, radius: 440, series, axisLabels: ['목', '화', '토'] });
+
+    expect(ctx.fillTextCalls.map(c => c.text)).toEqual(['wood', 'fire', 'earth', 'metal', 'water']);
   });
 });
