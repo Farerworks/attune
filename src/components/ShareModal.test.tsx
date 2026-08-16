@@ -128,20 +128,26 @@ describe('drawShareCard — KO/EN 라벨 분기 (BRIEF-109 PART 2)', () => {
   });
 });
 
-describe('ShareModal — KO fail-hard (BRIEF-109 PART 2 §3.2)', () => {
-  it('7. KO + fonts.check가 false로 모킹되면 fillText가 호출되지 않고 dataUrl도 생성되지 않는다(기존 실패 뷰 재사용)', async () => {
-    // 관문을 통과하면 drawShareCard가 canvas.getContext('2d')를 호출해 그리기 시작한다 —
-    // 이 스파이가 한 번도 안 불리면 곧 fillText도 한 번도 안 불렸다는 뜻이다.
-    const getContextSpy = vi.spyOn(HTMLCanvasElement.prototype, 'getContext');
-
+describe('ShareModal — KO fail-hard 4조건 (BRIEF-109 PART 2-FIX §3.2)', () => {
+  function stubFonts(load: () => Promise<FontFace[]>, check: () => boolean = () => true) {
     Object.defineProperty(document, 'fonts', {
-      value: {
-        ready: Promise.resolve(),
-        load: vi.fn().mockResolvedValue([]),
-        check: vi.fn().mockReturnValue(false),
-      },
+      value: { ready: Promise.resolve(), load: vi.fn(load), check: vi.fn(check) },
       configurable: true,
     });
+  }
+
+  // 관문을 통과하면 drawShareCard가 canvas.getContext('2d')·toDataURL을 호출해 그리기·PNG화를
+  // 시작한다 — 이 스파이들이 한 번도 안 불리면 fillText도 한 번도 안 불렸다는 뜻이다.
+  function spyOnCanvasDrawing() {
+    return {
+      getContextSpy: vi.spyOn(HTMLCanvasElement.prototype, 'getContext'),
+      toDataURLSpy: vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL'),
+    };
+  }
+
+  it('KO + fonts.load가 reject → fillText·toDataURL 0회, 기존 실패 뷰', async () => {
+    const { getContextSpy, toDataURLSpy } = spyOnCanvasDrawing();
+    stubFonts(() => Promise.reject(new Error('font load failed')));
 
     render(
       <ShareModal reading={makeReading({ dynamic: koDynamic })} myArchetype={null} theirArchetype={null} onClose={() => {}} />
@@ -149,6 +155,45 @@ describe('ShareModal — KO fail-hard (BRIEF-109 PART 2 §3.2)', () => {
 
     await waitFor(() => expect(screen.getByText('Could not render card.')).toBeTruthy());
     expect(getContextSpy).not.toHaveBeenCalled();
-    expect(screen.queryByAltText('Share card preview')).toBeNull();
+    expect(toDataURLSpy).not.toHaveBeenCalled();
+  });
+
+  it('KO + fonts.load가 빈 배열 resolve(매칭 face 0개) → fillText·toDataURL 0회, 기존 실패 뷰', async () => {
+    const { getContextSpy, toDataURLSpy } = spyOnCanvasDrawing();
+    stubFonts(() => Promise.resolve([]));
+
+    render(
+      <ShareModal reading={makeReading({ dynamic: koDynamic })} myArchetype={null} theirArchetype={null} onClose={() => {}} />
+    );
+
+    await waitFor(() => expect(screen.getByText('Could not render card.')).toBeTruthy());
+    expect(getContextSpy).not.toHaveBeenCalled();
+    expect(toDataURLSpy).not.toHaveBeenCalled();
+  });
+
+  it('KO + face는 로드됐지만 fonts.check가 false → fillText·toDataURL 0회, 기존 실패 뷰', async () => {
+    const { getContextSpy, toDataURLSpy } = spyOnCanvasDrawing();
+    const loadedFace = { status: 'loaded' } as FontFace;
+    stubFonts(() => Promise.resolve([loadedFace]), () => false);
+
+    render(
+      <ShareModal reading={makeReading({ dynamic: koDynamic })} myArchetype={null} theirArchetype={null} onClose={() => {}} />
+    );
+
+    await waitFor(() => expect(screen.getByText('Could not render card.')).toBeTruthy());
+    expect(getContextSpy).not.toHaveBeenCalled();
+    expect(toDataURLSpy).not.toHaveBeenCalled();
+  });
+
+  it('EN 경로: 폰트 로드가 실패해도(reject) 관문 없이 기존대로 그려진다', async () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(makeFakeCtx() as unknown as RenderingContext);
+    vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockReturnValue('data:image/png;base64,FAKE');
+    stubFonts(() => Promise.reject(new Error('font load failed')));
+
+    render(
+      <ShareModal reading={makeReading({ dynamic: enDynamic })} myArchetype={null} theirArchetype={null} onClose={() => {}} />
+    );
+
+    await waitFor(() => expect(screen.getByAltText('Share card preview')).toBeTruthy());
   });
 });

@@ -304,6 +304,7 @@ export function ShareModal({ reading, myArchetype, theirArchetype, onClose }: Pr
     async function render() {
       await document.fonts.ready;
       const ko = computeIsKorean(reading);
+
       try {
         await Promise.all([
           document.fonts.load('500 100px Fraunces'),
@@ -311,18 +312,33 @@ export function ShareModal({ reading, myArchetype, theirArchetype, onClose }: Pr
           document.fonts.load('400 57px "Gowun Batang"'),
           document.fonts.load('400 33px "Space Mono"'),
           document.fonts.load('700 30px "Space Mono"'),
-          document.fonts.load('500 30px "Pretendard Variable"', KO_GLYPHS),
         ]);
-      } catch { /* fonts fall back gracefully */ }
+      } catch { /* fonts fall back gracefully — EN's existing behavior, unchanged */ }
 
       if (cancelled) return;
 
-      // BRIEF-109 PART 2 §3.2 — EN keeps the old silent-fallback behavior. KO must not hand back
-      // a "successful" PNG full of tofu glyphs — if the Pretendard subset never actually loaded,
-      // bail into the existing failure view instead of drawing.
-      if (ko && !document.fonts.check('500 30px "Pretendard Variable"', KO_GLYPHS)) {
-        setRendering(false);
-        return;
+      // BRIEF-109 PART 2-FIX §3.2 — document.fonts.check() alone is fail-open (MDN: it can
+      // return true even for a face that was never loaded, e.g. when the stylesheet never
+      // reached the page). KO must clear all four gates below before a canvas is even created.
+      // The KO load is kept OUTSIDE the Promise.all above on purpose — bundling it in would let
+      // one EN font's rejection swallow a KO failure, or a KO failure block the EN fallback path.
+      if (ko) {
+        let koFaces: FontFace[] = [];
+        try {
+          koFaces = await document.fonts.load('500 30px "Pretendard Variable"', KO_GLYPHS);
+        } catch {
+          setRendering(false);
+          return;
+        }
+        if (cancelled) return;
+        const koLoaded =
+          koFaces.length > 0 &&
+          koFaces.every(f => f.status === 'loaded') &&
+          document.fonts.check('500 30px "Pretendard Variable"', KO_GLYPHS);
+        if (!koLoaded) {
+          setRendering(false);
+          return;
+        }
       }
 
       const canvas = document.createElement('canvas');
