@@ -12,7 +12,7 @@ import { GlyphAvatar } from '@/components/ArchetypeGlyph';
 import { TabTopBar } from '@/components/TabTopBar';
 import { AccountAvatar } from '@/components/AccountAvatar';
 import { pickVariant, localDateStr } from '@/lib/today';
-import { friendlyError } from '@/lib/errorCopy';
+import { friendlyError, isKoreanText } from '@/lib/errorCopy';
 import { getQuickPrompts } from '@/lib/askPrompts';
 import { useKeyboardOpen, useKeyboardInset } from '@/lib/keyboard';
 import { loadAskThreads } from '@/lib/askThreads';
@@ -340,7 +340,7 @@ export default function AskPage() {
 
       if (!res.ok) {
         console.error('[ask] request failed:', data.error);
-        throw new DisplayError(friendlyError(res.status, data.retryAfterMinutes));
+        throw new DisplayError(friendlyError(res.status, data.retryAfterMinutes, isKoreanText(text)));
       }
 
       if (data.safety) {
@@ -381,7 +381,7 @@ export default function AskPage() {
         id:   crypto.randomUUID(),
         role: 'assistant',
         mode: selected === 'me' ? 'me' : selected === 'general' ? 'general' : 'person',
-        text: err instanceof DisplayError ? err.message : friendlyError(null),
+        text: err instanceof DisplayError ? err.message : friendlyError(null, undefined, isKoreanText(text)),
       };
       const final        = [...withUser, errorMsg];
       const finalThreads = { ...newThreads, [selected]: final };

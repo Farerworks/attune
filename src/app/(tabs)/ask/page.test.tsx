@@ -842,3 +842,70 @@ describe('AskPage — MessageBubble 줄바꿈 표시 (BRIEF-103)', () => {
     expect(p.textContent).toBe('answer without newlines');
   });
 });
+
+describe('AskPage — 오류 문구 한국어 분기 (BRIEF-108)', () => {
+  function seedProfile() {
+    localStorage.setItem('attune.profile', JSON.stringify({
+      date: '1990-06-15', time: '14:30', gender: 'other', createdAt: new Date().toISOString(),
+    }));
+  }
+
+  function lastSavedText(): string | undefined {
+    const stored = JSON.parse(localStorage.getItem('attune.ask.threads') ?? '{}');
+    const thread = stored.me as Array<{ text?: string }> | undefined;
+    return thread?.at(-1)?.text;
+  }
+
+  it('한국어 질문 전송 → fetch 실패(reject) → 저장된 말풍선 text가 KO 문구', async () => {
+    seedProfile();
+    const fetchMock = vi.fn().mockRejectedValue(new Error('network error'));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { default: AskPage } = await import('./page');
+    render(<AskPage />);
+
+    const textarea = await waitFor(() => screen.getByPlaceholderText('Ask anything…')) as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: '은우랑 어떻게 풀까' } });
+    fireEvent.click(screen.getByLabelText('Send'));
+
+    await waitFor(() => {
+      expect(lastSavedText()).toBe('Attune에 연결할 수 없어요. 인터넷 연결을 확인하고 다시 시도해 주세요.');
+    });
+  });
+
+  it('영어 질문 전송 → 동일 실패 → 저장된 말풍선 text가 EN 문구', async () => {
+    seedProfile();
+    const fetchMock = vi.fn().mockRejectedValue(new Error('network error'));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { default: AskPage } = await import('./page');
+    render(<AskPage />);
+
+    const textarea = await waitFor(() => screen.getByPlaceholderText('Ask anything…')) as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: 'how do I talk to them' } });
+    fireEvent.click(screen.getByLabelText('Send'));
+
+    await waitFor(() => {
+      expect(lastSavedText()).toBe("Can't reach Attune — check your connection and try again.");
+    });
+  });
+
+  it('429 응답 + 한국어 질문 → KO 429 문구', async () => {
+    seedProfile();
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false, status: 429, json: async () => ({ error: 'rate limited' }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { default: AskPage } = await import('./page');
+    render(<AskPage />);
+
+    const textarea = await waitFor(() => screen.getByPlaceholderText('Ask anything…')) as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: '오늘 운세 어때' } });
+    fireEvent.click(screen.getByLabelText('Send'));
+
+    await waitFor(() => {
+      expect(lastSavedText()).toBe('Attune이 생각하는 것보다 조금 빠르게 움직이고 있어요. 1분 후 다시 시도해 주세요.');
+    });
+  });
+});
