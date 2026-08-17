@@ -133,6 +133,13 @@ function logLanguageRetryFailed(rid: string): void {
   console.error(`[briefing] rid=${rid} stage=language action=retry_failed`);
 }
 
+/** BRIEF-111-FIX §3 — a headline-length or language retry's result carried a banned phrase.
+ * The retry result is discarded and the pre-retry `briefing` (already banned-phrase-clean) is
+ * kept — this is a normal 200, NOT `status=502` (unlike logBriefingFailure above). */
+function logRetryBannedRejected(rid: string, stage: 'headline' | 'language'): void {
+  console.error(`[briefing] rid=${rid} stage=${stage} action=retry_banned_rejected`);
+}
+
 const RequestSchema = z.object({
   me: z.object({
     date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'date must be YYYY-MM-DD'),
@@ -255,7 +262,15 @@ export async function POST(request: Request) {
       const lengthRetryPrompt = prompt + HEADLINE_RETRY_INSTRUCTION;
       try {
         const lengthRetryRaw = await withTimeout(llm.generateJson(lengthRetryPrompt, 4096), LLM_TIMEOUT, 'Headline length retry');
-        briefing = parseBriefing(lengthRetryRaw);
+        const lengthRetryCandidate = parseBriefing(lengthRetryRaw);
+        // BRIEF-111-FIX §3 — "rewrite ONLY the headline" is still a full regeneration prompt; the
+        // model can reintroduce a banned phrase. Adopt only if the retry is itself clean — worse
+        // never replaces better. `briefing` here is already banned-phrase-clean (checked above).
+        if (containsBannedPhrases(lengthRetryCandidate).length > 0) {
+          logRetryBannedRejected(rid, 'headline');
+        } else {
+          briefing = lengthRetryCandidate;
+        }
       } catch {
         // Retry failed (timeout / unparseable) — keep the original briefing; UI's length-adaptive scale absorbs it.
       }
@@ -263,12 +278,18 @@ export async function POST(request: Request) {
 
     // BRIEF-111 §3.3/§3.4 — language contract, checked only when `lang` was determined and only
     // after the banned-phrase/headline retries above (never combined with those into one retry).
-    // One retry, unchecked result — a language mismatch is never a 502 to the user (§3.5).
+    // One retry — a language mismatch is never a 502 to the user (§3.5) — but BRIEF-111-FIX §3
+    // still gates adoption on the retry result itself staying banned-phrase-clean.
     if (lang && briefingLanguageViolated(briefing, lang, themInput.name)) {
       const langRetryPrompt = prompt + LANGUAGE_RETRY_INSTRUCTION(lang);
       try {
         const langRetryRaw = await withTimeout(llm.generateJson(langRetryPrompt, 4096), LLM_TIMEOUT, 'Language retry');
-        briefing = parseBriefing(langRetryRaw);
+        const langRetryCandidate = parseBriefing(langRetryRaw);
+        if (containsBannedPhrases(langRetryCandidate).length > 0) {
+          logRetryBannedRejected(rid, 'language');
+        } else {
+          briefing = langRetryCandidate;
+        }
       } catch {
         logLanguageRetryFailed(rid);
         // Retry failed (timeout / unparseable) — keep the original briefing; language mismatch is not a render failure.

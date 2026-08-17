@@ -437,7 +437,9 @@ describe('buildBriefingPrompt — lang 인자 (BRIEF-111 §2)', () => {
     const them = makeChart({ dayStem: 'Yang Fire', year: 'Ox', month: 'Snake', day: 'Rooster' });
     const prompt = buildBriefingPrompt(me, them, 'friend', 'test situation', 'ko');
 
-    expect(prompt).toContain('Write ALL free-text values in KOREAN (한국어).');
+    // BRIEF-111-FIX §2 — the field enumeration is restored, so it sits between "values" and
+    // "in KOREAN" now (was a bare "Write ALL free-text values in KOREAN..." under BRIEF-111 v1).
+    expect(prompt).toContain('Write ALL free-text values (headline, every takeaway, every detail, click/clash/watch, playbook tips and whys, starters) in KOREAN (한국어).');
     expect(prompt).not.toContain("Detect the language of the user's situation text.");
   });
 
@@ -446,7 +448,8 @@ describe('buildBriefingPrompt — lang 인자 (BRIEF-111 §2)', () => {
     const them = makeChart({ dayStem: 'Yang Fire', year: 'Ox', month: 'Snake', day: 'Rooster' });
     const prompt = buildBriefingPrompt(me, them, 'friend', 'test situation', 'en');
 
-    expect(prompt).toContain('Write ALL free-text values in ENGLISH.');
+    // BRIEF-111-FIX §2 — same enumeration restoration as the 'ko' branch above.
+    expect(prompt).toContain('Write ALL free-text values (headline, every takeaway, every detail, click/clash/watch, playbook tips and whys, starters) in ENGLISH.');
     expect(prompt).not.toContain("Detect the language of the user's situation text.");
   });
 
@@ -460,6 +463,18 @@ describe('buildBriefingPrompt — lang 인자 (BRIEF-111 §2)', () => {
       expect(prompt).toContain('Never mix languages in one sentence.');
       expect(prompt).toContain('JSON keys stay in English.');
       expect(prompt).toContain('Do not translate archetype names.');
+    }
+  });
+
+  it('5. (BRIEF-111-FIX §4-1) lang \'ko\'·\'en\' 둘 다 프롬프트에 "playbook tips and whys"·"starters" 문자열이 포함된다(열거 복원 가드)', () => {
+    const me = makeChart({ dayStem: 'Yang Wood', year: 'Rat', month: 'Dragon', day: 'Monkey' });
+    const them = makeChart({ dayStem: 'Yang Fire', year: 'Ox', month: 'Snake', day: 'Rooster' });
+    const koPrompt = buildBriefingPrompt(me, them, 'friend', 'test situation', 'ko');
+    const enPrompt = buildBriefingPrompt(me, them, 'friend', 'test situation', 'en');
+
+    for (const prompt of [koPrompt, enPrompt]) {
+      expect(prompt).toContain('playbook tips and whys');
+      expect(prompt).toContain('starters');
     }
   });
 });

@@ -524,3 +524,45 @@ describe('POST /api/briefing — server-determined language (BRIEF-111)', () => 
     expect(mockGenerateJson.mock.calls[0][0]).not.toContain('Write ALL free-text values in ENGLISH.');
   });
 });
+
+describe('POST /api/briefing — retry-result banned-phrase guard (BRIEF-111-FIX §3)', () => {
+  it('2. 언어 재시도 결과에 금지어가 들어 있으면 -> 응답 briefing이 재시도 이전 값과 같다(미채택) + 200', async () => {
+    mockGenerateJson
+      .mockResolvedValueOnce(makeLangBriefingJson('en')) // initial: EN, wrong for a KO situation -> triggers language retry
+      .mockResolvedValueOnce(makeBannedBriefingJson());   // retry: headline='weakness' (banned) -> must be rejected
+
+    const res = await POST(makeRequestWithPII(freshIp(), 'Sam', '요즘 대화가 겉도는 느낌이야'));
+    const body = await res.json();
+
+    expect(mockGenerateJson).toHaveBeenCalledTimes(2);
+    expect(res.status).toBe(200);
+    expect(body.briefing.headline).toBe('Hello nice to meet you'); // pre-retry value kept, not 'weakness'
+  });
+
+  it('3. 헤드라인 재시도 결과에 금지어가 들어 있으면 -> 동일하게 이전 값 유지 + 200', async () => {
+    const longKo = '오'.repeat(61); // too long, but clean (no banned phrase)
+    mockGenerateJson
+      .mockResolvedValueOnce(makeBriefingJson(longKo))
+      .mockResolvedValueOnce(makeBannedBriefingJson()); // headline-length retry: headline='weakness' (banned)
+
+    const res = await POST(makeRequest(freshIp()));
+    const body = await res.json();
+
+    expect(mockGenerateJson).toHaveBeenCalledTimes(2);
+    expect(res.status).toBe(200);
+    expect(body.briefing.headline).toBe(longKo); // pre-retry value kept (still over-limit, but that's not a 502 either)
+  });
+
+  it('4. 재시도 결과가 정상(금지어 없음)이면 -> 재시도 결과가 채택된다(기존 동작 회귀 가드)', async () => {
+    mockGenerateJson
+      .mockResolvedValueOnce(makeLangBriefingJson('en'))
+      .mockResolvedValueOnce(makeLangBriefingJson('ko')); // clean KO retry
+
+    const res = await POST(makeRequestWithPII(freshIp(), 'Sam', '요즘 대화가 겉도는 느낌이야'));
+    const body = await res.json();
+
+    expect(mockGenerateJson).toHaveBeenCalledTimes(2);
+    expect(res.status).toBe(200);
+    expect(body.briefing.headline).toBe('안녕하세요 반갑습니다'); // the retry result was adopted
+  });
+});

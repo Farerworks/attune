@@ -236,10 +236,13 @@ ${referralSentence}`;
   // direct server-determined instruction. Everything else in the LANGUAGE section (never-mix,
   // JSON keys, archetype names) stays identical across all three branches. Omitting `lang`
   // reproduces the original text byte-for-byte — existing callers/tests are unaffected.
+  // BRIEF-111-FIX §2 — the field enumeration (headline, every takeaway, every detail,
+  // click/clash/watch, playbook tips and whys, starters) is restored in the ko/en directives too —
+  // its absence was exactly the shape of the bug this brief exists to fix (A3: body EN, starters KO).
   const languageDirective = lang === 'ko'
-    ? "Write ALL free-text values in KOREAN (한국어). The user's situation is in Korean. Never mix languages in one sentence. JSON keys stay in English. Do not translate archetype names."
+    ? "Write ALL free-text values (headline, every takeaway, every detail, click/clash/watch, playbook tips and whys, starters) in KOREAN (한국어). The user's situation is in Korean. Never mix languages in one sentence. JSON keys stay in English. Do not translate archetype names."
     : lang === 'en'
-    ? 'Write ALL free-text values in ENGLISH. Never mix languages in one sentence. JSON keys stay in English. Do not translate archetype names.'
+    ? 'Write ALL free-text values (headline, every takeaway, every detail, click/clash/watch, playbook tips and whys, starters) in ENGLISH. Never mix languages in one sentence. JSON keys stay in English. Do not translate archetype names.'
     : "Detect the language of the user's situation text. Write ALL free-text values (headline, every takeaway, every detail, click/clash/watch, playbook tips and whys, starters) entirely in that language. Never mix languages in one sentence. If the situation is in English or empty, write in English. JSON keys stay in English. Do not translate archetype names.";
 
   return `You are an emotionally intelligent relationship analyst. Using Four Pillars of Destiny (사주) data, you produce practical personality insights and interaction advice — written in the tone of a highly perceptive friend, not a mystical oracle.
