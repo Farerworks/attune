@@ -38,7 +38,10 @@ function makeRequest(ip: string): Request {
       me: { date: '1990-06-15', time: '14:30' },
       them: { date: '1988-03-02', time: '09:00', name: 'Sam' },
       relationship: 'Friend',
-      situation: 'test',
+      // BRIEF-111 §3.1 — language-undecidable on purpose (no Hangul, no Latin letters), so these
+      // pre-existing tests (headline length, banned phrases, rate limit, PII logging — none of
+      // which are about output language) don't accidentally trip the new language retry.
+      situation: '123',
     }),
   });
 }
@@ -421,5 +424,103 @@ describe('POST /api/briefing — leak negative control + regression (BRIEF-100E 
     } finally {
       errorSpy.mockRestore();
     }
+  });
+});
+
+// ── BRIEF-111 §4 — server-determined output language ───────────────────────────
+
+/** Every checked free-text field (headline + dynamic.click/clash/watch.takeaway +
+ * theirProfile.*.takeaway + playbook[].tip) set to the same short phrase in one language. */
+function makeLangBriefingJson(lang: 'ko' | 'en'): string {
+  const text = lang === 'ko' ? '안녕하세요 반갑습니다' : 'Hello nice to meet you';
+  const insight = { takeaway: text, detail: 'x' };
+  return JSON.stringify({
+    headline: text,
+    theirProfile: {
+      personality: insight, communication: insight, decisions: insight, stress: insight,
+    },
+    spectrums: { communication: 50, decisions: 50, pace: 50, stress: 50 },
+    mySpectrums: { communication: 50, decisions: 50, pace: 50, stress: 50 },
+    dynamic: { resonance: 'mixed-signals', click: insight, clash: insight, watch: insight },
+    playbook: [
+      { type: 'do', tip: text, why: 'x' },
+      { type: 'do', tip: text, why: 'x' },
+      { type: 'dont', tip: text, why: 'x' },
+    ],
+  });
+}
+
+/** Every checked field is "<name> hi" — 2 Hangul + 2 Latin chars each. Without stripping the
+ * name from the check string this reads as 50% Korean (a false violation for lang='en'); with
+ * stripping (BRIEF-111 §3.3) it's 100% Latin. Proves the name-allowlist gate actually does something. */
+function makeEnBriefingWithRepeatedName(name: string): string {
+  const text = `${name} hi`;
+  const insight = { takeaway: text, detail: 'x' };
+  return JSON.stringify({
+    headline: text,
+    theirProfile: {
+      personality: insight, communication: insight, decisions: insight, stress: insight,
+    },
+    spectrums: { communication: 50, decisions: 50, pace: 50, stress: 50 },
+    mySpectrums: { communication: 50, decisions: 50, pace: 50, stress: 50 },
+    dynamic: { resonance: 'mixed-signals', click: insight, clash: insight, watch: insight },
+    playbook: [
+      { type: 'do', tip: text, why: 'x' },
+      { type: 'do', tip: text, why: 'x' },
+      { type: 'dont', tip: text, why: 'x' },
+    ],
+  });
+}
+
+describe('POST /api/briefing — server-determined language (BRIEF-111)', () => {
+  it('5. 한국어 상황문 + 영어 응답 -> 언어 재시도가 1회 발생하고, 재시도 프롬프트에 "wrong language" 문구가 포함된다', async () => {
+    mockGenerateJson
+      .mockResolvedValueOnce(makeLangBriefingJson('en'))
+      .mockResolvedValueOnce(makeLangBriefingJson('ko'));
+
+    const res = await POST(makeRequestWithPII(freshIp(), 'Sam', '요즘 대화가 겉도는 느낌이야'));
+    await res.json();
+
+    expect(mockGenerateJson).toHaveBeenCalledTimes(2);
+    expect(mockGenerateJson.mock.calls[1][0]).toContain('wrong language');
+  });
+
+  it('6. 한국어 상황문 + 한국어 응답 -> 재시도 없음', async () => {
+    mockGenerateJson.mockResolvedValueOnce(makeLangBriefingJson('ko'));
+
+    const res = await POST(makeRequestWithPII(freshIp(), 'Sam', '요즘 대화가 겉도는 느낌이야'));
+    await res.json();
+
+    expect(mockGenerateJson).toHaveBeenCalledTimes(1);
+  });
+
+  it('7. 영어 상황문 + 영어 응답 -> 재시도 없음', async () => {
+    mockGenerateJson.mockResolvedValueOnce(makeLangBriefingJson('en'));
+
+    const res = await POST(makeRequestWithPII(freshIp(), 'Sam', "We've been drifting apart lately."));
+    await res.json();
+
+    expect(mockGenerateJson).toHaveBeenCalledTimes(1);
+  });
+
+  it('8. 이름 오탐 가드: 영어 상황문 + 영어 응답 + them.name: "하람" -> 재시도 없음', async () => {
+    mockGenerateJson.mockResolvedValueOnce(makeEnBriefingWithRepeatedName('하람'));
+
+    const res = await POST(makeRequestWithPII(freshIp(), '하람', "We've been drifting apart lately."));
+    await res.json();
+
+    expect(mockGenerateJson).toHaveBeenCalledTimes(1);
+  });
+
+  it('9. 판정 불가 상황문("?!") -> lang 미산출 -> 프롬프트는 기존 "Detect the language" 문구 그대로, 언어 검사 없음', async () => {
+    mockGenerateJson.mockResolvedValueOnce(makeLangBriefingJson('en'));
+
+    const res = await POST(makeRequestWithPII(freshIp(), 'Sam', '?!'));
+    await res.json();
+
+    expect(mockGenerateJson).toHaveBeenCalledTimes(1);
+    expect(mockGenerateJson.mock.calls[0][0]).toContain("Detect the language of the user's situation text.");
+    expect(mockGenerateJson.mock.calls[0][0]).not.toContain('Write ALL free-text values in KOREAN');
+    expect(mockGenerateJson.mock.calls[0][0]).not.toContain('Write ALL free-text values in ENGLISH.');
   });
 });

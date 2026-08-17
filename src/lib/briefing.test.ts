@@ -420,3 +420,46 @@ describe('applyStartersFraming (BRIEF-100B-FIX2 §1.2)', () => {
     expect(containsBannedPhrases(briefing)).toContain('weakness');
   });
 });
+
+describe('buildBriefingPrompt — lang 인자 (BRIEF-111 §2)', () => {
+  it('1. lang 미전달 -> 기존 "Detect the language" 문장 그대로(회귀 가드)', () => {
+    const me = makeChart({ dayStem: 'Yang Wood', year: 'Rat', month: 'Dragon', day: 'Monkey' });
+    const them = makeChart({ dayStem: 'Yang Fire', year: 'Ox', month: 'Snake', day: 'Rooster' });
+    const prompt = buildBriefingPrompt(me, them, 'friend', 'test situation');
+
+    expect(prompt).toContain("Detect the language of the user's situation text.");
+    expect(prompt).not.toContain('Write ALL free-text values in KOREAN');
+    expect(prompt).not.toContain('Write ALL free-text values in ENGLISH.');
+  });
+
+  it('2. lang: \'ko\' -> KOREAN 지시 포함 + "Detect the language" 문장 부재', () => {
+    const me = makeChart({ dayStem: 'Yang Wood', year: 'Rat', month: 'Dragon', day: 'Monkey' });
+    const them = makeChart({ dayStem: 'Yang Fire', year: 'Ox', month: 'Snake', day: 'Rooster' });
+    const prompt = buildBriefingPrompt(me, them, 'friend', 'test situation', 'ko');
+
+    expect(prompt).toContain('Write ALL free-text values in KOREAN (한국어).');
+    expect(prompt).not.toContain("Detect the language of the user's situation text.");
+  });
+
+  it('3. lang: \'en\' -> ENGLISH 지시 포함', () => {
+    const me = makeChart({ dayStem: 'Yang Wood', year: 'Rat', month: 'Dragon', day: 'Monkey' });
+    const them = makeChart({ dayStem: 'Yang Fire', year: 'Ox', month: 'Snake', day: 'Rooster' });
+    const prompt = buildBriefingPrompt(me, them, 'friend', 'test situation', 'en');
+
+    expect(prompt).toContain('Write ALL free-text values in ENGLISH.');
+    expect(prompt).not.toContain("Detect the language of the user's situation text.");
+  });
+
+  it('4. lang \'ko\'·\'en\' 둘 다 "JSON keys stay in English"·"Do not translate archetype names" 유지', () => {
+    const me = makeChart({ dayStem: 'Yang Wood', year: 'Rat', month: 'Dragon', day: 'Monkey' });
+    const them = makeChart({ dayStem: 'Yang Fire', year: 'Ox', month: 'Snake', day: 'Rooster' });
+    const koPrompt = buildBriefingPrompt(me, them, 'friend', 'test situation', 'ko');
+    const enPrompt = buildBriefingPrompt(me, them, 'friend', 'test situation', 'en');
+
+    for (const prompt of [koPrompt, enPrompt]) {
+      expect(prompt).toContain('Never mix languages in one sentence.');
+      expect(prompt).toContain('JSON keys stay in English.');
+      expect(prompt).toContain('Do not translate archetype names.');
+    }
+  });
+});

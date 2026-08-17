@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { calculateSaju } from '@/lib/saju';
-import { buildBriefingPrompt, parseBriefing, containsBannedPhrases, applyStartersFraming } from '@/lib/briefing';
+import { buildBriefingPrompt, parseBriefing, containsBannedPhrases, applyStartersFraming, type Briefing } from '@/lib/briefing';
 import { createLlmProvider } from '@/lib/llm';
 import { checkRateLimit } from '@/lib/rateLimit';
 
@@ -38,6 +38,58 @@ function headlineTooLong(headline: string): boolean {
 const HEADLINE_RETRY_INSTRUCTION =
   '\n\nYour headline was too long. Rewrite ONLY the headline in one shorter sentence (same language, same meaning, same non-judgmental tone), within the hard limit. Return the full JSON again with only the headline changed.';
 
+// ── Language contract (BRIEF-111) ─────────────────────────────────────────────
+// The model used to be trusted to detect the situation's language itself — a short situation
+// gives it a weak signal, and the ~300-line English prompt wins by default. The server now
+// decides `lang` up front and tells the model directly (briefing.ts's `lang` param), then checks
+// the response and retries once if it's wrong. Deliberately re-implemented here rather than
+// imported from `api/ask/route.ts` — same counting rule as that file's `detectMessageLang`, but
+// kept local per BRIEF-111 §5.2 (no shared module, no Ask import).
+
+/** ko>la -> 'ko', la>ko -> 'en', tied or both zero -> undefined (undecidable, e.g. "?!"). */
+function detectSituationLang(text: string): 'ko' | 'en' | undefined {
+  const ko = (text.match(/[가-힣]/g) ?? []).length;
+  const la = (text.match(/[A-Za-z]/g) ?? []).length;
+  if (ko === 0 && la === 0) return undefined;
+  if (ko === la) return undefined;
+  return ko > la ? 'ko' : 'en';
+}
+
+/** Scope = headline + dynamic.click/clash/watch.takeaway + theirProfile.*.takeaway + every
+ * playbook tip (BRIEF-111 §3.3) — NOT .detail/.why/starters, which the brief doesn't list.
+ * `themName`, if given, is stripped first so a Korean name doesn't false-positive an English
+ * answer (same intent as Ask's nameAllowlist). */
+function collectBriefingFreeText(briefing: Briefing): string {
+  return [
+    briefing.headline,
+    briefing.dynamic.click.takeaway,
+    briefing.dynamic.clash.takeaway,
+    briefing.dynamic.watch.takeaway,
+    briefing.theirProfile.personality.takeaway,
+    briefing.theirProfile.communication.takeaway,
+    briefing.theirProfile.decisions.takeaway,
+    briefing.theirProfile.stress.takeaway,
+    ...briefing.playbook.map(item => item.tip),
+  ].join(' ');
+}
+
+/** True = violation (the off-language script makes up >=50% of the counted ko+latin chars). */
+function briefingLanguageViolated(briefing: Briefing, lang: 'ko' | 'en', themName: string | undefined): boolean {
+  let combined = collectBriefingFreeText(briefing);
+  if (themName) combined = combined.split(themName).join(' ');
+
+  const ko = (combined.match(/[가-힣]/g) ?? []).length;
+  const la = (combined.match(/[A-Za-z]/g) ?? []).length;
+  const total = ko + la;
+  if (total === 0) return false;
+
+  const other = lang === 'ko' ? la : ko;
+  return other / total >= 0.5;
+}
+
+const LANGUAGE_RETRY_INSTRUCTION = (lang: 'ko' | 'en') =>
+  `\n\nYour previous answer used the wrong language. Rewrite the SAME JSON with ALL free-text values in ${lang === 'ko' ? 'Korean' : 'English'}.`;
+
 // ── §1: structured failure logging (BRIEF-100E — no PII, 502 return points only) ────────────
 
 /**
@@ -72,6 +124,13 @@ function logBriefingFailure(rid: string, stage: string, action: string, category
  * Same [briefing] log family, but only a count — never the offending question text or any PII. */
 function logStartersRemoved(rid: string, count: number): void {
   console.error(`[briefing] rid=${rid} stage=starters action=removed count=${count}`);
+}
+
+/** BRIEF-111 §3.5 — the language retry call itself failed (timeout/unparseable). Not a 502: the
+ * pre-retry briefing is kept and returned as-is, so this is diagnostics only, same status-200
+ * log family as logStartersRemoved above (never `status=502`, unlike logBriefingFailure). */
+function logLanguageRetryFailed(rid: string): void {
+  console.error(`[briefing] rid=${rid} stage=language action=retry_failed`);
 }
 
 const RequestSchema = z.object({
@@ -129,7 +188,11 @@ export async function POST(request: Request) {
     ? `${situation} (Their name: ${themInput.name})`
     : situation;
 
-  const prompt = buildBriefingPrompt(meChart, themChart, relationship, contextualSituation);
+  // BRIEF-111 §3.1 — judged from the raw `situation`, before the name tag is appended (a tag
+  // like "(Their name: Riley)" is always-English boilerplate and would skew the ko/latin count).
+  const lang = detectSituationLang(situation);
+
+  const prompt = buildBriefingPrompt(meChart, themChart, relationship, contextualSituation, lang);
 
   // ── LLM call + banned-phrase guard ─────────────────────────────────────────
   // §1.3's "current stage" variable — the outer catch below can't otherwise tell whether the
@@ -195,6 +258,20 @@ export async function POST(request: Request) {
         briefing = parseBriefing(lengthRetryRaw);
       } catch {
         // Retry failed (timeout / unparseable) — keep the original briefing; UI's length-adaptive scale absorbs it.
+      }
+    }
+
+    // BRIEF-111 §3.3/§3.4 — language contract, checked only when `lang` was determined and only
+    // after the banned-phrase/headline retries above (never combined with those into one retry).
+    // One retry, unchecked result — a language mismatch is never a 502 to the user (§3.5).
+    if (lang && briefingLanguageViolated(briefing, lang, themInput.name)) {
+      const langRetryPrompt = prompt + LANGUAGE_RETRY_INSTRUCTION(lang);
+      try {
+        const langRetryRaw = await withTimeout(llm.generateJson(langRetryPrompt, 4096), LLM_TIMEOUT, 'Language retry');
+        briefing = parseBriefing(langRetryRaw);
+      } catch {
+        logLanguageRetryFailed(rid);
+        // Retry failed (timeout / unparseable) — keep the original briefing; language mismatch is not a render failure.
       }
     }
   } catch (err) {
