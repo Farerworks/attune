@@ -327,6 +327,104 @@ export default function PersonHubPage({ params }: { params: Promise<{ id: string
         )}
       </div>
 
+      {/* ── Recent activity (thread) ────────────────────────────────────────── */}
+      <div style={{ padding: '28px 20px 0' }}>
+        <p style={{ ...SECTION_LABEL_STYLE, marginBottom: 16 }}>
+          RECENT ACTIVITY
+        </p>
+        <div style={{ position: 'relative' }}>
+          {/* Connecting line — spans from the first dot to (approximately) the last; a pure-CSS
+              approximation since exact per-row heights aren't measured (honest caveat in report). */}
+          {person.events.length > 1 && (
+            <div aria-hidden="true" style={{
+              position: 'absolute', left: 3, top: 6, bottom: 6, width: 1, background: 'var(--c-hairline)',
+            }} />
+          )}
+          {person.events.map((event, i) => {
+            const isLatest = i === 0;
+            const isReading = event.type === 'reading';
+            const typeLabel = korean
+              ? (isReading ? '리딩' : '대화')
+              : (isReading ? 'READING' : 'ASK');
+            // BRIEF-110 §1 — the whole row is now the link; this doubles as the visible
+            // secondary line under the title AND the Link's aria-label (item 4).
+            const actionLabel = korean
+              ? (isReading ? '리딩 보기' : '대화 이어가기')
+              : (isReading ? 'Open reading' : 'Continue the conversation');
+
+            return (
+              <Link
+                key={`${event.readingId}-${event.type}-${event.at}`}
+                href={isReading ? `/reading/${event.readingId}` : `/ask?person=${event.readingId}`}
+                aria-label={actionLabel}
+                className="pressable"
+                style={{
+                  position: 'relative', display: 'block', minHeight: 56,
+                  paddingLeft: 18, paddingRight: 20,
+                  marginBottom: i < person.events.length - 1 ? 26 : 0,
+                  textDecoration: 'none',
+                }}
+              >
+                <span aria-hidden="true" style={{
+                  position: 'absolute', left: 0, top: 6, width: 7, height: 7, borderRadius: '50%',
+                  background: isLatest ? 'var(--c-vermilion)' : 'transparent',
+                  border: isLatest ? 'none' : '1px solid var(--c-hairline)',
+                  boxSizing: 'border-box',
+                }} />
+
+                <p style={{
+                  margin: 0,
+                  fontFamily: korean ? 'var(--font-inter)' : "var(--font-space-mono,'Courier New')",
+                  fontSize: korean ? 11.5 : 10.5,
+                  letterSpacing: korean ? 'normal' : '0.08em',
+                  color: 'var(--c-muted)',
+                }}>
+                  {formatDate(event.at)} · {typeLabel}
+                </p>
+
+                {isReading ? (
+                  <p style={isLatest ? {
+                    margin: '4px 0 0', fontFamily: 'var(--font-fraunces,Georgia,serif)', fontStyle: 'italic',
+                    fontSize: 17, color: 'var(--c-ink)', lineHeight: 1.35,
+                    display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+                  } : {
+                    margin: '4px 0 0', fontFamily: 'var(--font-inter)', fontSize: 14,
+                    color: 'var(--c-ink-body)', lineHeight: 1.45,
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}>
+                    {event.text}
+                  </p>
+                ) : (
+                  <p style={{
+                    margin: '4px 0 0', fontFamily: 'var(--font-inter)',
+                    fontWeight: isLatest ? 600 : 400,
+                    fontSize: 14, color: isLatest ? 'var(--c-ink)' : 'var(--c-ink-body)', lineHeight: 1.45,
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}>
+                    {event.text}
+                  </p>
+                )}
+
+                <span style={{
+                  display: 'inline-block', marginTop: 4,
+                  fontFamily: 'var(--font-inter)', fontSize: 13, fontWeight: 600,
+                  color: 'var(--c-vermilion)',
+                }}>
+                  {actionLabel}
+                </span>
+
+                <span aria-hidden="true" style={{
+                  position: 'absolute', right: 0, top: '50%', transform: 'translateY(-50%)',
+                  color: 'var(--c-muted)', fontSize: 20, lineHeight: 1,
+                }}>
+                  ›
+                </span>
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+
       {/* ── A SAJU LENS ──────────────────────────────────────────────────────── */}
       {profile && (
         <div style={{ padding: '24px 20px 0' }}>
@@ -359,87 +457,6 @@ export default function PersonHubPage({ params }: { params: Promise<{ id: string
           </button>
         </div>
       )}
-
-      {/* ── Record (thread) ─────────────────────────────────────────────────── */}
-      <div style={{ padding: '28px 20px 0' }}>
-        <p style={{ ...SECTION_LABEL_STYLE, marginBottom: 16 }}>
-          RECORD
-        </p>
-        <div style={{ position: 'relative' }}>
-          {/* Connecting line — spans from the first dot to (approximately) the last; a pure-CSS
-              approximation since exact per-row heights aren't measured (honest caveat in report). */}
-          {person.events.length > 1 && (
-            <div aria-hidden="true" style={{
-              position: 'absolute', left: 3, top: 6, bottom: 6, width: 1, background: 'var(--c-hairline)',
-            }} />
-          )}
-          {person.events.map((event, i) => {
-            const isLatest = i === 0;
-            const isReading = event.type === 'reading';
-            const typeLabel = korean
-              ? (isReading ? '리딩' : '대화')
-              : (isReading ? 'READING' : 'ASK');
-
-            return (
-              <div key={`${event.readingId}-${event.type}-${event.at}`} style={{
-                position: 'relative', paddingLeft: 18,
-                marginBottom: i < person.events.length - 1 ? 26 : 0,
-              }}>
-                <span aria-hidden="true" style={{
-                  position: 'absolute', left: 0, top: 6, width: 7, height: 7, borderRadius: '50%',
-                  background: isLatest ? 'var(--c-vermilion)' : 'transparent',
-                  border: isLatest ? 'none' : '1px solid var(--c-hairline)',
-                  boxSizing: 'border-box',
-                }} />
-
-                <p style={{
-                  margin: 0,
-                  fontFamily: korean ? 'var(--font-inter)' : "var(--font-space-mono,'Courier New')",
-                  fontSize: korean ? 11.5 : 10.5,
-                  letterSpacing: korean ? 'normal' : '0.08em',
-                  color: 'var(--c-muted)',
-                }}>
-                  {formatDate(event.at)} · {typeLabel}
-                </p>
-
-                {isReading ? (
-                  <Link href={`/reading/${event.readingId}`} style={{ textDecoration: 'none' }}>
-                    <p style={isLatest ? {
-                      margin: '4px 0 0', fontFamily: 'var(--font-fraunces,Georgia,serif)', fontStyle: 'italic',
-                      fontSize: 17, color: 'var(--c-ink)', lineHeight: 1.35,
-                      display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
-                    } : {
-                      margin: '4px 0 0', fontFamily: 'var(--font-inter)', fontSize: 14,
-                      color: 'var(--c-ink-body)', lineHeight: 1.45,
-                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                    }}>
-                      {event.text}
-                    </p>
-                  </Link>
-                ) : (
-                  <>
-                    <p style={{
-                      margin: '4px 0 0', fontFamily: 'var(--font-inter)',
-                      fontWeight: isLatest ? 600 : 400,
-                      fontSize: 14, color: isLatest ? 'var(--c-ink)' : 'var(--c-ink-body)', lineHeight: 1.45,
-                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                    }}>
-                      {event.text}
-                    </p>
-                    <Link href={`/ask?person=${event.readingId}`} style={{
-                      display: 'inline-block', marginTop: 4,
-                      fontFamily: 'var(--font-inter)', fontSize: 13, fontWeight: 600,
-                      color: 'var(--c-vermilion)', textDecoration: 'none',
-                    }}>
-                      {korean ? '대화 이어가기 →' : 'Continue the conversation →'}
-                    </Link>
-                  </>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
 
       {/* ── Actions ──────────────────────────────────────────────────────────── */}
       <div style={{ padding: '28px 20px 0' }}>

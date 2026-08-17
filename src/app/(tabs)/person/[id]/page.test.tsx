@@ -205,6 +205,86 @@ describe('PersonHubPage (BRIEF-097)', () => {
   });
 });
 
+describe('PersonHubPage — 활동 행 어포던스 통일 (BRIEF-110)', () => {
+  it('1. 리딩 행: 행 전체가 /reading/<id> 링크다 (날짜·제목·보조 문구가 같은 링크 안에 있음)', async () => {
+    localStorage.setItem('attune.readings', JSON.stringify([
+      makeReading({ id: 'r1', briefing: { headline: 'A shared headline' } }),
+    ]));
+    await renderHub('r1');
+
+    const title = await waitFor(() => screen.getByText('A shared headline'));
+    const link = title.closest('a');
+    expect(link).not.toBeNull();
+    expect(link!.getAttribute('href')).toBe('/reading/r1');
+    expect(link!.textContent).toContain('Open reading');
+  });
+
+  it('2. 대화 행: 행 전체가 /ask?person=<id> 링크다 + 내부에 중첩 <a> 없음', async () => {
+    localStorage.setItem('attune.readings', JSON.stringify([makeReading({ id: 'r1' })]));
+    localStorage.setItem('attune.ask.threads', JSON.stringify({
+      r1: [{ id: 'q1', role: 'user', text: 'a fresh question', createdAt: '2026-08-05T00:00:00.000Z' }],
+    }));
+    await renderHub('r1');
+
+    const askText = await waitFor(() => screen.getByText('a fresh question'));
+    const link = askText.closest('a');
+    expect(link).not.toBeNull();
+    expect(link!.getAttribute('href')).toBe('/ask?person=r1');
+    expect(link!.querySelectorAll('a')).toHaveLength(0);
+  });
+
+  it('3. aria-label(한국어): "리딩 보기"/"대화 이어가기"', async () => {
+    Object.defineProperty(navigator, 'language', { value: 'ko-KR', configurable: true });
+    localStorage.setItem('attune.readings', JSON.stringify([
+      makeReading({ id: 'r1', briefing: { headline: 'A shared headline' } }),
+    ]));
+    localStorage.setItem('attune.ask.threads', JSON.stringify({
+      r1: [{ id: 'q1', role: 'user', text: 'a fresh question', createdAt: '2026-08-05T00:00:00.000Z' }],
+    }));
+    await renderHub('r1');
+
+    await waitFor(() => expect(screen.getByLabelText('리딩 보기')).toBeTruthy());
+    expect(screen.getByLabelText('대화 이어가기')).toBeTruthy();
+  });
+
+  it('3b. aria-label(영어): "Open reading"/"Continue the conversation"', async () => {
+    localStorage.setItem('attune.readings', JSON.stringify([
+      makeReading({ id: 'r1', briefing: { headline: 'A shared headline' } }),
+    ]));
+    localStorage.setItem('attune.ask.threads', JSON.stringify({
+      r1: [{ id: 'q1', role: 'user', text: 'a fresh question', createdAt: '2026-08-05T00:00:00.000Z' }],
+    }));
+    await renderHub('r1');
+
+    await waitFor(() => expect(screen.getByLabelText('Open reading')).toBeTruthy());
+    expect(screen.getByLabelText('Continue the conversation')).toBeTruthy();
+  });
+
+  it('4. chevron(›)이 행마다 렌더된다', async () => {
+    localStorage.setItem('attune.readings', JSON.stringify([makeReading({ id: 'r1' })]));
+    localStorage.setItem('attune.ask.threads', JSON.stringify({
+      r1: [{ id: 'q1', role: 'user', text: 'a fresh question', createdAt: '2026-08-05T00:00:00.000Z' }],
+    }));
+    await renderHub('r1');
+
+    await waitFor(() => expect(screen.getByText('a fresh question')).toBeTruthy());
+    expect(screen.getAllByText('›')).toHaveLength(2);
+  });
+
+  it('5. 섹션 순서: RECENT ACTIVITY가 A SAJU LENS보다 먼저 등장한다', async () => {
+    localStorage.setItem('attune.readings', JSON.stringify([makeReading({ id: 'r1' })]));
+    const { container } = await renderHub('r1');
+    await waitFor(() => expect(screen.getByText('RECENT ACTIVITY')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('A SAJU LENS')).toBeTruthy());
+
+    const labels = Array.from(container.querySelectorAll('p')).map(p => p.textContent);
+    const recentIdx = labels.indexOf('RECENT ACTIVITY');
+    const sajuIdx = labels.indexOf('A SAJU LENS');
+    expect(recentIdx).toBeGreaterThanOrEqual(0);
+    expect(sajuIdx).toBeGreaterThan(recentIdx);
+  });
+});
+
 describe('PersonHubPage — delete records (BRIEF-098)', () => {
   async function openConfirmSheet() {
     const entry = await waitFor(() => screen.getByText("Delete this person's records"));
