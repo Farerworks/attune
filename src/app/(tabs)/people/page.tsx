@@ -204,7 +204,7 @@ export default function PeoplePage() {
                 )}
 
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  {/* Row 1: name (ellipsis) + N READS */}
+                  {/* Row 1: name (ellipsis) + N ACTIVITIES (BRIEF-110B — readings+asks combined) */}
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
                     <span style={{
                       fontFamily: 'var(--font-inter)', fontSize: 17, fontWeight: 650,
@@ -217,7 +217,7 @@ export default function PeoplePage() {
                       fontFamily: 'var(--font-space-mono)', fontSize: 10.5,
                       color: 'var(--c-muted)', flexShrink: 0, marginLeft: 'auto',
                     }}>
-                      {person.readings.length} {person.readings.length === 1 ? 'READ' : 'READS'}
+                      {person.events.length} {person.events.length === 1 ? 'ACTIVITY' : 'ACTIVITIES'}
                     </span>
                   </div>
 
@@ -240,6 +240,13 @@ export default function PeoplePage() {
                     {person.latestExcerpt}
                   </p>
                 </div>
+
+                <span aria-hidden="true" style={{
+                  color: 'var(--c-muted)', fontSize: 20, lineHeight: 1, flexShrink: 0,
+                  alignSelf: 'center',
+                }}>
+                  ›
+                </span>
               </Link>
             </li>
           ))}

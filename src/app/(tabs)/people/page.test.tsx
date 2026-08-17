@@ -56,7 +56,10 @@ describe('PeoplePage — ledger rows (BRIEF-097)', () => {
 
     await waitFor(() => expect(screen.getByText('Sam')).toBeTruthy());
     expect(screen.getAllByText('Sam')).toHaveLength(1);
-    expect(screen.getByText('2 READS')).toBeTruthy();
+    // BRIEF-110B — the row count is readings+asks combined, not readings alone; with 2
+    // readings and 0 ask threads that's still 2, just relabeled "ACTIVITIES" not "READS".
+    expect(screen.getByText('2 ACTIVITIES')).toBeTruthy();
+    expect(screen.queryByText('2 READS')).toBeNull();
 
     const row = screen.getByText('Sam').closest('a') as HTMLAnchorElement;
     expect(row.getAttribute('href')).toBe('/person/r-new');
@@ -73,6 +76,52 @@ describe('PeoplePage — ledger rows (BRIEF-097)', () => {
 
     await waitFor(() => expect(screen.getByText('Sam')).toBeTruthy());
     expect(screen.queryByText('TODAY')).toBeNull();
+  });
+});
+
+describe('PeoplePage — 카운트 정합 + chevron (BRIEF-110B)', () => {
+  it('1. 리딩 1 + 대화 1인 사람 -> "2 ACTIVITIES" 표시("1 READ" 부재)', async () => {
+    localStorage.setItem('attune.readings', JSON.stringify([
+      { id: 'r1', name: 'Sam', date: '1988-03-02', relationship: 'Friend', situation: 'x', createdAt: '2026-08-01T00:00:00.000Z' },
+    ]));
+    localStorage.setItem('attune.ask.threads', JSON.stringify({
+      r1: [{ id: 'q1', role: 'user', text: 'a question', createdAt: '2026-08-02T00:00:00.000Z' }],
+    }));
+
+    const { default: PeoplePage } = await import('./page');
+    render(<PeoplePage />);
+
+    await waitFor(() => expect(screen.getByText('Sam')).toBeTruthy());
+    expect(screen.getByText('2 ACTIVITIES')).toBeTruthy();
+    expect(screen.queryByText('1 READ')).toBeNull();
+  });
+
+  it('2. 리딩 1만 -> "1 ACTIVITY"(단수) + href는 anchorReadingId 그대로(회귀 가드)', async () => {
+    localStorage.setItem('attune.readings', JSON.stringify([
+      { id: 'r1', name: 'Sam', date: '1988-03-02', relationship: 'Friend', situation: 'x', createdAt: '2026-08-01T00:00:00.000Z' },
+    ]));
+
+    const { default: PeoplePage } = await import('./page');
+    render(<PeoplePage />);
+
+    await waitFor(() => expect(screen.getByText('Sam')).toBeTruthy());
+    expect(screen.getByText('1 ACTIVITY')).toBeTruthy();
+
+    const row = screen.getByText('Sam').closest('a') as HTMLAnchorElement;
+    expect(row.getAttribute('href')).toBe('/person/r1');
+  });
+
+  it('3. chevron(›)이 행마다 렌더된다', async () => {
+    localStorage.setItem('attune.readings', JSON.stringify([
+      { id: 'r1', name: 'Sam', date: '1988-03-02', relationship: 'Friend', situation: 'x', createdAt: '2026-07-01T00:00:00.000Z' },
+      { id: 'r2', name: 'Alex', date: '1990-01-01', relationship: 'Coworker', situation: 'y', createdAt: '2026-08-01T00:00:00.000Z' },
+    ]));
+
+    const { default: PeoplePage } = await import('./page');
+    render(<PeoplePage />);
+
+    await waitFor(() => expect(screen.getByText('Sam')).toBeTruthy());
+    expect(screen.getAllByText('›')).toHaveLength(2);
   });
 });
 
