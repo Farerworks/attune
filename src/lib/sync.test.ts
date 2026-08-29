@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { markReplaceAck, hasReplaceAck, applySnapshot, pushBackup } from './sync';
+import { markReplaceAck, hasReplaceAck, applySnapshot, pushBackup, deleteBackup } from './sync';
 
 afterEach(() => {
   localStorage.clear();
@@ -132,5 +132,30 @@ describe('BRIEF-107 §1 — pushBackup account-scoped replace-ack gate', () => {
     expect(res.ok).toBe(true);
     expect((res as { blocked?: true }).blocked).toBeUndefined();
     expect(fetchMock.mock.calls.filter(([url, init]) => url === '/api/sync' && (init as RequestInit)?.method === 'PUT')).toHaveLength(1);
+  });
+});
+
+// BRIEF-112 §2 — deleteBackup used to be `Promise<void>` and swallow the DELETE's outcome, so a
+// server-side failure still let the caller wipe local data. It now reports success/failure so the
+// caller (Settings' handleClearData) can decide whether it's safe to clear locally.
+describe('deleteBackup (BRIEF-112 §2)', () => {
+  it('200 → true', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, status: 200 } as Response)));
+    expect(await deleteBackup()).toBe(true);
+  });
+
+  it('404 (nothing to delete) → true', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 404 } as Response)));
+    expect(await deleteBackup()).toBe(true);
+  });
+
+  it('500 → false', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 500 } as Response)));
+    expect(await deleteBackup()).toBe(false);
+  });
+
+  it('fetch rejects → false', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('network error'); }));
+    expect(await deleteBackup()).toBe(false);
   });
 });

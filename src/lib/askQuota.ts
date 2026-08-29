@@ -70,6 +70,15 @@ export function clearAskData(): void {
   } catch {}
 }
 
+/** Wipe conversations + remembered facts, but keep the daily quota (BRIEF-112 §3) */
+export function resetConversations(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.removeItem(LS_THREADS_KEY);
+    localStorage.removeItem(LS_MEMORY_KEY);
+  } catch {}
+}
+
 // ── Relationship memory (per-person facts, person mode only) ─────────────────
 
 export function loadMemory(chipId: string): string[] {

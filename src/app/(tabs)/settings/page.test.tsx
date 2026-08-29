@@ -12,6 +12,7 @@ const mockPullBackup = vi.fn(() => Promise.resolve(null) as Promise<unknown>);
 const mockPushBackup = vi.fn();
 const mockApplySnapshot = vi.fn();
 const mockMarkReplaceAck = vi.fn();
+const mockClearAllData = vi.fn();
 const callOrder: string[] = [];
 // BRIEF-107 §2.3 — a tiny stateful stand-in for the real localStorage-backed hasReplaceAck, so
 // the "resumes after a successful manual backup" test can observe the flag flipping.
@@ -19,13 +20,19 @@ let ackedSub: string | null = null;
 
 vi.mock('@/lib/sync', () => ({
   getSyncSession: () => mockGetSyncSession(),
-  pushBackup: (opts?: { explicitReplace?: boolean }) => mockPushBackup(opts),
+  pushBackup: (opts?: { explicitReplace?: boolean }) => { callOrder.push('pushBackup'); return mockPushBackup(opts); },
   pullBackup: () => mockPullBackup(),
   deleteBackup: () => mockDeleteBackup(),
   applySnapshot: (payload: unknown) => { callOrder.push('applySnapshot'); mockApplySnapshot(payload); },
   markReplaceAck: (sub: string) => { callOrder.push('markReplaceAck'); mockMarkReplaceAck(sub); ackedSub = sub; },
   hasReplaceAck: (sub: string) => ackedSub === sub,
   LS_LAST_BACKUP: 'attune.lastBackup',
+}));
+
+// BRIEF-112 §2 — clearAllData is mocked so "Clear all data fails" tests can assert it was never
+// called, without depending on store.ts's real localStorage sweep.
+vi.mock('@/lib/store', () => ({
+  clearAllData: () => mockClearAllData(),
 }));
 
 afterEach(() => {
@@ -37,8 +44,10 @@ afterEach(() => {
   mockPushBackup.mockReset();
   mockApplySnapshot.mockReset();
   mockMarkReplaceAck.mockReset();
+  mockClearAllData.mockReset();
   callOrder.length = 0;
   ackedSub = null;
+  localStorage.clear();
 });
 
 describe('SettingsPage — version footer', () => {
@@ -67,9 +76,10 @@ describe('SettingsPage — title in the fixed top bar (BRIEF-094F)', () => {
   });
 });
 
-describe('SettingsPage — Clear all data confirm copy by backup state (BRIEF-089)', () => {
-  // BRIEF-102로 버튼 비활성화 — 재활성화 판에서 BRIEF-089의 confirm 문구 검증을 복원할 것.
-  it('no backup (signed out): "Clear all data" is disabled and click does not open confirm', async () => {
+describe('SettingsPage — Clear all data confirm copy by backup state (BRIEF-089, re-enabled by BRIEF-112)', () => {
+  // BRIEF-112 §2 — the row's lock reason (clearAllData didn't wipe attune.ask.memory) is fixed,
+  // so `disabled` is gone and BRIEF-089's original confirm-copy assertions are restored.
+  it('no backup (signed out): warns that erasure is permanent with no backup', async () => {
     mockGetSyncSession.mockReturnValue(Promise.resolve(null));
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
 
@@ -77,14 +87,16 @@ describe('SettingsPage — Clear all data confirm copy by backup state (BRIEF-08
     render(<SettingsPage />);
 
     const button = screen.getByText('Clear all data').closest('button');
-    expect(button?.disabled).toBe(true);
+    expect(button?.disabled).toBe(false);
 
     fireEvent.click(screen.getByText('Clear all data'));
 
-    expect(confirmSpy).not.toHaveBeenCalled();
+    expect(confirmSpy).toHaveBeenCalledWith(
+      'Clear all readings and your birth info? There is no backup — this permanently erases everything on this phone.',
+    );
   });
 
-  it('signed in with backup: "Clear all data" is disabled and click does not open confirm', async () => {
+  it('signed in with backup: warns that the Google backup is also deleted', async () => {
     mockGetSyncSession.mockReturnValue(Promise.resolve({ user: { email: 'a@b.com' } } as never));
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
 
@@ -92,12 +104,114 @@ describe('SettingsPage — Clear all data confirm copy by backup state (BRIEF-08
     render(<SettingsPage />);
 
     await waitFor(() => expect(screen.getByText('a@b.com')).toBeTruthy());
-    const button = screen.getByText('Clear all data').closest('button');
-    expect(button?.disabled).toBe(true);
-
     fireEvent.click(screen.getByText('Clear all data'));
 
-    expect(confirmSpy).not.toHaveBeenCalled();
+    expect(confirmSpy).toHaveBeenCalledWith(
+      'Clear all readings and your birth info? This also deletes your Google backup. This cannot be undone.',
+    );
+  });
+});
+
+describe('SettingsPage — Clear all data stops on backup-delete failure (BRIEF-112 §2)', () => {
+  it('signed in + deleteBackup fails: localStorage untouched, failure copy shown, clearAllData not called', async () => {
+    mockGetSyncSession.mockReturnValue(Promise.resolve({ sub: 'clear-sub', user: { email: 'a@b.com' } } as never));
+    mockDeleteBackup.mockReturnValue(Promise.resolve(false));
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    const { default: SettingsPage } = await import('./page');
+    render(<SettingsPage />);
+
+    await waitFor(() => expect(screen.getByText('a@b.com')).toBeTruthy());
+    fireEvent.click(screen.getByText('Clear all data'));
+
+    await waitFor(() => expect(screen.getByText("Couldn't delete your backup — nothing was cleared. Try again.")).toBeTruthy());
+    expect(mockClearAllData).not.toHaveBeenCalled();
+  });
+
+  it('signed in + deleteBackup succeeds: clearAllData is called', async () => {
+    mockGetSyncSession.mockReturnValue(Promise.resolve({ sub: 'clear-sub-2', user: { email: 'a@b.com' } } as never));
+    mockDeleteBackup.mockReturnValue(Promise.resolve(true));
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    const { default: SettingsPage } = await import('./page');
+    render(<SettingsPage />);
+
+    await waitFor(() => expect(screen.getByText('a@b.com')).toBeTruthy());
+    fireEvent.click(screen.getByText('Clear all data'));
+
+    await waitFor(() => expect(mockClearAllData).toHaveBeenCalled());
+  });
+});
+
+describe('SettingsPage — Reset conversations (BRIEF-112 §3)', () => {
+  function seedAskData() {
+    localStorage.setItem('attune.ask.threads', '{"me":[]}');
+    localStorage.setItem('attune.ask.memory', '{"r1":["fact"]}');
+    localStorage.setItem('attune.ask.quota', JSON.stringify({ date: '2026-08-29', used: 5 }));
+  }
+
+  it('confirm cancelled: nothing changes', async () => {
+    seedAskData();
+    vi.spyOn(window, 'confirm').mockReturnValue(false);
+
+    const { default: SettingsPage } = await import('./page');
+    render(<SettingsPage />);
+
+    fireEvent.click(screen.getByText('Reset conversations'));
+
+    expect(localStorage.getItem('attune.ask.threads')).not.toBeNull();
+    expect(mockPushBackup).not.toHaveBeenCalled();
+  });
+
+  it('confirmed + signed in: resets threads/memory then pushes a backup', async () => {
+    seedAskData();
+    mockGetSyncSession.mockReturnValue(Promise.resolve({ sub: 'reset-sub', user: { email: 'a@b.com' } } as never));
+    mockPushBackup.mockReturnValue(Promise.resolve({ ok: true, updatedAt: '2026-08-29T00:00:00.000Z' }));
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    const { default: SettingsPage } = await import('./page');
+    render(<SettingsPage />);
+
+    await waitFor(() => expect(screen.getByText('a@b.com')).toBeTruthy());
+    fireEvent.click(screen.getByText('Reset conversations'));
+
+    await waitFor(() => expect(mockPushBackup).toHaveBeenCalledWith(undefined));
+    expect(localStorage.getItem('attune.ask.threads')).toBeNull();
+    expect(localStorage.getItem('attune.ask.memory')).toBeNull();
+    expect(localStorage.getItem('attune.ask.quota')).not.toBeNull();
+    await waitFor(() => expect(screen.getByText('Conversations reset.')).toBeTruthy());
+  });
+
+  it('push fails: threads/memory are still cleared locally, and the failure copy is shown', async () => {
+    seedAskData();
+    mockGetSyncSession.mockReturnValue(Promise.resolve({ sub: 'reset-sub-2', user: { email: 'a@b.com' } } as never));
+    mockPushBackup.mockReturnValue(Promise.resolve({ ok: false, status: 500 }));
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    const { default: SettingsPage } = await import('./page');
+    render(<SettingsPage />);
+
+    await waitFor(() => expect(screen.getByText('a@b.com')).toBeTruthy());
+    fireEvent.click(screen.getByText('Reset conversations'));
+
+    await waitFor(() => expect(localStorage.getItem('attune.ask.threads')).toBeNull());
+    expect(localStorage.getItem('attune.ask.memory')).toBeNull();
+    await waitFor(() => expect(screen.getByText("Conversations were reset on this phone, but the backup couldn't be updated yet.")).toBeTruthy());
+  });
+
+  it('signed out + confirmed: resets locally with no pushBackup call', async () => {
+    seedAskData();
+    mockGetSyncSession.mockReturnValue(Promise.resolve(null));
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    const { default: SettingsPage } = await import('./page');
+    render(<SettingsPage />);
+
+    fireEvent.click(screen.getByText('Reset conversations'));
+
+    await waitFor(() => expect(localStorage.getItem('attune.ask.threads')).toBeNull());
+    expect(mockPushBackup).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.getByText('Conversations reset.')).toBeTruthy());
   });
 });
 

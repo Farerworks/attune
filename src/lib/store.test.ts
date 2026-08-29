@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach } from 'vitest';
-import { deletePersonData, getReadings } from './store';
+import { deletePersonData, getReadings, clearAllData } from './store';
 import type { Reading } from './store';
 
 afterEach(() => {
@@ -123,5 +123,30 @@ describe('deletePersonData', () => {
       Storage.prototype.setItem = original;
     }
     expect(writeCount).toBe(1);
+  });
+});
+
+// BRIEF-112 §1 — clearAllData switched from a listed removeItem×4 to a prefix sweep so it
+// automatically covers keys added after this brief (e.g. a hypothetical attune.future.x), and
+// crucially attune.ask.memory, which the old listed version forgot.
+describe('clearAllData (BRIEF-112 §1)', () => {
+  it('removes every attune.* key (current 7 + a future one), leaving unrelated keys untouched', () => {
+    localStorage.setItem('attune.profile', '{}');
+    localStorage.setItem('attune.readings', '[]');
+    localStorage.setItem('attune.ask.threads', '{}');
+    localStorage.setItem('attune.ask.quota', '{}');
+    localStorage.setItem('attune.ask.memory', '{}');
+    localStorage.setItem('attune.sync.lastBackupAt', '2026-08-01T00:00:00.000Z');
+    localStorage.setItem('attune.sync.replaceAck', 'sub-1');
+    localStorage.setItem('attune.future.x', '{}');
+    localStorage.setItem('otherapp.k', 'keep-me');
+
+    clearAllData();
+
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      expect(k?.startsWith('attune.')).toBe(false);
+    }
+    expect(localStorage.getItem('otherapp.k')).toBe('keep-me');
   });
 });

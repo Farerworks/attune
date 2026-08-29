@@ -101,8 +101,11 @@ export async function pullBackup(): Promise<PullResult> {
   }
 }
 
-export async function deleteBackup(): Promise<void> {
+export async function deleteBackup(): Promise<boolean> {
   try {
-    await fetch('/api/sync', { method: 'DELETE' });
-  } catch { /* ignore — never throws */ }
+    const res = await fetch('/api/sync', { method: 'DELETE' });
+    return res.ok || res.status === 404;
+  } catch {
+    return false;
+  }
 }

@@ -224,10 +224,14 @@ export function deletePersonData(readingIds: string[]): DeletePersonDataResult {
 
 export function clearAllData(): void {
   if (typeof window === 'undefined') return;
-  localStorage.removeItem(PROFILE_KEY);
-  localStorage.removeItem(READINGS_KEY);
-  localStorage.removeItem('attune.ask.threads');
-  localStorage.removeItem('attune.ask.quota');
+  try {
+    const keys: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('attune.')) keys.push(k);
+    }
+    for (const k of keys) localStorage.removeItem(k);
+  } catch {}
 }
 
 // ── React hooks ───────────────────────────────────────────────────────────────

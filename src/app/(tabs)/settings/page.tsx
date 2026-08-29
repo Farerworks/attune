@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { clearAllData } from '@/lib/store';
+import { resetConversations } from '@/lib/askQuota';
 import { ChevronIcon } from '@/components/icons/ChevronIcon';
 import { TabTopBar } from '@/components/TabTopBar';
 import { getSyncSession, pushBackup, pullBackup, deleteBackup, applySnapshot, markReplaceAck, hasReplaceAck, LS_LAST_BACKUP, type SyncSession } from '@/lib/sync';
@@ -216,6 +217,8 @@ export default function SettingsPage() {
   const [syncSession, setSyncSession] = useState<SyncSession | null>(null);
   const [backupDesc, setBackupDesc] = useState<string | null>(null);
   const [restoreMsg, setRestoreMsg] = useState<string | null>(null);
+  const [clearMsg, setClearMsg] = useState<string | null>(null);
+  const [resetMsg, setResetMsg] = useState<string | null>(null);
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -252,12 +255,35 @@ export default function SettingsPage() {
     }
   }
 
+  async function handleResetConversations() {
+    const message = syncSession
+      ? 'Delete all Ask conversations and their remembered facts? Readings stay. This also updates your backup. This cannot be undone.'
+      : 'Delete all Ask conversations and their remembered facts? Readings stay. This cannot be undone.';
+    if (window.confirm(message)) {
+      resetConversations();
+      if (syncSession) {
+        const res = await pushBackup();
+        setResetMsg(res.ok
+          ? 'Conversations reset.'
+          : "Conversations were reset on this phone, but the backup couldn't be updated yet.");
+      } else {
+        setResetMsg('Conversations reset.');
+      }
+    }
+  }
+
   async function handleClearData() {
     const message = syncSession
       ? 'Clear all readings and your birth info? This also deletes your Google backup. This cannot be undone.'
       : 'Clear all readings and your birth info? There is no backup — this permanently erases everything on this phone.';
     if (window.confirm(message)) {
-      if (syncSession) { await deleteBackup(); }
+      if (syncSession) {
+        const deleted = await deleteBackup();
+        if (!deleted) {
+          setClearMsg("Couldn't delete your backup — nothing was cleared. Try again.");
+          return;
+        }
+      }
       clearAllData();
       router.push('/');
     }
@@ -363,7 +389,25 @@ export default function SettingsPage() {
           Backup is optional. Signing in with Google starts automatic backup to Attune&apos;s server.
         </p>
 
-        <Row label="Clear all data" danger disabled onClick={() => void handleClearData()} />
+        <Row label="Reset conversations" danger onClick={() => void handleResetConversations()} />
+        {resetMsg && (
+          <p style={{
+            fontFamily: 'var(--font-inter)', fontSize: 12, color: 'var(--c-muted)',
+            padding: '10px 20px 0', margin: 0,
+          }}>
+            {resetMsg}
+          </p>
+        )}
+
+        <Row label="Clear all data" danger onClick={() => void handleClearData()} />
+        {clearMsg && (
+          <p style={{
+            fontFamily: 'var(--font-inter)', fontSize: 12, color: 'var(--c-muted)',
+            padding: '10px 20px 0', margin: 0,
+          }}>
+            {clearMsg}
+          </p>
+        )}
 
         <p style={{
           fontFamily: 'var(--font-space-mono)', fontSize: 10.5, letterSpacing: '0.08em',
